@@ -75,7 +75,8 @@
       "transport": "Сетевая ошибка: {{message}}",
       "unauthorized": "Сервер отклонил запрос ({{status}}) — проверьте ключ API",
       "unexpectedStatus": "Неожиданный ответ на {{path}}: {{status}}",
-      "unhealthy": "Сервер нездоров (/health ответил {{status}}): возможно, он ещё загружает модель"
+      "unhealthy": "Сервер нездоров (/health ответил {{status}}): возможно, он ещё загружает модель",
+      "proxyUnreachable": "Не удалось подключиться к прокси {{address}}"
     },
     "settings": {
       "languageByPolicy": "Язык задан вашей организацией",

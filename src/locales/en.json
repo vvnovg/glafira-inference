@@ -63,7 +63,8 @@
       "notFound": "The server has no {{path}} (404)",
       "redirect": "The server redirects {{path}} to another address ({{status}}) — use the final address of the server",
       "serverError": "The server failed to answer {{path}} ({{status}})",
-      "unexpectedStatus": "Unexpected answer to {{path}}: {{status}}"
+      "unexpectedStatus": "Unexpected answer to {{path}}: {{status}}",
+      "proxyUnreachable": "Cannot connect to the proxy {{address}}"
     },
     "import": {
       "notGlafiraFile": "This is not a Glafira installations file",

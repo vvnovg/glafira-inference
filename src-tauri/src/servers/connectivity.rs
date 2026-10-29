@@ -136,6 +136,28 @@ pub async fn tcp_probe(host: &str, port: u16, limit: Duration) -> AppResult<Stri
     .with_details(last.unwrap_or_else(|| format!("{host}: no addresses"))))
 }
 
+/// Ошибка шага «DNS/TCP» для `host:port`, к которому подключались. При явном прокси это
+/// адрес прокси, а не сервера: ошибка называет прокси, а не винит имя или порт сервера.
+/// Адрес дописывается в `details` и в этом случае, и без прокси.
+fn tcp_failure(e: AppError, host: &str, port: u16, via_proxy: bool) -> AppError {
+    let address = format!("{host}:{port}");
+    let details = match &e.details {
+        Some(d) => format!("{d}\n{address}"),
+        None => address.clone(),
+    };
+    let e = if via_proxy {
+        app_err!(
+            ErrorCode::ConnectionFailed,
+            "errors.server.proxyUnreachable",
+            "Cannot connect to the proxy {{address}}",
+            address = address
+        )
+    } else {
+        e
+    };
+    e.with_details(details)
+}
+
 /// Сколько моделей шаг «Модели» называет по имени; остальные — числом.
 const SHOWN_MODELS: usize = 5;
 
@@ -224,7 +246,7 @@ pub async fn test_server(
                 ),
             )),
             Err(e) => {
-                steps.push(failed_step("tcp", e));
+                steps.push(failed_step("tcp", tcp_failure(e, &host, port, via_proxy)));
                 return report(steps, Vec::new());
             }
         },
@@ -644,6 +666,43 @@ mod tests {
             tcp_target(&s, &url),
             Some(("vllm.internal".into(), 443, false))
         );
+    }
+
+    #[tokio::test]
+    async fn tcp_failure_through_an_explicit_proxy_names_the_proxy() {
+        // Порт 1 закрыт; срок с запасом: на Windows отказ приходит примерно через 2 с.
+        let closed = Timeouts {
+            connect_ms: 10_000,
+            request_ms: 10_000,
+        };
+        let mut s = server("http://vllm.internal:8000");
+        s.proxy = ProxyConfig::Url {
+            url: "http://127.0.0.1:1".into(),
+        };
+        let r = test_server(&s, closed, None, &PolicyStatus::default()).await;
+        assert_eq!(names(&r), [("config", true), ("tcp", false)]);
+        let step = &r.steps[1];
+        assert_eq!(step.message.key, "errors.server.proxyUnreachable");
+        assert_eq!(step.message.params["address"], "127.0.0.1:1");
+        let e = step.error.as_ref().unwrap();
+        assert_eq!(e.code, ErrorCode::ConnectionFailed);
+        let details = e.details.as_deref().unwrap();
+        assert!(details.contains("127.0.0.1:1"), "{details}");
+        // Прежний текст ошибки сокета остался в подробностях.
+        assert!(details.lines().count() > 1, "{details}");
+
+        // Без прокси подключались к самому серверу: ошибка прежняя, адрес — в подробностях.
+        let r = test_server(
+            &server("http://127.0.0.1:1"),
+            closed,
+            None,
+            &PolicyStatus::default(),
+        )
+        .await;
+        let step = &r.steps[1];
+        assert_eq!(step.message.key, "errors.server.connect");
+        let details = step.error.as_ref().unwrap().details.as_deref().unwrap();
+        assert!(details.contains("127.0.0.1:1"), "{details}");
     }
 
     #[test]
