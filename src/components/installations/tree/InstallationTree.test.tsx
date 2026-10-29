@@ -2,9 +2,10 @@ import { act, createEvent, fireEvent, screen, waitFor, within } from "@testing-l
 import userEvent from "@testing-library/user-event";
 import { StrictMode } from "react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
-import type { InstallationFolder, InstallationProfile } from "../../../api/types";
+import type { InstallationFolder, InstallationInfo, InstallationProfile, ServerConfig } from "../../../api/types";
 import { renderWithClient } from "../../../test/render";
-import { newInstallation } from "../profile";
+import { installationQueryKey } from "../InstallationPanel";
+import { newInstallation, newServer } from "../profile";
 
 vi.mock("../../../api/client", async (importOriginal) => {
   const orig = await importOriginal<typeof import("../../../api/client")>();
@@ -20,6 +21,7 @@ vi.mock("../../../api/client", async (importOriginal) => {
       exportInstallations: vi.fn(),
       previewImport: vi.fn(),
       applyImport: vi.fn(),
+      connectInstallation: vi.fn(),
     },
   };
 });
@@ -588,6 +590,75 @@ describe("InstallationTree", () => {
       await waitFor(() => expect(openDialog).toHaveBeenCalled());
       expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
       expect(api.previewImport).not.toHaveBeenCalled();
+    });
+  });
+
+  describe("серверы в узле инсталляции", () => {
+    const SERVERS: ServerConfig[] = [
+      { ...newServer(), id: "s-ok", name: "vllm-ok", baseUrl: "http://10.0.0.1:8000" },
+      { ...newServer(), id: "s-err", name: "vllm-err", baseUrl: "https://10.0.0.2:8000" },
+      { ...newServer(), id: "s-new", name: "vllm-new", baseUrl: "https://10.0.0.3:8000" },
+    ];
+    const POOL: InstallationProfile = { ...newInstallation(), id: "z", name: "gpu-pool", servers: SERVERS };
+    /** Итог подключения из вкладки инсталляции: у «s-ok» есть сведения, у «s-err» ошибка, про «s-new» ничего нет. */
+    const INFO: InstallationInfo = {
+      installationId: "z",
+      servers: [
+        { serverId: "s-ok", facts: { kind: "vllm", detected: "vllm", version: "0.6.3", models: [], metrics: true, warnings: [] } },
+        { serverId: "s-err", error: { code: "CONNECTION_FAILED", message: "connection refused", retryable: true } },
+      ],
+    };
+
+    /** Кнопка сервера по адресу в `title`: узел один, адреса разные. */
+    const serverButton = (baseUrl: string) => screen.getByTitle(baseUrl);
+
+    beforeEach(() => {
+      vi.mocked(api.listInstallations).mockResolvedValue([POOL]);
+    });
+
+    it("состояние сервера берётся из кэша вкладки: подключён, ошибка, ещё не подключался", async () => {
+      const { client } = renderWithClient(<InstallationTree />);
+      await screen.findByText("gpu-pool");
+      // Без кэша вкладки у всех серверов «ещё не подключался».
+      expect(within(serverButton("http://10.0.0.1:8000")).getByRole("img", { name: "ещё не подключался" })).toHaveTextContent("○");
+
+      // Вкладка инсталляции подключилась позже первого рендера дерева: узел подхватывает её кэш.
+      act(() => {
+        client.setQueryData(installationQueryKey("z"), INFO);
+      });
+      const ok = await within(serverButton("http://10.0.0.1:8000")).findByRole("img", { name: "подключён" });
+      expect(ok).toHaveTextContent("●");
+      expect(ok).toHaveClass("srv-ok");
+      const failed = within(serverButton("https://10.0.0.2:8000")).getByRole("img", { name: "ошибка" });
+      expect(failed).toHaveTextContent("✕");
+      expect(failed).toHaveClass("srv-error");
+      const unknown = within(serverButton("https://10.0.0.3:8000")).getByRole("img", { name: "ещё не подключался" });
+      expect(unknown).toHaveTextContent("○");
+      expect(unknown).toHaveClass("muted");
+      expect(within(serverButton("http://10.0.0.1:8000")).getByText(/vllm-ok/)).toBeInTheDocument();
+      expect(api.connectInstallation).not.toHaveBeenCalled();
+    });
+
+    it("щелчок по серверу открывает вкладку инсталляции", async () => {
+      const user = userEvent.setup();
+      renderWithClient(<InstallationTree />);
+      await screen.findByText("gpu-pool");
+      expect(useWorkspace.getState().tabs).toEqual([]);
+      await user.click(serverButton("https://10.0.0.2:8000"));
+      expect(useWorkspace.getState().activeId).toBe("installation:z");
+      expect(useWorkspace.getState().tabs).toEqual([expect.objectContaining({ kind: "installation", installationId: "z" })]);
+    });
+
+    it("дерево само не подключается к серверам инсталляций", async () => {
+      vi.mocked(api.listInstallations).mockResolvedValue(CONNS);
+      renderWithClient(<InstallationTree />);
+      await screen.findByText("ocp-ift");
+      expect(screen.getByText("local")).toBeInTheDocument();
+      // Запрос, если бы он был включён, стартует при монтировании узла; даём ему шанс и убеждаемся, что его нет.
+      await act(async () => {
+        await new Promise((r) => setTimeout(r, 20));
+      });
+      expect(api.connectInstallation).not.toHaveBeenCalled();
     });
   });
 });
