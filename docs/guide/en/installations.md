@@ -70,4 +70,5 @@ read-only: Glafira will not run anything that loads or changes its servers.
 Drag installations into folders. [[ui:sidebar.exportAll]] and the export of a folder write a file without API keys:
 the recipient enters their own. Import shows what will be added and what updated. If an update changes the address,
 the proxy or the certificate verification of a server with a saved key, the preview warns that the key will go to the
-new address.
+new address. A server that is missing from the file disappears from the updated installation together with its saved
+key, and the preview warns about that too.

@@ -601,12 +601,21 @@ pub(crate) fn plan_import(
                     server.extra = old.extra.clone();
                 }
             }
-            removed_servers.extend(
-                slot.servers
-                    .iter()
-                    .filter(|old| profile.server(&old.id).is_none())
-                    .map(|old| (profile.id.clone(), old.id.clone())),
-            );
+            // Сервера, которого нет в файле, не станет, а с ним и его ключа API. Человек должен
+            // увидеть это в предпросмотре: «Обновлять существующие» включено по умолчанию.
+            for old in slot
+                .servers
+                .iter()
+                .filter(|old| profile.server(&old.id).is_none())
+            {
+                removed_servers.push((profile.id.clone(), old.id.clone()));
+                preview.warnings.push(ltext!(
+                    "messages.import.serverRemoved",
+                    "“{{name}}”: server “{{server}}” is not in the file and will be removed together with its saved API key",
+                    name = profile.name,
+                    server = old.name
+                ));
+            }
             // Адрес, прокси и CA берутся из файла, а ключи API остаются: файл из чужих рук
             // отправил бы их на другой сервер, и человек должен это увидеть.
             preview
@@ -1018,6 +1027,11 @@ mod tests {
         let p = plan(&data, &file(vec![], vec![incoming]), &opts(None));
         assert_eq!(inst(&p.next, "a").servers.len(), 1);
         assert_eq!(p.removed_servers, [("a".to_string(), "s2".to_string())]);
+        // Человек видит в предпросмотре, что убранный сервер уйдёт вместе с ключом API.
+        assert_eq!(warning_keys(&p.preview), ["messages.import.serverRemoved"]);
+        let w = &p.preview.warnings[0];
+        assert_eq!(w.params["name"], "inst-a");
+        assert_eq!(w.params["server"], "vllm-s2");
     }
 
     /// Локальное хранилище с инсталляцией `a` и план импорта файла, где `a` изменена `edit`.

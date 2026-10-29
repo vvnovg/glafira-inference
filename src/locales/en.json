@@ -113,7 +113,8 @@
     "import": {
       "addressChanged": "“{{name}}”, server “{{server}}”: the address changes from {{from}} to {{to}}. The saved API key will be sent to the new address.",
       "proxyChanged": "“{{name}}”, server “{{server}}”: the proxy settings change. The saved API key will go through the new proxy.",
-      "tlsChanged": "“{{name}}”, server “{{server}}”: the certificate verification settings change. The saved API key will be used with the new settings."
+      "tlsChanged": "“{{name}}”, server “{{server}}”: the certificate verification settings change. The saved API key will be used with the new settings.",
+      "serverRemoved": "“{{name}}”: server “{{server}}” is not in the file and will be removed together with its saved API key"
     }
   },
   "common": {
@@ -142,7 +143,7 @@
     },
     "import": {
       "target": "Where new folders and installations go. Existing ones stay where they are.",
-      "updateExisting": "Installations that already exist get the settings from the file; your API keys and their place in the tree are kept."
+      "updateExisting": "Existing installations get the settings from the file and keep their API keys and place in the tree. Servers missing from the file are removed together with their keys."
     }
   },
   "installations": {
