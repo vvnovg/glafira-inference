@@ -136,7 +136,7 @@
       "apiKey": "The <code>--api-key</code> of the server. Kept in the system secret store, not in a file; sent as <code>Authorization: Bearer</code>.",
       "metricsPath": "Where the server exposes Prometheus metrics: <code>/metrics</code>; SGLang needs <code>--enable-metrics</code>.",
       "ca": "System store — the CAs this computer trusts. Listed certificates — only them, the system ones are not used.",
-      "proxy": "System — the <code>HTTPS_PROXY</code> and <code>NO_PROXY</code> variables. Or an explicit address such as <code>http://proxy:3128</code>.",
+      "proxy": "System — the <code>HTTP_PROXY</code>, <code>HTTPS_PROXY</code>, <code>ALL_PROXY</code> and <code>NO_PROXY</code> environment variables, then the OS proxy settings. Or an explicit address such as <code>http://proxy:3128</code>.",
       "test": "Checks this server step by step with the values of the form, without saving: address, TLS, /health, API key, type, version, models.",
       "detectedKind": "The type Glafira works with. If it differs from what the server looks like, the type is chosen in the installation or the server version is too old."
     }
@@ -179,7 +179,7 @@
       "insecureForbidden": "Servers without certificate verification are forbidden by your organization",
       "proxy": "Proxy",
       "proxyMode": {
-        "system": "System (HTTPS_PROXY)",
+        "system": "System",
         "none": "No proxy",
         "url": "Proxy address"
       },

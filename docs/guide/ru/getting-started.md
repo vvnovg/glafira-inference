@@ -17,9 +17,10 @@ https://github.com/vvnovg/glafira-inference-releases/releases. Организа�
 
 1. Нажмите [[ui:sidebar.newInstallation]] в левой панели.
 2. Дайте инсталляции имя и выберите [[ui:installations.form.environment]].
-3. Для каждого сервера укажите [[ui:installations.form.baseUrl]] — адрес OpenAI-совместимого API без `/v1`, например
-   `http://vllm.internal:8000`, и [[ui:installations.form.apiKey]], если сервер запущен с `--api-key`. Подробнее —
-   [Серверы](installations.md#servers).
+3. Для каждого сервера задайте [[ui:installations.form.serverName]]: оно обязательно, а в одной инсталляции имена
+   серверов не должны повторяться (регистр букв не учитывается). Затем укажите [[ui:installations.form.baseUrl]] —
+   адрес OpenAI-совместимого API без `/v1`, например `http://vllm.internal:8000`, и [[ui:installations.form.apiKey]],
+   если сервер запущен с `--api-key`. Подробнее — [Серверы](installations.md#servers).
 4. Нажмите [[ui:installations.form.test]]: Glafira по шагам проверит адрес, TLS, `/health`, ключ, тип и версию
    сервера и его модели и покажет, на каком шаге ошибка. Затем нажмите [[ui:common.save]].
 5. Откроется вкладка инсталляции: какие серверы подключились, их тип, версия, модели и отдают ли они метрики.

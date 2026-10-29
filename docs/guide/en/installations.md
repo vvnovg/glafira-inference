@@ -37,12 +37,20 @@ to another address, so the key never goes where you did not send it.
 TCP, TLS (for `https://`), `/health`, sign-in with the key, type and version, models. The check stops at the first
 failed step and names it. Warnings (an old version, another type in the installation, no metrics) do not fail it.
 
+The [[ui:installations.form.step.tcp]] step depends on the proxy (see [Certificates and proxy](installations.md#tls)).
+If the system proxy applies to the server address, the step connects to nothing: it shows
+[[ui:messages.connectionTest.tcpSystemProxy]], and the steps after it go through the proxy. With an explicit proxy
+address, the step checks the TCP connection to the proxy itself, not to the server.
+
 ## Certificates and proxy {#tls}
 
 [[ui:installations.form.ca]]: the system store is the CAs this computer trusts; listed certificates are only them,
 without the system ones. Mode without certificate verification is insecure, and your organization can forbid it.
 
-[[ui:installations.form.proxy]]: system takes the `HTTPS_PROXY` and `NO_PROXY` variables; you can also enter a proxy
+[[ui:installations.form.proxy]]: with [[ui:installations.form.proxyMode.system]], the proxy comes from the `HTTP_PROXY`,
+`HTTPS_PROXY`, `ALL_PROXY` and `NO_PROXY` environment variables (`HTTP_PROXY` serves an `http://` server address,
+`HTTPS_PROXY` an `https://` one), and then from the network settings of the OS: the system network settings on macOS,
+the proxy settings on Windows. `NO_PROXY` lists the addresses that go without the proxy. You can also enter a proxy
 address or turn the proxy off.
 
 ## Installation tab {#installation-tab}
