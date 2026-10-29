@@ -175,8 +175,9 @@ pub fn detect(p: &Probe, models: &[Model]) -> DetectedKind {
 }
 
 /// У моделей нет `owned_by` вовсе — обратный прокси мог его вырезать; `/version` тогда решает.
+/// Пустой список ничего не решает: без моделей нет и признака «владельцев нет».
 fn owned_none(models: &[Model]) -> bool {
-    models.iter().all(|m| m.owned_by.is_none())
+    !models.is_empty() && models.iter().all(|m| m.owned_by.is_none())
 }
 
 /// Версия сервера: vLLM — `/version`, SGLang — `version` в сведениях о сервере.
@@ -517,6 +518,25 @@ mod tests {
             detect(&p, &parse_models(&p.models).unwrap()),
             DetectedKind::Openai
         );
+    }
+
+    #[test]
+    fn empty_model_list_does_not_make_vllm() {
+        // Пустой `/v1/models` ничего не говорит о типе: `/version` с версией сам по себе не решает.
+        let p = Probe {
+            version: Some(Answer {
+                status: 200,
+                body: br#"{"version":"0.11.0"}"#.to_vec(),
+            }),
+            models: br#"{"object":"list","data":[]}"#.to_vec(),
+            ..Probe::default()
+        };
+        let f = analyze(ServerKind::Auto, &p).unwrap();
+        assert_eq!(
+            (f.detected, f.kind),
+            (DetectedKind::Openai, DetectedKind::Openai)
+        );
+        assert!(keys(&f).is_empty(), "{:?}", keys(&f));
     }
 
     #[test]
