@@ -139,6 +139,10 @@
       "proxy": "System — the <code>HTTP_PROXY</code>, <code>HTTPS_PROXY</code>, <code>ALL_PROXY</code> and <code>NO_PROXY</code> environment variables, then the OS proxy settings. Or an explicit address such as <code>http://proxy:3128</code>.",
       "test": "Checks this server step by step with the values of the form, without saving: address, TLS, /health, API key, type, version, models.",
       "detectedKind": "The type Glafira works with. If it differs from what the server looks like, the type is chosen in the installation or the server version is too old."
+    },
+    "import": {
+      "target": "Where new folders and installations go. Existing ones stay where they are.",
+      "updateExisting": "Installations that already exist get the settings from the file; your API keys and their place in the tree are kept."
     }
   },
   "installations": {
@@ -261,6 +265,61 @@
     "newInstallation": "New installation",
     "newFolder": "New folder",
     "exportAll": "Export all…",
-    "import": "Import…"
+    "import": "Import…",
+    "installations": "Installations",
+    "editInstallation": "Edit installation",
+    "overview": "Overview",
+    "emptyHint": "Add your first installation or import a file in the <code>⋯</code> menu.",
+    "filter": "Filter installations",
+    "folderToggle": "Expand or collapse {{name}}",
+    "noMatches": "Nothing found",
+    "menu": "More actions",
+    "serverOk": "connected",
+    "serverError": "error",
+    "serverUnknown": "not connected yet",
+    "folder": {
+      "newInstallation": "New installation here",
+      "rename": "Rename",
+      "delete": "Delete",
+      "deleteConfirm": "Delete folder “{{name}}”?",
+      "namePlaceholder": "Folder name",
+      "export": "Export folder…",
+      "importHere": "Import here…"
+    }
+  },
+  "tabs": {
+    "settings": "Settings",
+    "about": "About",
+    "help": "Help",
+    "installationForm": "Installation: {{name}}",
+    "newInstallation": "New installation"
+  },
+  "layout": {
+    "closeTab": "Close tab",
+    "empty": "Select an installation on the left or add a new one."
+  },
+  "menu": {
+    "help": "Help",
+    "guide": "Glafira Guide",
+    "about": "About Glafira"
+  },
+  "exchange": {
+    "exported": "Saved: installations {{installations}}, folders {{folders}}",
+    "imported": "Imported: added {{added}}, updated {{updated}}",
+    "secretsNeeded_one": "Enter API keys for {{count}} installation",
+    "secretsNeeded_other": "Enter API keys for {{count}} installations",
+    "import": {
+      "title": "Import installations",
+      "target": "Import into",
+      "updateExisting": "Update existing installations",
+      "summary": "Added: {{added}} · Updated: {{updated}} · Unchanged: {{unchanged}} · Skipped: {{skipped}}",
+      "groupAdded": "New",
+      "groupUpdated": "Will be updated",
+      "groupUnchanged": "Unchanged",
+      "groupSkipped": "Skipped",
+      "secrets_one": "Enter API keys for {{count}} installation after import",
+      "secrets_other": "Enter API keys for {{count}} installations after import",
+      "apply": "Import"
+    }
   }
 }

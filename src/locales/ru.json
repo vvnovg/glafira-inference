@@ -139,6 +139,10 @@
       "proxy": "Системный — переменные окружения <code>HTTP_PROXY</code>, <code>HTTPS_PROXY</code>, <code>ALL_PROXY</code> и <code>NO_PROXY</code>, затем настройки прокси ОС. Или явный адрес вида <code>http://proxy:3128</code>.",
       "test": "Проверяет этот сервер по шагам со значениями формы, без сохранения: адрес, TLS, /health, ключ API, тип, версию, модели.",
       "detectedKind": "Тип, с которым работает Glafira. Если он не совпадает с признаками сервера, тип выбран в инсталляции или версия сервера слишком старая."
+    },
+    "import": {
+      "target": "Куда попадут новые папки и инсталляции. Существующие останутся на своих местах.",
+      "updateExisting": "Уже существующие инсталляции получат настройки из файла; ваши ключи API и их место в дереве сохранятся."
     }
   },
   "installations": {
@@ -261,6 +265,65 @@
     "newInstallation": "Новая инсталляция",
     "newFolder": "Новая папка",
     "exportAll": "Экспортировать всё…",
-    "import": "Импортировать…"
+    "import": "Импортировать…",
+    "installations": "Инсталляции",
+    "editInstallation": "Изменить инсталляцию",
+    "overview": "Обзор",
+    "emptyHint": "Добавьте первую инсталляцию или импортируйте файл из меню <code>⋯</code>.",
+    "filter": "Фильтр инсталляций",
+    "folderToggle": "Развернуть или свернуть {{name}}",
+    "noMatches": "Ничего не найдено",
+    "menu": "Ещё действия",
+    "serverOk": "подключён",
+    "serverError": "ошибка",
+    "serverUnknown": "ещё не подключался",
+    "folder": {
+      "newInstallation": "Новая инсталляция здесь",
+      "rename": "Переименовать",
+      "delete": "Удалить",
+      "deleteConfirm": "Удалить папку «{{name}}»?",
+      "namePlaceholder": "Имя папки",
+      "export": "Экспортировать папку…",
+      "importHere": "Импортировать сюда…"
+    }
+  },
+  "tabs": {
+    "settings": "Настройки",
+    "about": "О программе",
+    "help": "Справка",
+    "installationForm": "Инсталляция: {{name}}",
+    "newInstallation": "Новая инсталляция"
+  },
+  "layout": {
+    "closeTab": "Закрыть вкладку",
+    "empty": "Выберите инсталляцию слева или добавьте новую."
+  },
+  "menu": {
+    "help": "Справка",
+    "guide": "Руководство Glafira",
+    "about": "О программе"
+  },
+  "exchange": {
+    "exported": "Сохранено: инсталляций {{installations}}, папок {{folders}}",
+    "imported": "Импортировано: добавлено {{added}}, обновлено {{updated}}",
+    "secretsNeeded_one": "Введите ключи API для {{count}} инсталляции",
+    "secretsNeeded_few": "Введите ключи API для {{count}} инсталляций",
+    "secretsNeeded_many": "Введите ключи API для {{count}} инсталляций",
+    "secretsNeeded_other": "Введите ключи API для {{count}} инсталляции",
+    "import": {
+      "title": "Импорт инсталляций",
+      "target": "Куда импортировать",
+      "updateExisting": "Обновлять существующие инсталляции",
+      "summary": "Добавится: {{added}} · Обновится: {{updated}} · Без изменений: {{unchanged}} · Пропущено: {{skipped}}",
+      "groupAdded": "Новые",
+      "groupUpdated": "Обновятся",
+      "groupUnchanged": "Без изменений",
+      "groupSkipped": "Пропущены",
+      "secrets_one": "После импорта введите ключи API для {{count}} инсталляции",
+      "secrets_few": "После импорта введите ключи API для {{count}} инсталляций",
+      "secrets_many": "После импорта введите ключи API для {{count}} инсталляций",
+      "secrets_other": "После импорта введите ключи API для {{count}} инсталляции",
+      "apply": "Импортировать"
+    }
   }
 }

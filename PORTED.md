@@ -115,3 +115,21 @@
 | `src/components/settings/SettingsPanel.test.tsx` | `src/components/settings/SettingsPanel.test.tsx` | `468e08a` | адаптирован: без раздела MCP |
 | `src/components/about/AboutPanel.tsx` | `src/components/about/AboutPanel.tsx` | `468e08a` | адаптирован: без обновлений (этап I2) |
 | `src/components/about/AboutPanel.test.tsx` | `src/components/about/AboutPanel.test.tsx` | `468e08a` | адаптирован: без обновлений |
+| `src/components/installations/tree/InstallationTree.tsx` | `src/components/connections/tree/ConnectionTree.tsx` | `468e08a` | адаптирован: инсталляции вместо подключений, без импорта kubeconfig |
+| `src/components/installations/tree/InstallationTree.test.tsx` | `src/components/connections/tree/ConnectionTree.test.tsx` | `468e08a` | адаптирован: инсталляции, без импорта kubeconfig |
+| `src/components/installations/tree/FolderMenu.tsx` | `src/components/connections/tree/FolderMenu.tsx` | `468e08a` | как есть |
+| `src/components/installations/tree/ImportDialog.tsx` | `src/components/connections/tree/ImportDialog.tsx` | `468e08a` | адаптирован: инсталляции, без перезапуска сессий |
+| `src/components/installations/tree/ImportDialog.test.tsx` | `src/components/connections/tree/ImportDialog.test.tsx` | `468e08a` | адаптирован: ключи API серверов, без сессий |
+| `src/components/installations/tree/InstallationNode.tsx` | `src/components/connections/tree/ConnectionNode.tsx` | `468e08a` | адаптирован: серверы инсталляции вместо проектов кластера |
+| `src/components/Layout.tsx` | `src/components/Layout.tsx` | `468e08a` | адаптирован: вкладки инсталляций, без MCP, проверки и обновлений |
+| `src/components/Layout.test.tsx` | `src/components/Layout.test.tsx` | `468e08a` | адаптирован: вкладки инсталляций |
+| `src/components/Sidebar.tsx` | `src/components/Sidebar.tsx` | `468e08a` | адаптирован: дерево инсталляций, без индикатора MCP |
+| `src/components/Sidebar.test.tsx` | `src/components/Sidebar.test.tsx` | `468e08a` | адаптирован: без MCP |
+| `src/components/TabContent.tsx` | `src/components/TabContent.tsx` | `468e08a` | адаптирован: вкладки инсталляций |
+| `src/components/TabContent.help.test.tsx` | `src/components/TabContent.help.test.tsx` | `468e08a` | как есть |
+| `src/lib/useAppMenu.ts` | `src/lib/useAppMenu.ts` | `468e08a` | как есть |
+| `src/lib/useAppMenu.test.ts` | `src/lib/useAppMenu.test.ts` | `468e08a` | как есть |
+| `src/lib/useHelpShortcut.ts` | `src/lib/useHelpShortcut.ts` | `468e08a` | как есть |
+| `src/lib/tabActive.ts` | `src/lib/tabActive.ts` | `468e08a` | как есть |
+| `src/lib/tabActive.test.tsx` | `src/lib/tabActive.test.tsx` | `468e08a` | как есть |
+| `src/guide/noLookbehind.test.ts` | `src/guide/noLookbehind.test.ts` | `468e08a` | как есть |

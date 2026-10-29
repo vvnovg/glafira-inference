@@ -1,14 +1,22 @@
 import { render, screen } from "@testing-library/react";
 import { vi } from "vitest";
 
-vi.mock("./api/client", () => ({
-  api: { getLanguageSettings: vi.fn(() => new Promise(() => {})) },
-  toAppError: (e: unknown) => e,
-}));
+vi.mock("./api/client", async (importOriginal) => {
+  const orig = await importOriginal<typeof import("./api/client")>();
+  return {
+    ...orig,
+    api: {
+      getLanguageSettings: vi.fn(() => new Promise(() => {})),
+      listInstallations: vi.fn().mockResolvedValue([]),
+      listFolders: vi.fn().mockResolvedValue([]),
+    },
+  };
+});
 
 import App from "./App";
 
-test("показывает имя продукта", () => {
+test("первый запуск: пустое дерево с подсказкой и пустая рабочая область", async () => {
   render(<App />);
-  expect(screen.getByText("Glafira for LLM Inference")).toBeInTheDocument();
+  expect(await screen.findByText(/Добавьте первую инсталляцию/)).toBeInTheDocument();
+  expect(screen.getByText("Выберите инсталляцию слева или добавьте новую.")).toBeInTheDocument();
 });
