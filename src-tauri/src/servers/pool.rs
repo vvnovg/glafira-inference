@@ -49,6 +49,9 @@ impl Connected {
 #[derive(Default)]
 pub struct ServerPool {
     connected: Mutex<HashMap<String, Arc<Connected>>>,
+    /// Поколения инсталляций: растут при каждом `evict`. Порядок блокировок всегда
+    /// `generations`, затем `connected`, чтобы сверка поколения и вставка шли одним шагом.
+    generations: Mutex<HashMap<String, u64>>,
     locks: Mutex<HashMap<String, Arc<tokio::sync::Mutex<()>>>>,
 }
 
@@ -61,9 +64,28 @@ impl ServerPool {
         self.connected.lock_safe().insert(id.to_string(), c);
     }
 
-    /// Забывает инсталляцию: следующее чтение подключится заново.
+    /// Забывает инсталляцию: следующее чтение подключится заново. Подключение, начатое
+    /// раньше, в пул уже не попадёт (`insert_if_current`).
     pub fn evict(&self, id: &str) {
+        let mut generations = self.generations.lock_safe();
+        *generations.entry(id.to_string()).or_default() += 1;
         self.connected.lock_safe().remove(id);
+    }
+
+    /// Текущее поколение инсталляции: запоминается до чтения профиля и ключей.
+    pub fn generation(&self, id: &str) -> u64 {
+        self.generations.lock_safe().get(id).copied().unwrap_or(0)
+    }
+
+    /// Кладёт подключение, только если с момента `generation` инсталляцию не сбрасывали:
+    /// иначе оно собрано по устаревшим профилю и ключам. Возвращает, положено ли.
+    pub fn insert_if_current(&self, id: &str, generation: u64, c: Arc<Connected>) -> bool {
+        let generations = self.generations.lock_safe();
+        if generations.get(id).copied().unwrap_or(0) != generation {
+            return false;
+        }
+        self.connected.lock_safe().insert(id.to_string(), c);
+        true
     }
 
     /// Очередь подключений инсталляции `id`.
@@ -259,6 +281,16 @@ mod tests {
         assert_eq!(pool.get("a").unwrap().info.installation_id, "a");
         pool.evict("a");
         assert!(pool.get("a").is_none());
+
+        // Подключение, начатое до evict, в пул не попадает; чужой evict ему не мешает.
+        let started = pool.generation("a");
+        pool.evict("b");
+        assert!(pool.insert_if_current("a", started, connected("a")));
+        pool.evict("a");
+        assert!(!pool.insert_if_current("a", started, connected("a")));
+        assert!(pool.get("a").is_none());
+        assert!(pool.insert_if_current("a", pool.generation("a"), connected("a")));
+        assert!(pool.get("a").is_some());
     }
 
     #[tokio::test]

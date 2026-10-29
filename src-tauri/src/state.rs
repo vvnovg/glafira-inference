@@ -1,7 +1,7 @@
 use std::path::Path;
 use std::sync::Arc;
 
-use crate::error::{AppResult, ErrorCode};
+use crate::error::AppResult;
 use crate::secrets::SecretStore;
 use crate::servers::pool::{Connected, ServerPool, open, read_api_keys};
 use crate::storage::installations::InstallationStore;
@@ -44,22 +44,16 @@ impl AppState {
         } else if let Some(c) = self.pool.get(id) {
             return Ok(c);
         }
+        // Поколение до чтения профиля: сброс во время подключения делает результат устаревшим.
+        let generation = self.pool.generation(id);
         let profile = self.installations.get(id)?;
         let keys = {
             let (secrets, p) = (self.secrets.clone(), profile.clone());
-            tokio::task::spawn_blocking(move || read_api_keys(secrets.as_ref(), &p))
-                .await
-                .map_err(|e| {
-                    app_err!(
-                        ErrorCode::Internal,
-                        "errors.app.taskPanicked",
-                        "Background task failed: {{error}}",
-                        error = e
-                    )
-                })?
+            crate::commands::blocking(move || Ok(read_api_keys(secrets.as_ref(), &p))).await?
         };
         let c = Arc::new(open(&profile, keys, &self.policy.status).await);
-        self.pool.insert(id, c.clone());
+        // Устаревшее подключение вызвавший получает, но в пул оно не попадает.
+        self.pool.insert_if_current(id, generation, c.clone());
         Ok(c)
     }
 
@@ -72,6 +66,7 @@ impl AppState {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::error::ErrorCode;
     use crate::secrets::{API_KEY, MemoryStore, secret_key};
     use crate::servers::testing::{Reply, TestServer};
     use crate::storage::profile::{ProxyConfig, sample_profile};
@@ -134,5 +129,32 @@ mod tests {
         let (a, b) = tokio::join!(st.connected("a", false), st.connected("a", false));
         assert!(Arc::ptr_eq(&a.unwrap(), &b.unwrap()));
         assert_eq!(srv.paths().iter().filter(|p| *p == "/v1/models").count(), 1);
+    }
+
+    #[tokio::test]
+    async fn connect_started_before_evict_is_not_cached() {
+        let srv = TestServer::start(vec![(
+            "/v1/models",
+            Reply::json(r#"{"data":[]}"#).delayed(std::time::Duration::from_millis(300)),
+        )])
+        .await;
+        let (_d, st, _) = state_with(&srv.url()).await;
+        let (connected, ()) = tokio::join!(st.connected("a", false), async {
+            // Ждём, пока подключение уйдёт в сеть, и сбрасываем его: профиль «изменился».
+            while !srv.paths().contains(&"/v1/models".to_string()) {
+                tokio::time::sleep(std::time::Duration::from_millis(10)).await;
+            }
+            st.evict_installation("a");
+        });
+        assert!(connected.is_ok(), "вызвавший всё равно получает результат");
+        assert!(
+            st.pool.get("a").is_none(),
+            "устаревшее подключение в пул не попадает"
+        );
+        st.connected("a", false).await.unwrap();
+        assert!(
+            st.pool.get("a").is_some(),
+            "следующее подключение кешируется"
+        );
     }
 }
