@@ -35,6 +35,7 @@
       "icons/icon.icns",
       "icons/icon.ico"
     ],
+    "createUpdaterArtifacts": true,
     "publisher": "Glafira for LLM Inference",
     "category": "DeveloperTool",
     "shortDescription": "Glafira for LLM Inference — desktop client for auditing and diagnosing corporate LLM inference",
@@ -49,6 +50,12 @@
         "upgradeCode": "1ff11da8-a39b-44bb-9338-b6e77c70f9e3",
         "language": ["en-US"]
       }
+    }
+  },
+  "plugins": {
+    "updater": {
+      "pubkey": "REPLACE_WITH_UPDATER_PUBKEY",
+      "endpoints": ["https://github.com/vvnovg/glafira-inference-releases/releases/latest/download/latest.json"]
     }
   }
 }

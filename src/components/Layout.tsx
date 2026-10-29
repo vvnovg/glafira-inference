@@ -8,6 +8,7 @@ import { EnvBadge } from "./common/EnvBadge";
 import { Sidebar } from "./Sidebar";
 import { i18n } from "../i18n";
 import { TabContent } from "./TabContent";
+import { UpdateNotice } from "./about/UpdateNotice";
 import { TabActiveContext } from "../lib/tabActive";
 import { useHelpShortcut } from "../lib/useHelpShortcut";
 
@@ -43,6 +44,7 @@ export function Layout() {
       <Sidebar />
       <main className="workspace">
         <div className="env-stripe" style={{ background: activeInst ? ENV_COLORS[activeInst.environment] : "transparent" }} />
+        <UpdateNotice />
         <nav className="tabbar" role="tablist">
           {tabs.map((tab) => {
             const tInstId = tabInstallation(tab);

@@ -12,6 +12,7 @@ import type {
   SecretsInput,
   TestReport,
   TreeItemRef,
+  UpdateCheck,
 } from "./types";
 
 export function isAppError(e: unknown): e is AppError {
@@ -38,6 +39,8 @@ export const api = {
   getLanguageSettings: () => call<LanguageSettings>("get_language_settings"),
   setLanguage: (lang: string | null) => call<LanguageSettings>("set_language", { lang }),
   getPolicyStatus: () => call<PolicyStatus>("get_policy_status"),
+  checkUpdate: () => call<UpdateCheck>("check_update"),
+  installUpdate: () => call<void>("install_update"),
 
   listInstallations: () => call<InstallationProfile[]>("list_installations"),
   saveInstallation: (profile: InstallationProfile, secrets: SecretsInput = {}) =>

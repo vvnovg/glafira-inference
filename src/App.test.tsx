@@ -7,6 +7,7 @@ vi.mock("./api/client", async (importOriginal) => {
     ...orig,
     api: {
       getLanguageSettings: vi.fn(() => new Promise(() => {})),
+      checkUpdate: vi.fn().mockResolvedValue({ status: "upToDate" }),
       listInstallations: vi.fn().mockResolvedValue([]),
       listFolders: vi.fn().mockResolvedValue([]),
     },

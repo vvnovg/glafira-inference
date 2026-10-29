@@ -60,9 +60,9 @@
 | `src-tauri/src/commands/folders.rs` | `src-tauri/src/commands/folders.rs` | `468e08a` | адаптирован: удаление ключей серверов, которых нет в файле; без exec-плагинов и сессий |
 | `src-tauri/src/servers/errors.rs` | `src-tauri/src/k8s/errors.rs` | `468e08a` | адаптирован: только сетевые ошибки и коды HTTP сервера инференса, ключи `errors.server.*` |
 | `src-tauri/src/servers/connectivity.rs` | `src-tauri/src/k8s/connectivity.rs` | `468e08a` | адаптирован: шаги сервера инференса (здоровье, вход ключом API, тип и версия, модели), предупреждения, системный прокси |
-| `src-tauri/src/commands/app.rs` | `src-tauri/src/commands/app.rs` | `468e08a` | адаптирован: только сведения «О программе», обновления — в I2 |
+| `src-tauri/src/commands/app.rs` | `src-tauri/src/commands/app.rs` | `468e08a` | адаптирован: обновления без подтверждения про ассистентов MCP (шлюза до I2 нет), адрес репозитория релизов |
 | `src-tauri/src/commands/installations.rs` | `src-tauri/src/commands/connections.rs` | `468e08a` | адаптирован: ключи API серверов вместо токена и ключа сертификата, проверка сервера, подключение инсталляции |
-| `scripts/i18n-check.mjs` | `scripts/i18n-check.mjs` | `468e08a` | адаптирован: глав руководства пока нет |
+| `scripts/i18n-check.mjs` | `scripts/i18n-check.mjs` | `468e08a` | адаптирован: главы «Начало работы», «Инсталляции» и «Обновления» |
 | `scripts/i18n-check.test.mjs` | `scripts/i18n-check.test.mjs` | `468e08a` | как есть |
 | `scripts/changelog.mjs` | `scripts/changelog.mjs` | `468e08a` | как есть |
 | `scripts/changelog.test.mjs` | `scripts/changelog.test.mjs` | `468e08a` | как есть |
@@ -102,7 +102,7 @@
 | `scripts/guide-publish.mjs` | `scripts/guide-publish.mjs` | `468e08a` | адаптирован: имя продукта |
 | `scripts/guide-publish.test.mjs` | `scripts/guide-publish.test.mjs` | `468e08a` | как есть |
 | `scripts/guide-publish.d.mts` | `scripts/guide-publish.d.mts` | `468e08a` | как есть |
-| `src/guide/chapters.ts` | `src/guide/chapters.ts` | `468e08a` | адаптирован: главы «Начало работы» и «Инсталляции» |
+| `src/guide/chapters.ts` | `src/guide/chapters.ts` | `468e08a` | адаптирован: главы «Начало работы», «Инсталляции» и «Обновления» |
 | `src/guide/chapters.test.ts` | `src/guide/chapters.test.ts` | `468e08a` | адаптирован: глава «Инсталляции» |
 | `src/guide/parse.ts` | `src/guide/parse.ts` | `468e08a` | как есть |
 | `src/guide/parse.test.ts` | `src/guide/parse.test.ts` | `468e08a` | адаптирован: глава «Инсталляции» |
@@ -113,15 +113,15 @@
 | `src/state/helpContext.ts` | `src/state/helpContext.ts` | `468e08a` | как есть |
 | `src/components/settings/SettingsPanel.tsx` | `src/components/settings/SettingsPanel.tsx` | `468e08a` | адаптирован: без раздела MCP (этап I2) |
 | `src/components/settings/SettingsPanel.test.tsx` | `src/components/settings/SettingsPanel.test.tsx` | `468e08a` | адаптирован: без раздела MCP |
-| `src/components/about/AboutPanel.tsx` | `src/components/about/AboutPanel.tsx` | `468e08a` | адаптирован: без обновлений (этап I2) |
-| `src/components/about/AboutPanel.test.tsx` | `src/components/about/AboutPanel.test.tsx` | `468e08a` | адаптирован: без обновлений |
+| `src/components/about/AboutPanel.tsx` | `src/components/about/AboutPanel.tsx` | `468e08a` | адаптирован: обновления без подтверждения про ассистентов MCP |
+| `src/components/about/AboutPanel.test.tsx` | `src/components/about/AboutPanel.test.tsx` | `468e08a` | адаптирован: установка обновления без подтверждения, данные теста этого продукта |
 | `src/components/installations/tree/InstallationTree.tsx` | `src/components/connections/tree/ConnectionTree.tsx` | `468e08a` | адаптирован: инсталляции вместо подключений, без импорта kubeconfig |
 | `src/components/installations/tree/InstallationTree.test.tsx` | `src/components/connections/tree/ConnectionTree.test.tsx` | `468e08a` | адаптирован: инсталляции, без импорта kubeconfig |
 | `src/components/installations/tree/FolderMenu.tsx` | `src/components/connections/tree/FolderMenu.tsx` | `468e08a` | как есть |
 | `src/components/installations/tree/ImportDialog.tsx` | `src/components/connections/tree/ImportDialog.tsx` | `468e08a` | адаптирован: инсталляции, без перезапуска сессий |
 | `src/components/installations/tree/ImportDialog.test.tsx` | `src/components/connections/tree/ImportDialog.test.tsx` | `468e08a` | адаптирован: ключи API серверов, без сессий |
 | `src/components/installations/tree/InstallationNode.tsx` | `src/components/connections/tree/ConnectionNode.tsx` | `468e08a` | адаптирован: серверы инсталляции вместо проектов кластера |
-| `src/components/Layout.tsx` | `src/components/Layout.tsx` | `468e08a` | адаптирован: вкладки инсталляций, без MCP, проверки и обновлений |
+| `src/components/Layout.tsx` | `src/components/Layout.tsx` | `468e08a` | адаптирован: вкладки инсталляций, без MCP и проверки |
 | `src/components/Layout.test.tsx` | `src/components/Layout.test.tsx` | `468e08a` | адаптирован: вкладки инсталляций |
 | `src/components/Sidebar.tsx` | `src/components/Sidebar.tsx` | `468e08a` | адаптирован: дерево инсталляций, без индикатора MCP |
 | `src/components/Sidebar.test.tsx` | `src/components/Sidebar.test.tsx` | `468e08a` | адаптирован: без MCP |
@@ -147,3 +147,10 @@
 | `scripts/make-pkg.sh` | `scripts/make-pkg.sh` | `468e08a` | как есть |
 | `scripts/third-party.mjs` | `scripts/third-party.mjs` | `468e08a` | адаптирован: имя продукта |
 | `scripts/third-party.test.mjs` | `scripts/third-party.test.mjs` | `468e08a` | адаптирован: имя продукта в данных теста |
+| `src/components/about/ReleaseNotes.tsx` | `src/components/about/ReleaseNotes.tsx` | `468e08a` | как есть |
+| `src/components/about/UpdateNotice.tsx` | `src/components/about/UpdateNotice.tsx` | `468e08a` | как есть |
+| `src/components/about/UpdateNotice.test.tsx` | `src/components/about/UpdateNotice.test.tsx` | `468e08a` | как есть |
+| `src/components/common/ChunkBoundary.tsx` | `src/components/common/ChunkBoundary.tsx` | `468e08a` | как есть |
+| `src/components/common/ExternalLink.tsx` | `src/components/common/ExternalLink.tsx` | `468e08a` | как есть |
+| `docs/guide/en/updates.md` | `docs/guide/en/updates.md` | `468e08a` | адаптирован: без абзаца об ассистентах MCP, папка данных, адреса репозитория релизов |
+| `docs/guide/ru/updates.md` | `docs/guide/ru/updates.md` | `468e08a` | адаптирован: без абзаца об ассистентах MCP, папка данных, адреса репозитория релизов |
