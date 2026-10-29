@@ -181,6 +181,10 @@ fn import_from_file(
             tracing::warn!("api key of a removed server was not deleted: {e}");
         }
     }
+    // Обновлённые инсталляции подключатся заново с новым профилем — как при сохранении формы.
+    for item in &preview.updated {
+        st.evict_installation(&item.id);
+    }
     Ok(preview)
 }
 
@@ -255,15 +259,30 @@ mod tests {
         let conns = dir.path().join("installations.json");
         let before = std::fs::read(&conns).unwrap();
 
+        st.pool.insert(
+            "a",
+            Arc::new(crate::servers::pool::Connected {
+                info: crate::servers::pool::InstallationInfo {
+                    installation_id: "a".into(),
+                    servers: Vec::new(),
+                },
+                clients: Default::default(),
+            }),
+        );
         let preview = import_from_file(&st, &path, None, true, false).unwrap();
         assert_eq!(preview.updated.len(), 1);
         assert_eq!(preview.added.len(), 1);
+        assert!(st.pool.get("a").is_some(), "предпросмотр ничего не меняет");
         // prod-инсталляция импортируется как в файле: без принудительного read-only.
         assert!(preview.warnings.is_empty());
         assert_eq!(std::fs::read(&conns).unwrap(), before);
 
         let applied = import_from_file(&st, &path, None, true, true).unwrap();
         assert_eq!(applied, preview);
+        assert!(
+            st.pool.get("a").is_none(),
+            "обновлённая инсталляция подключится заново"
+        );
         assert_eq!(
             st.installations.get("a").unwrap().servers[0].base_url,
             "http://changed:8000"

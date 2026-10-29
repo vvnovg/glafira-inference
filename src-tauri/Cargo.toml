@@ -32,6 +32,7 @@ url = "2"
 uuid = { version = "1", features = ["v4"] }
 time = { version = "0.3", features = ["formatting", "parsing"] }
 tokio = { version = "1", features = ["rt", "macros", "time", "net", "io-util", "sync"] }
+futures = "0.3"
 reqwest = { version = "0.13", default-features = false, features = ["rustls-no-provider", "http2", "system-proxy"] }
 sys-locale = "0.3"
 
