@@ -5,7 +5,6 @@ use time::format_description::well_known::Rfc3339;
 
 use super::blocking;
 use crate::error::{AppError, AppResult};
-use crate::secrets::{API_KEY, secret_key};
 use crate::state::AppState;
 use crate::storage::exchange::{
     ExportSummary, ImportOptions, ImportPreview, StoredSecrets, build_export, parse_exchange,
@@ -171,14 +170,14 @@ fn import_from_file(
         *data = plan.next;
         Ok((plan.preview, plan.removed_servers))
     })?;
-    // Ключи API серверов, которых больше нет в профиле, не нужны. Сбой keychain импорт не
-    // отменяет: профиль уже записан, а лишняя запись в keychain ничего не открывает.
+    // Секреты серверов, которых больше нет в профиле, не нужны: удаляются все, как при
+    // сохранении и удалении инсталляции. Сбой keychain импорт не отменяет: профиль уже
+    // записан, а лишняя запись в keychain ничего не открывает.
     for (installation, server) in removed {
-        if let Err(e) = st
-            .secrets
-            .delete(&secret_key(&installation, &server, API_KEY))
-        {
-            tracing::warn!("api key of a removed server was not deleted: {e}");
+        if let Err(e) = st.delete_server_secrets(&installation, &server) {
+            tracing::warn!(
+                "secrets of server {server} of installation {installation} were not deleted: {e}"
+            );
         }
     }
     // Обновлённые инсталляции подключатся заново с новым профилем — как при сохранении формы.
@@ -193,7 +192,7 @@ mod tests {
     use std::sync::Arc;
 
     use super::*;
-    use crate::secrets::{MemoryStore, SecretStore};
+    use crate::secrets::{API_KEY, MemoryStore, SecretStore, secret_key};
     use crate::storage::installations::sample_profile;
 
     #[test]
@@ -480,6 +479,78 @@ mod tests {
                 .get(&secret_key("a", "s1", API_KEY))
                 .unwrap()
                 .is_some()
+        );
+    }
+
+    /// Keychain, который ничего не удаляет; остальное — как `MemoryStore`.
+    struct DenyDelete(MemoryStore);
+
+    impl SecretStore for DenyDelete {
+        fn get(&self, key: &str) -> AppResult<Option<String>> {
+            self.0.get(key)
+        }
+        fn set(&self, key: &str, value: &str) -> AppResult<()> {
+            self.0.set(key, value)
+        }
+        fn delete(&self, _key: &str) -> AppResult<()> {
+            Err(AppError::internal_with("denied"))
+        }
+    }
+
+    /// Журнал, записанный за время `f`.
+    fn logged(f: impl FnOnce()) -> String {
+        use tracing_subscriber::fmt::MakeWriter;
+
+        #[derive(Clone, Default)]
+        struct Buf(Arc<std::sync::Mutex<Vec<u8>>>);
+
+        impl std::io::Write for Buf {
+            fn write(&mut self, bytes: &[u8]) -> std::io::Result<usize> {
+                self.0.lock().unwrap().extend_from_slice(bytes);
+                Ok(bytes.len())
+            }
+            fn flush(&mut self) -> std::io::Result<()> {
+                Ok(())
+            }
+        }
+
+        impl<'a> MakeWriter<'a> for Buf {
+            type Writer = Buf;
+            fn make_writer(&'a self) -> Buf {
+                self.clone()
+            }
+        }
+
+        let buf = Buf::default();
+        let subscriber = tracing_subscriber::fmt()
+            .with_writer(buf.clone())
+            .with_ansi(false)
+            .finish();
+        tracing::subscriber::with_default(subscriber, f);
+        let out = buf.0.lock().unwrap().clone();
+        String::from_utf8(out).unwrap()
+    }
+
+    #[test]
+    fn failed_cleanup_of_a_removed_server_is_logged_with_its_ids_and_does_not_fail_the_import() {
+        let dir = tempfile::tempdir().unwrap();
+        let st = AppState::new(dir.path(), Arc::new(DenyDelete(MemoryStore::default()))).unwrap();
+        let mut two = sample_profile("a");
+        two.servers
+            .push(crate::storage::profile::sample_server("s2"));
+        st.installations.upsert(two).unwrap();
+        let path = write_file(dir.path(), "https://s1.dev.example.com:8000");
+
+        let mut result = None;
+        let log = logged(|| result = Some(import_from_file(&st, &path, None, true, true)));
+        assert!(
+            result.unwrap().is_ok(),
+            "сбой keychain импорт не отменяет: профиль уже записан"
+        );
+        assert_eq!(st.installations.get("a").unwrap().servers.len(), 1);
+        assert!(
+            log.contains("server s2") && log.contains("installation a"),
+            "в журнале id инсталляции и сервера: {log}"
         );
     }
 }
