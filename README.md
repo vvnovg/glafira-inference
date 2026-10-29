@@ -3,6 +3,10 @@
 Desktop-приложение (Tauri 2 + Rust + React) для подключения к корпоративному инференсу open-source LLM, его
 мониторинга, диагностики и аудита; в фокусе — vLLM и SGLang на GPU NVIDIA.
 
+Состояние: готов этап I1a — подключение и проверка. Это инсталляции из серверов, определение типа, версии и моделей
+сервера, пошаговая проверка сервера, папки, экспорт и импорт. Мониторинг, диагностика и аудит появятся в следующих
+этапах, I1b–I7 (спецификация, §20).
+
 vLLM, SGLang, LiteLLM, NVIDIA and other product names are trademarks of their respective owners. This project is not
 affiliated with them.
 
