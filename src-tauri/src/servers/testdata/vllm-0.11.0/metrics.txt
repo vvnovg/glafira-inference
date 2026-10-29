@@ -1,0 +1,18 @@
+# HELP python_gc_objects_collected_total Objects collected during gc
+# TYPE python_gc_objects_collected_total counter
+python_gc_objects_collected_total{generation="0"} 21458.0
+# HELP vllm:num_requests_running Number of requests in model execution batches.
+# TYPE vllm:num_requests_running gauge
+vllm:num_requests_running{engine="0",model_name="qwen3-32b"} 3.0
+# HELP vllm:num_requests_waiting Number of requests waiting to be processed.
+# TYPE vllm:num_requests_waiting gauge
+vllm:num_requests_waiting{engine="0",model_name="qwen3-32b"} 0.0
+# HELP vllm:kv_cache_usage_perc KV-cache usage. 1 means 100 percent usage.
+# TYPE vllm:kv_cache_usage_perc gauge
+vllm:kv_cache_usage_perc{engine="0",model_name="qwen3-32b"} 0.31
+# HELP vllm:num_preemptions_total Cumulative number of preemption from the engine.
+# TYPE vllm:num_preemptions_total counter
+vllm:num_preemptions_total{engine="0",model_name="qwen3-32b"} 0.0
+# HELP vllm:cache_config_info Information of the LLMEngine CacheConfig
+# TYPE vllm:cache_config_info gauge
+vllm:cache_config_info{block_size="16",cache_dtype="auto",enable_prefix_caching="True",engine="0",gpu_memory_utilization="0.9",num_gpu_blocks="21904",num_cpu_blocks="None",swap_space="4"} 1.0

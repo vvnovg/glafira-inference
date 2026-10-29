@@ -1,0 +1,6 @@
+# HELP vllm:num_requests_running Number of requests in model execution batches.
+# TYPE vllm:num_requests_running gauge
+vllm:num_requests_running{engine="0",model_name="llama-3.1-8b"} 0.0
+# HELP vllm:gpu_cache_usage_perc GPU KV-cache usage. 1 means 100 percent usage.
+# TYPE vllm:gpu_cache_usage_perc gauge
+vllm:gpu_cache_usage_perc{engine="0",model_name="llama-3.1-8b"} 0.0

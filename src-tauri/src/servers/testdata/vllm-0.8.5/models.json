@@ -1,0 +1,1 @@
+{"object":"list","data":[{"id":"llama-3.1-8b","object":"model","created":1747000000,"owned_by":"vllm","root":"/models/Meta-Llama-3.1-8B-Instruct","parent":null,"max_model_len":131072,"permission":[]},{"id":"sql-lora","object":"model","created":1747000000,"owned_by":"vllm","root":"/adapters/sql-lora","parent":"llama-3.1-8b","max_model_len":null,"permission":[]}]}
