@@ -1332,6 +1332,7 @@ name = "glafira-inference"
 version = "0.1.0"
 dependencies = [
  "futures",
+ "hyper-util",
  "keyring",
  "pem",
  "plist",

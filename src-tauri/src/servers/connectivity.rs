@@ -4,6 +4,7 @@
 
 use std::time::Duration;
 
+use hyper_util::client::proxy::matcher::Matcher;
 use serde::Serialize;
 
 use crate::error::{AppError, AppResult, ErrorCode};
@@ -11,7 +12,7 @@ use crate::i18n::LocalizedText;
 use crate::policy::PolicyStatus;
 use crate::servers::client::{JSON_LIMIT, ServerClient, Timeouts};
 use crate::servers::detect::{ServerFacts, analyze};
-use crate::servers::errors::timeout;
+use crate::servers::errors::{from_status, timeout};
 use crate::servers::probe::probe;
 use crate::storage::profile::{ProxyConfig, ServerConfig, parse_base_url, validate_server};
 
@@ -60,11 +61,23 @@ fn report(steps: Vec<TestStep>, warnings: Vec<LocalizedText>) -> TestReport {
 }
 
 /// Куда открыть TCP: прокси из профиля или сервер (порт по умолчанию — 80 или 443). `None` —
-/// системный прокси из окружения: прямое соединение ничего бы не доказало.
+/// системный прокси (окружение или настройки ОС): прямое соединение ничего бы не доказало.
 pub fn tcp_target(s: &ServerConfig, url: &url::Url) -> Option<(String, u16, bool)> {
+    // Системные настройки читаем только когда профиль на них ссылается.
+    let system_proxy =
+        matches!(s.proxy, ProxyConfig::System) && proxy_intercepts(&Matcher::from_system(), url);
+    tcp_target_with(s, url, system_proxy)
+}
+
+/// То же, что [`tcp_target`], но «покрывает ли адрес сервера системный прокси» уже решено.
+pub fn tcp_target_with(
+    s: &ServerConfig,
+    url: &url::Url,
+    system_proxy: bool,
+) -> Option<(String, u16, bool)> {
     let proxy = match &s.proxy {
         ProxyConfig::Url { url } => url::Url::parse(url.trim()).ok(),
-        ProxyConfig::System if system_proxy_set(url.scheme()) => return None,
+        ProxyConfig::System if system_proxy => return None,
         _ => None,
     };
     let (target, via_proxy) = match &proxy {
@@ -79,16 +92,15 @@ pub fn tcp_target(s: &ServerConfig, url: &url::Url) -> Option<(String, u16, bool
     Some((host, target.port_or_known_default()?, via_proxy))
 }
 
-/// Задан ли системный прокси для схемы адреса (`HTTPS_PROXY` / `HTTP_PROXY`, `ALL_PROXY`).
-fn system_proxy_set(scheme: &str) -> bool {
-    let names: &[&str] = if scheme == "https" {
-        &["HTTPS_PROXY", "https_proxy", "ALL_PROXY", "all_proxy"]
-    } else {
-        &["HTTP_PROXY", "http_proxy", "ALL_PROXY", "all_proxy"]
-    };
-    names
-        .iter()
-        .any(|n| std::env::var(n).is_ok_and(|v| !v.trim().is_empty()))
+/// Перехватывает ли прокси матчера запросы к `url`. Матчер тот же, что у HTTP-клиента
+/// (`Matcher::from_system()` в reqwest): переменные окружения, а затем SCDynamicStore на macOS и
+/// реестр на Windows, с учётом `NO_PROXY`. Так проверка видит прокси ровно тогда, когда его видит
+/// клиент. Адрес, который не разобрался как URI, прокси не покрывает.
+fn proxy_intercepts(matcher: &Matcher, url: &url::Url) -> bool {
+    // Тип `http::Uri` выводится из сигнатуры `intercept`: отдельная зависимость от `http` не нужна.
+    url.as_str()
+        .parse()
+        .is_ok_and(|uri| matcher.intercept(&uri).is_some())
 }
 
 /// DNS и TCP-соединение с `host:port` за отведённое время. Успех — адрес, к которому подключились.
@@ -258,7 +270,10 @@ pub async fn test_server(
                 "/health requires an API key — checked by the next step"
             ),
         )),
-        status => {
+        // Только 5xx говорит о самом сервере (например, модель ещё грузится). Остальное — не про
+        // здоровье: перенаправление (клиент за ним не идёт; обычно `http://` вместо `https://`),
+        // ответ шлюза (400, 405, 429) — называем их по статусу, как и другие шаги.
+        status @ 500..=599 => {
             steps.push(failed_step(
                 "health",
                 app_err!(
@@ -268,6 +283,10 @@ pub async fn test_server(
                     status = status
                 ),
             ));
+            return report(steps, Vec::new());
+        }
+        status => {
+            steps.push(failed_step("health", from_status(status, "/health")));
             return report(steps, Vec::new());
         }
     }
@@ -487,6 +506,34 @@ mod tests {
     }
 
     #[tokio::test]
+    async fn health_redirect_and_gateway_statuses_are_not_taken_for_a_loading_model() {
+        // Клиент не следует перенаправлениям: `http://` вместо `https://` даёт 301, и это ошибка
+        // адреса, а не загрузка модели. Так же выглядят 400, 405 и 429 от шлюзов.
+        for (status, key) in [
+            (301, "errors.server.redirect"),
+            (308, "errors.server.redirect"),
+            (400, "errors.server.unexpectedStatus"),
+            (405, "errors.server.unexpectedStatus"),
+            (429, "errors.server.unexpectedStatus"),
+        ] {
+            let health = Reply::status(status).header("location", "https://example.invalid/health");
+            let srv = TestServer::start(vllm(health)).await;
+            let r = run(&server(&srv.url()), None).await;
+            assert_eq!(
+                names(&r),
+                [("config", true), ("tcp", true), ("health", false)],
+                "{status}"
+            );
+            let step = &r.steps[2];
+            assert_eq!(step.message.key, key, "{status}");
+            let e = step.error.as_ref().unwrap();
+            assert_eq!(e.key, key, "{status}");
+            assert_eq!(e.params["path"], "/health", "{status}");
+            assert_eq!(e.params["status"], status.to_string(), "{status}");
+        }
+    }
+
+    #[tokio::test]
     async fn missing_and_rejected_keys_are_told_apart() {
         let srv = TestServer::start(vec![
             ("/health", Reply::status(401)),
@@ -557,6 +604,50 @@ mod tests {
             tcp_target(&s, &url),
             Some(("vllm.internal".into(), 443, false))
         );
+    }
+
+    #[test]
+    fn tcp_is_skipped_when_the_system_proxy_covers_the_server() {
+        let mut s = server("https://vllm.internal");
+        s.proxy = ProxyConfig::System;
+        let url = parse_base_url(&s).unwrap();
+        assert_eq!(tcp_target_with(&s, &url, true), None);
+        assert_eq!(
+            tcp_target_with(&s, &url, false),
+            Some(("vllm.internal".into(), 443, false))
+        );
+        // Прокси из профиля и «без прокси» системный прокси не затрагивает.
+        s.proxy = ProxyConfig::None;
+        assert_eq!(
+            tcp_target_with(&s, &url, true),
+            Some(("vllm.internal".into(), 443, false))
+        );
+        s.proxy = ProxyConfig::Url {
+            url: "http://127.0.0.1:3128".into(),
+        };
+        assert_eq!(
+            tcp_target_with(&s, &url, true),
+            Some(("127.0.0.1".into(), 3128, true))
+        );
+    }
+
+    #[test]
+    fn system_proxy_is_decided_by_the_matcher_of_the_client() {
+        let matcher = Matcher::builder()
+            .https("http://proxy.internal:3128")
+            .no("localhost, .corp.example")
+            .build();
+        let covered = |u: &str| proxy_intercepts(&matcher, &url::Url::parse(u).unwrap());
+        assert!(covered("https://vllm.example:8443"));
+        assert!(covered("https://vllm.example/v1"));
+        // Прокси задан только для https; NO_PROXY исключает хост и его поддомены.
+        assert!(!covered("http://vllm.example"));
+        assert!(!covered("https://localhost:8000"));
+        assert!(!covered("https://vllm.corp.example"));
+        assert!(!proxy_intercepts(
+            &Matcher::builder().build(),
+            &url::Url::parse("https://vllm.example").unwrap()
+        ));
     }
 
     #[tokio::test]

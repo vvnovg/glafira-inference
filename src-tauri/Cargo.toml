@@ -35,6 +35,9 @@ tokio = { version = "1", features = ["rt", "macros", "time", "net", "io-util", "
 futures = "0.3"
 reqwest = { version = "0.13", default-features = false, features = ["rustls-no-provider", "http2", "system-proxy"] }
 sys-locale = "0.3"
+# Тот же матчер системного прокси, что и в reqwest (переменные окружения, SCDynamicStore, реестр):
+# шаг проверки сервера решает по нему, пропускать ли TCP. Версия — та, что у reqwest в Cargo.lock.
+hyper-util = { version = "0.1.21", default-features = false, features = ["client-proxy", "client-proxy-system"] }
 
 [target.'cfg(windows)'.dependencies]
 winreg = "0.55"

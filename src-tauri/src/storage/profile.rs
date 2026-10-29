@@ -42,7 +42,8 @@ pub enum CaConfig {
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 #[serde(tag = "mode", rename_all = "camelCase")]
 pub enum ProxyConfig {
-    /// Переменные окружения `HTTPS_PROXY` / `NO_PROXY`.
+    /// Переменные окружения `HTTPS_PROXY` / `NO_PROXY`, а на macOS и Windows — ещё и настройки
+    /// прокси самой ОС.
     System,
     None,
     Url {
