@@ -7,6 +7,7 @@ pub mod logging;
 pub mod policy;
 pub mod product;
 pub mod secrets;
+pub mod servers;
 pub mod settings;
 pub mod state;
 pub mod storage;

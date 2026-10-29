@@ -58,3 +58,4 @@
 | `src-tauri/src/storage/tree.rs` | `src-tauri/src/storage/tree.rs` | `468e08a` | адаптирован: инсталляции вместо подключений |
 | `src-tauri/src/storage/exchange.rs` | `src-tauri/src/storage/exchange.rs` | `468e08a` | адаптирован: ключи API серверов вместо токена и ключа сертификата, без exec-плагинов и доступа LLM, предупреждения о смене адреса сервера |
 | `src-tauri/src/commands/folders.rs` | `src-tauri/src/commands/folders.rs` | `468e08a` | адаптирован: удаление ключей серверов, которых нет в файле; без exec-плагинов и сессий |
+| `src-tauri/src/servers/errors.rs` | `src-tauri/src/k8s/errors.rs` | `468e08a` | адаптирован: только сетевые ошибки и коды HTTP сервера инференса, ключи `errors.server.*` |
