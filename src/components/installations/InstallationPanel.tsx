@@ -8,8 +8,6 @@ import { EnvBadge } from "../common/EnvBadge";
 import { ErrorBanner } from "../common/ErrorBanner";
 import { Hint } from "../common/Hint";
 
-const KIND_LABELS: Record<ServerFacts["kind"], string> = { vllm: "vLLM", sglang: "SGLang", openai: "OpenAI" };
-
 /** Ключ запроса сведений о подключённой инсталляции. */
 export const installationQueryKey = (id: string) => ["installation", id] as const;
 
@@ -19,10 +17,19 @@ export function InstallationPanel({ installationId }: { installationId: string }
   const queryClient = useQueryClient();
   const open = useWorkspace((s) => s.open);
   const installations = useQuery({ queryKey: ["installations"], queryFn: api.listInstallations });
-  const q = useQuery({ queryKey: installationQueryKey(installationId), queryFn: () => api.connectInstallation(installationId, false) });
   const profile = installations.data?.find((c) => c.id === installationId);
+  // Подключаемся, только когда профиль найден: для удалённой или ещё не загруженной инсталляции вызов лишний.
+  const q = useQuery({
+    queryKey: installationQueryKey(installationId),
+    queryFn: () => api.connectInstallation(installationId, false),
+    enabled: !!profile,
+  });
 
-  if (!profile) return <p className="empty">{installations.isPending ? t("common.loading") : t("installations.form.deleted")}</p>;
+  if (!profile) {
+    // Упавший список — не «удалена»: показываем ошибку с повтором, а не проглатываем её.
+    if (installations.error) return <ErrorBanner error={toAppError(installations.error)} onRetry={() => void installations.refetch()} />;
+    return <p className="empty">{installations.isSuccess ? t("installations.form.deleted") : t("common.loading")}</p>;
+  }
 
   // Подключение заново: свежие сведения о серверах (после перезапуска сервера, смены модели).
   const reconnect = () =>
@@ -93,7 +100,8 @@ function ServerCard({ server, state }: { server: ServerConfig; state?: ServerSta
 
 function ServerFactsRows({ facts }: { facts: ServerFacts }) {
   const { t } = useTranslation();
-  const kind = KIND_LABELS[facts.kind];
+  // Название типа — из словаря формы («OpenAI-compatible» / «OpenAI-совместимый»), без литералов в коде.
+  const kind = t(`installations.form.kinds.${facts.kind}`);
   return (
     <>
       <dt>
@@ -104,7 +112,7 @@ function ServerFactsRows({ facts }: { facts: ServerFacts }) {
       </dt>
       <dd>
         {facts.version ? `${kind} ${facts.version}` : kind}
-        {facts.kind !== facts.detected && <span className="muted"> {t("installations.panel.detectedAs", { kind: KIND_LABELS[facts.detected] })}</span>}
+        {facts.kind !== facts.detected && <span className="muted"> {t("installations.panel.detectedAs", { kind: t(`installations.form.kinds.${facts.detected}`) })}</span>}
       </dd>
       <dt>{t("installations.panel.models")}</dt>
       <dd>

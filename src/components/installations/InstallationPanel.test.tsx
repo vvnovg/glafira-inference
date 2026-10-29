@@ -92,7 +92,8 @@ describe("InstallationPanel", () => {
     });
     renderWithClient(<InstallationPanel installationId="i1" />);
     const first = await screen.findByRole("region", { name: "gpu-1" });
-    expect(within(first).getByText("OpenAI")).toBeInTheDocument();
+    // Тип подписан названием из словаря формы (в тестах язык — русский), а не литералом «OpenAI».
+    expect(within(first).getByText("OpenAI-совместимый")).toBeInTheDocument();
     expect(within(first).getByText("по признакам — vLLM")).toBeInTheDocument();
     expect(within(first).getByText("моделей нет")).toBeInTheDocument();
     expect(within(first).getByText(/vLLM 0\.7\.3 старше 0\.8/)).toBeInTheDocument();
@@ -122,6 +123,28 @@ describe("InstallationPanel", () => {
     vi.mocked(api.listInstallations).mockResolvedValue([]);
     renderWithClient(<InstallationPanel installationId="i1" />);
     expect(await screen.findByText("Инсталляция удалена")).toBeInTheDocument();
+    // Для удалённой инсталляции подключаться незачем.
+    expect(api.connectInstallation).not.toHaveBeenCalled();
+  });
+
+  it("ошибка списка инсталляций — баннер ошибки, а не «Инсталляция удалена»", async () => {
+    vi.mocked(api.listInstallations).mockRejectedValue({ code: "IO_ERROR", message: "список недоступен", retryable: true });
+    renderWithClient(<InstallationPanel installationId="i1" />);
+    expect(await screen.findByRole("alert")).toHaveTextContent("список недоступен");
+    expect(screen.queryByText("Инсталляция удалена")).not.toBeInTheDocument();
+    expect(api.connectInstallation).not.toHaveBeenCalled();
+  });
+
+  it("ошибка списка: «Повторить» перечитывает список и открывает вкладку", async () => {
+    vi.mocked(api.listInstallations).mockRejectedValueOnce({ code: "IO_ERROR", message: "список недоступен", retryable: true });
+    const user = userEvent.setup();
+    renderWithClient(<InstallationPanel installationId="i1" />);
+    await screen.findByRole("alert");
+    await user.click(screen.getByRole("button", { name: "Повторить" }));
+    expect(await screen.findByRole("region", { name: "gpu-1" })).toBeInTheDocument();
+    // Баннер ошибки списка пропал (остался только баннер сервера gpu-2 из ответа подключения).
+    expect(screen.queryByText("список недоступен")).not.toBeInTheDocument();
+    expect(api.listInstallations).toHaveBeenCalledTimes(2);
   });
 
   it("подпись модели", () => {
