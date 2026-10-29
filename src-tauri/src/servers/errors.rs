@@ -91,12 +91,26 @@ pub fn timeout() -> AppError {
     )
 }
 
-/// Ошибка HTTP-клиента: таймаут или сетевая ошибка по тексту цепочки.
+/// Текст цепочки ошибки reqwest без адреса запроса. Reqwest пишет адрес в сообщение
+/// («error sending request for url (…)»), а слова из хоста и пути («tls», «connect») сбили бы
+/// классификацию по подстрокам; к тому же адрес незачем показывать в `details`.
+fn reqwest_text(e: &reqwest::Error) -> String {
+    let text = chain_text(e);
+    match e.url() {
+        Some(url) => text
+            .replace(&format!(" for url ({url})"), "")
+            .replace(url.as_str(), ""),
+        None => text,
+    }
+}
+
+/// Ошибка HTTP-клиента: таймаут или сетевая ошибка по тексту цепочки (без адреса запроса).
 pub fn from_reqwest(e: &reqwest::Error) -> AppError {
+    let text = reqwest_text(e);
     if e.is_timeout() {
-        timeout().with_details(chain_text(e))
+        timeout().with_details(text)
     } else {
-        from_transport_text(&chain_text(e))
+        from_transport_text(&text)
     }
 }
 

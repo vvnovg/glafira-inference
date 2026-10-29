@@ -352,6 +352,56 @@ mod tests {
     }
 
     #[tokio::test]
+    async fn request_address_does_not_affect_classification_or_details() {
+        // Текст ошибки reqwest содержит адрес запроса, а в пути могут быть слова, по которым
+        // классификатор узнаёт TLS («tls», «handshake», «certificate»). Класс ошибки и `details`
+        // от адреса зависеть не должны.
+        const TRAP: &str = "/tls/handshake/certificate";
+        let closed = Timeouts {
+            connect_ms: 10_000,
+            request_ms: 10_000,
+        };
+        let c = ServerClient::new(
+            &server("http://127.0.0.1:1"),
+            closed,
+            None,
+            &PolicyStatus::default(),
+        )
+        .unwrap();
+        let e = c.get(TRAP, JSON_LIMIT).await.unwrap_err();
+        assert_eq!(
+            (e.code, e.key.as_str()),
+            (ErrorCode::ConnectionFailed, "errors.server.connect"),
+            "{:?}",
+            e.details
+        );
+        let details = e.details.unwrap_or_default();
+        assert!(
+            !details.contains("127.0.0.1") && !details.contains("handshake"),
+            "в details адрес запроса: {details}"
+        );
+        // Ветка таймаута: адрес не должен попасть в details и здесь.
+        let srv = TestServer::start(vec![(
+            TRAP,
+            Reply::status(200).delayed(Duration::from_secs(5)),
+        )])
+        .await;
+        let quick = Timeouts {
+            connect_ms: 2_000,
+            request_ms: 500,
+        };
+        let c =
+            ServerClient::new(&server(&srv.url()), quick, None, &PolicyStatus::default()).unwrap();
+        let e = c.get(TRAP, JSON_LIMIT).await.unwrap_err();
+        assert_eq!(e.code, ErrorCode::Timeout, "{:?}", e.details);
+        let details = e.details.unwrap_or_default();
+        assert!(
+            !details.contains("127.0.0.1") && !details.contains("handshake"),
+            "в details адрес запроса: {details}"
+        );
+    }
+
+    #[tokio::test]
     async fn tls_trusts_only_the_given_ca_or_nothing_in_insecure_mode() {
         let srv = TestServer::start_tls(vec![("/health", Reply::status(200))]).await;
         let mut s = server(&srv.url());
