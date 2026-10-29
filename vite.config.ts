@@ -1,0 +1,37 @@
+import { defineConfig } from "vite";
+import react from "@vitejs/plugin-react";
+// @ts-expect-error type error without @types/node package
+import process from "node:process";
+const host = process.env.TAURI_DEV_HOST;
+
+// https://vite.dev/config/
+export default defineConfig(() => ({
+  plugins: [react()],
+
+  // macOS 11 (minimumSystemVersion в tauri.conf.json) — WebKit уровня Safari 14: синтаксис понижаем до него.
+  // API (Object.hasOwn и т. п.) Vite не полифилит — см. src/polyfills.ts и scripts/check-dist-compat.mjs.
+  build: { target: "safari14" },
+
+  // Vite options tailored for Tauri development and only applied in `tauri dev` or `tauri build`
+  //
+  // 1. prevent Vite from obscuring rust errors
+  clearScreen: false,
+  // 2. tauri expects a fixed port, fail if that port is not available
+  server: {
+    // 1420 и 1430 заняты dev-серверами Kafka- и Kubernetes-версий: приложения семейства можно запускать рядом.
+    port: 1440,
+    strictPort: true,
+    host: host || false,
+    hmr: host
+      ? {
+          protocol: "ws",
+          host,
+          port: 1441,
+        }
+      : undefined,
+    watch: {
+      // 3. tell Vite to ignore watching `src-tauri`
+      ignored: ["**/src-tauri/**"],
+    },
+  },
+}));
