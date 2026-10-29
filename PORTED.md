@@ -135,3 +135,4 @@
 | `src/guide/noLookbehind.test.ts` | `src/guide/noLookbehind.test.ts` | `468e08a` | как есть |
 | `.github/workflows/ci.yml` | `.github/workflows/ci.yml` | `468e08a` | адаптирован: без стенда kind и крейтов MCP |
 | `.github/FUNDING.yml` | `.github/FUNDING.yml` | `468e08a` | адаптирован: адрес страницы поддержки |
+| `docs/i18n/README.md` | `docs/i18n/README.md` | `468e08a` | адаптирован: этап I7, пример ключа |
