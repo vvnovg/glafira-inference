@@ -77,22 +77,22 @@ impl AppState {
 
     /// Удаляет инсталляцию: профиль, ключи API её серверов и подключение. Подключение
     /// забывается сразу после профиля, а ключи удаляются все, даже если keychain отказал
-    /// на части из них: профиля уже нет, повторить удаление нельзя. Первая ошибка keychain
-    /// возвращается в конце.
+    /// на части из них. Профиля уже нет, повторить удаление нельзя, поэтому сбой keychain
+    /// только пишется в журнал (без значений), а удаление считается состоявшимся: как при
+    /// сохранении и импорте, лишняя запись в keychain ничего не открывает.
     pub fn delete_installation_full(&self, id: &str) -> AppResult<()> {
         let profile = self.installations.get(id)?;
         self.installations.delete(id)?;
         self.evict_installation(id);
-        let mut first_err = None;
         for server in &profile.servers {
             if let Err(e) = self.delete_server_secrets(id, &server.id) {
-                match first_err {
-                    None => first_err = Some(e),
-                    Some(_) => tracing::warn!("secrets of a deleted server were not deleted: {e}"),
-                }
+                tracing::warn!(
+                    "secrets of server {} of the deleted installation {id} were not deleted: {e}",
+                    server.id
+                );
             }
         }
-        first_err.map_or(Ok(()), Err)
+        Ok(())
     }
 }
 
@@ -140,10 +140,9 @@ mod tests {
     #[test]
     fn keychain_failure_on_delete_still_forgets_the_connection_and_the_other_keys() {
         let dir = tempfile::tempdir().unwrap();
-        let stuck = secret_key("a", "s1", API_KEY);
         let secrets = Arc::new(StuckKeys {
             inner: MemoryStore::default(),
-            stuck: vec![stuck.clone()],
+            stuck: vec![secret_key("a", "s1", API_KEY)],
         });
         let st = AppState::new(dir.path(), secrets.clone()).unwrap();
         let mut p = sample_profile("a");
@@ -165,10 +164,9 @@ mod tests {
                 clients: Default::default(),
             }),
         );
-        let e = st.delete_installation_full("a").unwrap_err();
-        assert_eq!(
-            e.details.as_deref(),
-            Some(format!("delete {stuck} denied").as_str())
+        assert!(
+            st.delete_installation_full("a").is_ok(),
+            "профиль уже удалён: сбой keychain не делает удаление неудачным"
         );
         assert!(st.installations.get("a").is_err(), "профиль удалён");
         assert!(st.pool.get("a").is_none(), "подключение забыто");
