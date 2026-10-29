@@ -1,0 +1,7 @@
+/* Экраны инсталляций; общие стили — в styles.css (перенесён из семейства). */
+/* Сервер в форме инсталляции: свой блок с проверкой под полями. */
+fieldset.server { border: 1px solid var(--border); border-radius: 6px; padding: 8px 12px; display: flex; flex-direction: column; gap: 8px; margin: 0; min-width: 0; }
+fieldset.server legend { padding: 0 4px; font-weight: 600; }
+.page h3 { margin: 4px 0 0; font-size: 14px; }
+/* Подсказка в пустом поле — курсивом и бледнее: её не путают ни с введённым значением, ни с подписью. */
+input::placeholder, textarea::placeholder { font-style: italic; color: var(--muted); opacity: 0.7; }

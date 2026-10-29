@@ -1,6 +1,10 @@
 {
   "ru": [
     "errors.generic",
+    "installations.form.kinds.sglang",
+    "installations.form.kinds.vllm",
+    "installations.form.step.tcp",
+    "installations.form.step.tls",
     "messages.connectionTest.kind",
     "messages.connectionTest.kindVersion"
   ]

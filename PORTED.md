@@ -94,3 +94,8 @@
 | `src/components/common/Hint.test.tsx` | `src/components/common/Hint.test.tsx` | `468e08a` | как есть |
 | `src/test/render.tsx` | `src/test/render.tsx` | `468e08a` | как есть |
 | `src/test/setup.ts` | `src/test/setup.ts` | `468e08a` | как есть |
+| `src/components/installations/tree/folderTree.ts` | `src/components/connections/tree/folderTree.ts` | `468e08a` | адаптирован: инсталляции вместо подключений |
+| `src/components/installations/tree/folderTree.test.ts` | `src/components/connections/tree/folderTree.test.ts` | `468e08a` | адаптирован: инсталляции вместо подключений |
+| `src/state/workspace.ts` | `src/state/workspace.ts` | `468e08a` | адаптирован: вкладки инсталляций вместо вкладок кластера |
+| `src/state/workspace.test.ts` | `src/state/workspace.test.ts` | `468e08a` | адаптирован: вкладки инсталляций |
+| `src/components/installations/InstallationFormTab.tsx` | `src/components/connections/ConnectionFormTab.tsx` | `468e08a` | адаптирован: инсталляция вместо подключения |

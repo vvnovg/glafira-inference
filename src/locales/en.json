@@ -127,6 +127,81 @@
     "readOnly": "Read-only"
   },
   "hints": {
-    "label": "Hint: {{name}}"
+    "label": "Hint: {{name}}",
+    "installations": {
+      "environment": "Color and protection: a new <code>prod</code> installation is created read-only.",
+      "readOnly": "Glafira will not run anything that loads or changes the servers of this installation.",
+      "baseUrl": "The OpenAI-compatible API without /v1: <code>http://vllm.internal:8000</code>. A path is allowed behind a reverse proxy.",
+      "kind": "Glafira recognizes vLLM and SGLang by their answers. Choose by hand only if detection is wrong; other servers work as OpenAI-compatible.",
+      "apiKey": "The <code>--api-key</code> of the server. Kept in the system secret store, not in a file; sent as <code>Authorization: Bearer</code>.",
+      "metricsPath": "Where the server exposes Prometheus metrics: <code>/metrics</code>; SGLang needs <code>--enable-metrics</code>.",
+      "ca": "System store — the CAs this computer trusts. Listed certificates — only them, the system ones are not used.",
+      "proxy": "System — the <code>HTTPS_PROXY</code> and <code>NO_PROXY</code> variables. Or an explicit address such as <code>http://proxy:3128</code>.",
+      "test": "Checks this server step by step with the values of the form, without saving: address, TLS, /health, API key, type, version, models."
+    }
+  },
+  "installations": {
+    "form": {
+      "titleNew": "New installation",
+      "titleEdit": "Installation “{{name}}”",
+      "name": "Name",
+      "folder": "Folder",
+      "folderRoot": "— root —",
+      "environment": "Environment",
+      "color": "Color",
+      "requestTimeout": "Request timeout, ms",
+      "connectTimeout": "Connect timeout, ms",
+      "servers": "Inference servers",
+      "server": "Server {{n}}",
+      "serverName": "Server name",
+      "baseUrl": "Address",
+      "kind": "Server type",
+      "kinds": {
+        "auto": "Detect automatically",
+        "vllm": "vLLM",
+        "sglang": "SGLang",
+        "openai": "OpenAI-compatible"
+      },
+      "apiKey": "API key",
+      "apiKeyKeep": "leave empty to keep the saved key",
+      "apiKeyClear": "Delete the saved key",
+      "apiKeyOverHttp": "The address is http:// — the API key will be sent unencrypted",
+      "metricsPath": "Metrics path",
+      "ca": "Certificate verification",
+      "caMode": {
+        "system": "System store",
+        "pem": "Listed certificates (PEM)",
+        "insecure": "No verification (insecure)"
+      },
+      "caPem": "CA certificates (PEM)",
+      "insecureWarning": "The server certificate is not verified: anyone on the way can read the API key and the traffic",
+      "insecureForbidden": "Servers without certificate verification are forbidden by your organization",
+      "proxy": "Proxy",
+      "proxyMode": {
+        "system": "System (HTTPS_PROXY)",
+        "none": "No proxy",
+        "url": "Proxy address"
+      },
+      "proxyUrl": "Proxy address",
+      "test": "Check the server",
+      "testing": "Checking…",
+      "report": "Check result",
+      "removeServer": "Remove the server",
+      "addServer": "Add a server",
+      "busy": "Please wait…",
+      "deleted": "This installation has been deleted",
+      "deleteGroup": "Delete confirmation",
+      "deleteConfirm": "Delete “{{name}}” and the API keys of its servers?",
+      "deleteYes": "Delete",
+      "step": {
+        "config": "Configuration",
+        "tcp": "DNS/TCP",
+        "tls": "TLS",
+        "health": "Health",
+        "auth": "Sign-in",
+        "kind": "Type and version",
+        "models": "Models"
+      }
+    }
   }
 }

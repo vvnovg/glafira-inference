@@ -62,7 +62,8 @@ export interface InstallationProfile {
   requestTimeoutMs: number;
   connectTimeoutMs: number;
   folderId: string | null;
-  order: number;
+  /** Место в папке; у записей без него — в конце уровня. */
+  order?: number;
 }
 
 /** Ключи API из формы: id сервера → значение; сервера нет — оставить сохранённый, "" — удалить. */
