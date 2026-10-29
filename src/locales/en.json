@@ -1,0 +1,131 @@
+{
+  "errors": {
+    "installations": {
+      "serverNotFound": "Server {{id}} is not in the installation",
+      "insecureForbidden": "Servers without TLS certificate verification are forbidden by your organization",
+      "caPemInvalid": "The CA certificate of server “{{server}}” must be in PEM format (-----BEGIN CERTIFICATE-----)",
+      "badProxyUrl": "Invalid proxy address “{{url}}”: use http://host:port",
+      "badApiKey": "The API key contains characters that cannot be sent in a header",
+      "notFound": "Installation {{id}} not found",
+      "credentialsInUrl": "Remove the user name and password from “{{url}}”: credentials do not belong in the address (a proxy with a password is set via the system HTTPS_PROXY)",
+      "badServerUrl": "Invalid address “{{url}}” of server “{{server}}”: use http://host:port or https://host:port",
+      "badServerId": "Server “{{server}}” has an invalid ID",
+      "emptyServerName": "Server name cannot be empty",
+      "badMetricsPath": "Invalid metrics path “{{path}}” of server “{{server}}”: use a path such as /metrics",
+      "pemContainsKey": "A certificate field contains a private key — remove it: Glafira needs only the CA certificate",
+      "noId": "The installation has no ID",
+      "emptyName": "Installation name cannot be empty",
+      "noServers": "Add at least one inference server",
+      "tooManyServers": "An installation can have at most {{max}} servers",
+      "duplicateServerId": "Two servers have the same ID “{{id}}”",
+      "duplicateServerName": "Two servers are named “{{server}}”: give them different names",
+      "timeoutTooSmall": "Timeouts must be at least 1000 ms"
+    },
+    "app": {
+      "taskPanicked": "Background task failed: {{error}}"
+    },
+    "settings": {
+      "languageByPolicy": "The language is set by your organization",
+      "unknownLanguage": "Unknown language “{{code}}”"
+    },
+    "internal": "Internal error",
+    "io": "I/O error: {{error}}",
+    "json": "JSON error: {{error}}",
+    "generic": "{{message}}",
+    "policy": {
+      "invalidBool": "{{key}}: invalid boolean {{value}}",
+      "invalidNumber": "{{key}}: invalid number {{value}}",
+      "invalidString": "{{key}}: invalid string “{{value}}”",
+      "invalidType": "{{key}}: invalid value of type {{kind}}",
+      "unreadable": "Policy cannot be read: {{reason}}",
+      "httpsRequired": "{{key}}: an https:// address is required — updates are not downloaded over http",
+      "badLanguage": "{{key}}: unknown language “{{value}}”"
+    },
+    "secrets": {
+      "keychain": "Cannot access the system secret store",
+      "readOnly": "OverlayStore is read-only"
+    },
+    "server": {
+      "badJson": "Unexpected answer to {{path}}: not the JSON this server type returns",
+      "dns": "Cannot resolve the server host name",
+      "connect": "Cannot connect to the server",
+      "unhealthy": "The server is not healthy (/health answered {{status}}): it may still be loading the model",
+      "keyRequired": "The server requires an API key — enter it in the server settings",
+      "notOpenAi": "The server has no /v1/models — is this the address of an OpenAI-compatible server?",
+      "noModels": "The server serves no models",
+      "hostnameMismatch": "The server certificate does not match its address — check the address",
+      "certExpired": "The server certificate has expired or is not valid yet",
+      "caUntrusted": "The server certificate is not signed by a trusted CA — specify the CA of the server",
+      "tlsError": "TLS connection error",
+      "transport": "Network error: {{message}}",
+      "timeout": "The server did not respond in time",
+      "unauthorized": "The server rejected the request ({{status}}) — check the API key",
+      "notFound": "The server has no {{path}} (404)",
+      "redirect": "The server redirects {{path}} to another address ({{status}}) — use the final address of the server",
+      "serverError": "The server failed to answer {{path}} ({{status}})",
+      "unexpectedStatus": "Unexpected answer to {{path}}: {{status}}"
+    },
+    "import": {
+      "notGlafiraFile": "This is not a Glafira installations file",
+      "invalidJson": "The file is damaged or is not JSON: {{error}}",
+      "incompatibleVersion": "The file was created by an incompatible version of Glafira — update the app",
+      "unsupportedInstallation": "Not supported by this version of Glafira (update the app): {{error}}",
+      "duplicateId": "Duplicate installation id in the file",
+      "insecureForbidden": "Servers without TLS certificate verification are forbidden by your organization"
+    },
+    "storage": {
+      "writeFailed": "Failed to write {{path}}: {{error}}",
+      "newerSchema": "{{file}} was created by a newer version of the app (schemaVersion {{version}})",
+      "quarantineFailed": "File {{path}} is corrupted ({{parseError}}) and a backup copy could not be saved: {{renameError}}"
+    },
+    "folders": {
+      "notFound": "Folder {{id}} not found",
+      "nameEmpty": "Enter a folder name",
+      "nameTooLong": "The folder name is longer than 100 characters",
+      "cycle": "A folder cannot be moved into itself or its subfolder",
+      "nameTaken": "A folder named “{{name}}” already exists here",
+      "notEmpty": "The folder is not empty: move or delete its installations and folders first"
+    }
+  },
+  "messages": {
+    "connectionTest": {
+      "models": "Models: {{models}}",
+      "kindVersion": "{{kind}} {{version}}",
+      "kind": "{{kind}}",
+      "configOk": "Configuration is valid",
+      "tcpSystemProxy": "The system proxy is used: the connection is checked by the requests below",
+      "tcpProxyOk": "TCP connection to the proxy {{address}} established",
+      "tcpOk": "TCP connection to {{address}} established",
+      "tlsOk": "TLS connection established, the certificate is trusted",
+      "healthOk": "The server is healthy",
+      "healthMissing": "The server has no /health — skipped",
+      "healthNeedsKey": "/health requires an API key — checked by the next step",
+      "keyAccepted": "The API key is accepted",
+      "noKeyNeeded": "The server answers without an API key"
+    },
+    "servers": {
+      "kindMismatch": "The server looks like {{detected}}, but {{configured}} is selected in the installation",
+      "unsupportedVersion": "{{kind}} {{version}} is older than {{min}}: Glafira works with it as with an OpenAI-compatible server",
+      "noMetricsSglang": "SGLang does not expose metrics: start it with --enable-metrics",
+      "noMetrics": "The server does not expose its metrics at the metrics path of the installation"
+    },
+    "import": {
+      "addressChanged": "“{{name}}”, server “{{server}}”: the address changes from {{from}} to {{to}}. The saved API key will be sent to the new address.",
+      "proxyChanged": "“{{name}}”, server “{{server}}”: the proxy settings change. The saved API key will go through the new proxy.",
+      "tlsChanged": "“{{name}}”, server “{{server}}”: the certificate verification settings change. The saved API key will be used with the new settings."
+    }
+  },
+  "common": {
+    "retry": "Retry",
+    "cancel": "Cancel",
+    "save": "Save",
+    "delete": "Delete",
+    "close": "Close",
+    "loading": "Loading…",
+    "details": "Details",
+    "readOnly": "Read-only"
+  },
+  "hints": {
+    "label": "Hint: {{name}}"
+  }
+}

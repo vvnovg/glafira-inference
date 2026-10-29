@@ -62,3 +62,35 @@
 | `src-tauri/src/servers/connectivity.rs` | `src-tauri/src/k8s/connectivity.rs` | `468e08a` | адаптирован: шаги сервера инференса (здоровье, вход ключом API, тип и версия, модели), предупреждения, системный прокси |
 | `src-tauri/src/commands/app.rs` | `src-tauri/src/commands/app.rs` | `468e08a` | адаптирован: только сведения «О программе», обновления — в I2 |
 | `src-tauri/src/commands/installations.rs` | `src-tauri/src/commands/connections.rs` | `468e08a` | адаптирован: ключи API серверов вместо токена и ключа сертификата, проверка сервера, подключение инсталляции |
+| `scripts/i18n-check.mjs` | `scripts/i18n-check.mjs` | `468e08a` | адаптирован: глав руководства пока нет |
+| `scripts/i18n-check.test.mjs` | `scripts/i18n-check.test.mjs` | `468e08a` | как есть |
+| `scripts/changelog.mjs` | `scripts/changelog.mjs` | `468e08a` | как есть |
+| `scripts/changelog.test.mjs` | `scripts/changelog.test.mjs` | `468e08a` | как есть |
+| `scripts/merge-locales.mjs` | `scripts/merge-locales.mjs` | `468e08a` | как есть |
+| `scripts/merge-locales.test.mjs` | `scripts/merge-locales.test.mjs` | `468e08a` | как есть |
+| `src/i18n/index.ts` | `src/i18n/index.ts` | `468e08a` | как есть |
+| `src/i18n/text.ts` | `src/i18n/text.ts` | `468e08a` | как есть |
+| `src/i18n/languages.ts` | `src/i18n/languages.ts` | `468e08a` | адаптирован: ссылка на этап I7 |
+| `src/i18n/documentLang.test.ts` | `src/i18n/documentLang.test.ts` | `468e08a` | как есть |
+| `src/i18n/locales.test.ts` | `src/i18n/locales.test.ts` | `468e08a` | как есть |
+| `src/i18n/text.test.ts` | `src/i18n/text.test.ts` | `468e08a` | как есть |
+| `src/lib/activate.ts` | `src/lib/activate.ts` | `468e08a` | как есть |
+| `src/lib/activate.test.tsx` | `src/lib/activate.test.tsx` | `468e08a` | как есть |
+| `src/lib/env.ts` | `src/lib/env.ts` | `468e08a` | как есть |
+| `src/lib/focusTrap.ts` | `src/lib/focusTrap.ts` | `468e08a` | как есть |
+| `src/lib/format.ts` | `src/lib/format.ts` | `468e08a` | как есть |
+| `src/lib/format.test.ts` | `src/lib/format.test.ts` | `468e08a` | как есть |
+| `src/lib/formatAgo.ts` | `src/lib/formatAgo.ts` | `468e08a` | как есть |
+| `src/lib/links.ts` | `src/lib/links.ts` | `468e08a` | адаптирован: адреса репозиториев |
+| `src/lib/plainInputs.ts` | `src/lib/plainInputs.ts` | `468e08a` | как есть |
+| `src/lib/plainInputs.test.ts` | `src/lib/plainInputs.test.ts` | `468e08a` | как есть |
+| `src/lib/useDebouncedValue.ts` | `src/lib/useDebouncedValue.ts` | `468e08a` | как есть |
+| `src/lib/useDebouncedValue.test.ts` | `src/lib/useDebouncedValue.test.ts` | `468e08a` | как есть |
+| `src/lib/useLanguageSync.ts` | `src/lib/useLanguageSync.ts` | `468e08a` | как есть |
+| `src/components/common/EnvBadge.tsx` | `src/components/common/EnvBadge.tsx` | `468e08a` | как есть |
+| `src/components/common/ErrorBanner.tsx` | `src/components/common/ErrorBanner.tsx` | `468e08a` | как есть |
+| `src/components/common/ErrorBanner.test.tsx` | `src/components/common/ErrorBanner.test.tsx` | `468e08a` | адаптирован: ошибка сервера инференса |
+| `src/components/common/Hint.tsx` | `src/components/common/Hint.tsx` | `468e08a` | как есть |
+| `src/components/common/Hint.test.tsx` | `src/components/common/Hint.test.tsx` | `468e08a` | как есть |
+| `src/test/render.tsx` | `src/test/render.tsx` | `468e08a` | как есть |
+| `src/test/setup.ts` | `src/test/setup.ts` | `468e08a` | как есть |

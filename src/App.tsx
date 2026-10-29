@@ -1,3 +1,24 @@
+import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
+import { useLanguageSync } from "./lib/useLanguageSync";
+
+function LanguageSync() {
+  useLanguageSync();
+  return null;
+}
+
+// Без автоповтора: backend сам ждёт до таймаута и быстро отказывает при недоступном сервере,
+// а повтор удваивал бы ожидание. Повторить можно кнопкой в баннере ошибки.
+// Без перезапроса при возвращении сети: вкладки остаются смонтированными, и событие online
+// заново подключало бы каждую открытую инсталляцию без действия пользователя.
+const queryClient = new QueryClient({
+  defaultOptions: { queries: { retry: false, refetchOnWindowFocus: false, refetchOnReconnect: false } },
+});
+
 export default function App() {
-  return <main className="page">Glafira for LLM Inference</main>;
+  return (
+    <QueryClientProvider client={queryClient}>
+      <LanguageSync />
+      <main className="page">Glafira for LLM Inference</main>
+    </QueryClientProvider>
+  );
 }

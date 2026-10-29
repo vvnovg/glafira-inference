@@ -1,0 +1,7 @@
+{
+  "ru": [
+    "errors.generic",
+    "messages.connectionTest.kind",
+    "messages.connectionTest.kindVersion"
+  ]
+}
