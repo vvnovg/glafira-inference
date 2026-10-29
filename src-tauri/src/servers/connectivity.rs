@@ -14,7 +14,9 @@ use crate::servers::client::{JSON_LIMIT, ServerClient, Timeouts};
 use crate::servers::detect::{ServerFacts, analyze};
 use crate::servers::errors::{from_status, timeout};
 use crate::servers::probe::probe;
-use crate::storage::profile::{ProxyConfig, ServerConfig, parse_base_url, validate_server};
+use crate::storage::profile::{
+    CaConfig, ProxyConfig, ServerConfig, parse_base_url, validate_server,
+};
 
 #[derive(Debug, Clone, Serialize)]
 #[serde(rename_all = "camelCase")]
@@ -243,13 +245,19 @@ pub async fn test_server(
         }
     };
     if https {
-        steps.push(passed(
-            "tls",
+        // Без проверки сертификата шаг не должен называть его доверенным.
+        let message = if s.ca == CaConfig::Insecure {
+            ltext!(
+                "messages.connectionTest.tlsInsecure",
+                "TLS connection established; the certificate is not verified"
+            )
+        } else {
             ltext!(
                 "messages.connectionTest.tlsOk",
                 "TLS connection established, the certificate is trusted"
-            ),
-        ));
+            )
+        };
+        steps.push(passed("tls", message));
     }
     match health.status {
         200..=299 => steps.push(passed(
@@ -367,7 +375,7 @@ pub async fn test_server(
 mod tests {
     use super::*;
     use crate::servers::testing::{Reply, TEST_CA_PEM, TestServer};
-    use crate::storage::profile::{CaConfig, sample_server};
+    use crate::storage::profile::sample_server;
 
     const TIMEOUTS: Timeouts = Timeouts {
         connect_ms: 2_000,
@@ -452,6 +460,24 @@ mod tests {
         let r = run(&s, None).await;
         assert_eq!(names(&r), [("config", true), ("tcp", true), ("tls", false)]);
         assert_eq!(r.steps[2].error.as_ref().unwrap().code, ErrorCode::TlsError);
+    }
+
+    #[tokio::test]
+    async fn insecure_tls_step_does_not_claim_a_trusted_certificate() {
+        let srv = TestServer::start_tls(vllm(Reply::status(200))).await;
+        let mut s = server(&srv.url());
+        s.ca = CaConfig::Insecure;
+        let policy = PolicyStatus {
+            allow_insecure_tls: true,
+            ..PolicyStatus::default()
+        };
+        let r = test_server(&s, TIMEOUTS, None, &policy).await;
+        assert!(r.ok);
+        assert_eq!(r.steps[2].name, "tls");
+        assert_eq!(
+            r.steps[2].message.key,
+            "messages.connectionTest.tlsInsecure"
+        );
     }
 
     #[tokio::test]

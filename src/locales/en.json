@@ -101,7 +101,8 @@
       "healthMissing": "The server has no /health — skipped",
       "healthNeedsKey": "/health requires an API key — checked by the next step",
       "keyAccepted": "The API key is accepted",
-      "noKeyNeeded": "The server answers without an API key"
+      "noKeyNeeded": "The server answers without an API key",
+      "tlsInsecure": "TLS connection established; the certificate is not verified"
     },
     "servers": {
       "kindMismatch": "The server looks like {{detected}}, but {{configured}} is selected in the installation",
