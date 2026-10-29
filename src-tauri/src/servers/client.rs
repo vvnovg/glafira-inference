@@ -33,14 +33,36 @@ impl From<&InstallationProfile> for Timeouts {
     }
 }
 
+/// Размер тела в `Debug`: `<N bytes>`. В `/server_info` SGLang бывает ключ API, поэтому сырые
+/// тела ответов в логи и сообщения об ошибках не попадают.
+pub(crate) struct BodyLen(pub usize);
+
+impl std::fmt::Debug for BodyLen {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(f, "<{} bytes>", self.0)
+    }
+}
+
 /// Ответ сервера: код, тело (не больше лимита запроса) и тип содержимого.
-#[derive(Debug, Clone, PartialEq)]
+#[derive(Clone, PartialEq)]
 pub struct HttpReply {
     pub status: u16,
     pub content_type: Option<String>,
     pub body: Vec<u8>,
     /// Тело длиннее лимита: прочитано только начало.
     pub truncated: bool,
+}
+
+/// Тело не печатается, только его длина.
+impl std::fmt::Debug for HttpReply {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_struct("HttpReply")
+            .field("status", &self.status)
+            .field("content_type", &self.content_type)
+            .field("body", &BodyLen(self.body.len()))
+            .field("truncated", &self.truncated)
+            .finish()
+    }
 }
 
 impl HttpReply {
@@ -478,5 +500,23 @@ mod tests {
             .unwrap();
         let e = rt.block_on(c.get("/v1/models", JSON_LIMIT)).unwrap_err();
         assert_eq!(e.key, "errors.installations.badApiKey");
+    }
+
+    /// Тело ответа может содержать ключ API (`/server_info` SGLang): `Debug` его не печатает.
+    #[test]
+    fn debug_of_a_reply_hides_the_body() {
+        let reply = HttpReply {
+            status: 200,
+            content_type: Some("application/json".into()),
+            body: br#"{"api_key":"sk-secret"}"#.to_vec(),
+            truncated: true,
+        };
+        let text = format!("{reply:?}");
+        assert!(!text.contains("sk-secret"), "{text}");
+        assert!(!text.contains("115, 107"), "байты тела тоже скрыты: {text}");
+        for part in ["200", "application/json", "<23 bytes>", "true"] {
+            assert!(text.contains(part), "{part} в {text}");
+        }
+        assert_eq!(reply.clone(), reply);
     }
 }

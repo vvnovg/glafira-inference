@@ -7,7 +7,7 @@ use serde::{Deserialize, Serialize};
 
 use crate::error::AppResult;
 use crate::i18n::LocalizedText;
-use crate::servers::client::parse_json;
+use crate::servers::client::{BodyLen, parse_json};
 use crate::storage::profile::ServerKind;
 
 /// Тип сервера, с которым работает Glafira.
@@ -48,10 +48,20 @@ impl DetectedKind {
 }
 
 /// Ответ на один запрос снимка: код и тело (не больше лимита клиента).
-#[derive(Debug, Clone, PartialEq)]
+#[derive(Clone, PartialEq)]
 pub struct Answer {
     pub status: u16,
     pub body: Vec<u8>,
+}
+
+/// Тело не печатается, только его длина: в `/server_info` SGLang бывает ключ API.
+impl std::fmt::Debug for Answer {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_struct("Answer")
+            .field("status", &self.status)
+            .field("body", &BodyLen(self.body.len()))
+            .finish()
+    }
 }
 
 impl Answer {
@@ -68,7 +78,7 @@ impl Answer {
 }
 
 /// Снимок ответов сервера, по которому определяется тип. `None` — запрос не удался.
-#[derive(Debug, Clone, Default, PartialEq)]
+#[derive(Clone, Default, PartialEq)]
 pub struct Probe {
     pub version: Option<Answer>,
     pub model_info: Option<Answer>,
@@ -77,6 +87,19 @@ pub struct Probe {
     pub metrics: Option<String>,
     /// `/v1/models` — обязательный ответ: без него сервер не OpenAI-совместимый.
     pub models: Vec<u8>,
+}
+
+/// Тела не печатаются, только их длина (ответы `Answer` печатают себя так же).
+impl std::fmt::Debug for Probe {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_struct("Probe")
+            .field("version", &self.version)
+            .field("model_info", &self.model_info)
+            .field("server_info", &self.server_info)
+            .field("metrics", &self.metrics.as_ref().map(|m| BodyLen(m.len())))
+            .field("models", &BodyLen(self.models.len()))
+            .finish()
+    }
 }
 
 /// Модель из `/v1/models`. У адаптера LoRA `parent` — базовая модель.
@@ -567,5 +590,49 @@ mod tests {
         ] {
             assert_eq!(version_at_least(v, min), ok, "{v} >= {min}");
         }
+    }
+
+    /// В `/server_info` SGLang бывает ключ API: `Debug` не печатает сырые тела.
+    #[test]
+    fn debug_of_an_answer_hides_the_body() {
+        let a = Answer {
+            status: 200,
+            body: br#"{"api_key":"sk-secret"}"#.to_vec(),
+        };
+        let text = format!("{a:?}");
+        assert!(!text.contains("sk-secret"), "{text}");
+        assert!(!text.contains("115, 107"), "байты тела тоже скрыты: {text}");
+        assert!(
+            text.contains("200") && text.contains("<23 bytes>"),
+            "{text}"
+        );
+    }
+
+    #[test]
+    fn debug_of_a_probe_hides_every_body() {
+        let secret = br#"{"api_key":"sk-secret"}"#;
+        let probe = Probe {
+            version: Some(Answer {
+                status: 200,
+                body: secret.to_vec(),
+            }),
+            model_info: Some(Answer {
+                status: 200,
+                body: secret.to_vec(),
+            }),
+            server_info: Some(Answer {
+                status: 200,
+                body: secret.to_vec(),
+            }),
+            metrics: Some("api_key sk-secret".into()),
+            models: secret.to_vec(),
+        };
+        let text = format!("{probe:?}");
+        assert!(!text.contains("sk-secret"), "{text}");
+        assert!(!text.contains("115, 107"), "байты тела тоже скрыты: {text}");
+        assert!(text.contains("<17 bytes>"), "{text}");
+        assert!(text.contains("<23 bytes>"), "{text}");
+        // `PartialEq` и `Clone` остались: снимки сравниваются в тестах.
+        assert_eq!(probe.clone(), probe);
     }
 }
