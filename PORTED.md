@@ -36,3 +36,11 @@
 | `SECURITY.md` | `SECURITY.md` | `468e08a` | адаптирован: имя продукта, адрес релизов, что важно для безопасности |
 | `CONTRIBUTING.md` | `CONTRIBUTING.md` | `468e08a` | адаптирован: имя продукта, общий код с Kubernetes-версией |
 | `deny.toml` | `deny.toml` | `468e08a` | как есть |
+| `src-tauri/src/i18n.rs` | `src-tauri/src/i18n.rs` | `468e08a` | как есть |
+| `src-tauri/src/error.rs` | `src-tauri/src/error.rs` | `468e08a` | как есть |
+| `src-tauri/src/storage/fs.rs` | `src-tauri/src/storage/fs.rs` | `468e08a` | как есть |
+| `src-tauri/src/secrets.rs` | `src-tauri/src/secrets.rs` | `468e08a` | адаптирован: ключ API сервера, ключ keychain из инсталляции, компонента и поля |
+| `src-tauri/src/logging.rs` | `src-tauri/src/logging.rs` | `468e08a` | как есть |
+| `src-tauri/src/sync.rs` | `src-tauri/src/sync.rs` | `468e08a` | как есть |
+| `src-tauri/src/dock_name.rs` | `src-tauri/src/dock_name.rs` | `468e08a` | адаптирован: имя бинаря |
+| `src-tauri/src/tls.rs` | `src-tauri/src/tls.rs` | `468e08a` | как есть |
