@@ -137,7 +137,8 @@
       "metricsPath": "Where the server exposes Prometheus metrics: <code>/metrics</code>; SGLang needs <code>--enable-metrics</code>.",
       "ca": "System store — the CAs this computer trusts. Listed certificates — only them, the system ones are not used.",
       "proxy": "System — the <code>HTTPS_PROXY</code> and <code>NO_PROXY</code> variables. Or an explicit address such as <code>http://proxy:3128</code>.",
-      "test": "Checks this server step by step with the values of the form, without saving: address, TLS, /health, API key, type, version, models."
+      "test": "Checks this server step by step with the values of the form, without saving: address, TLS, /health, API key, type, version, models.",
+      "detectedKind": "The type Glafira works with. If it differs from what the server looks like, the type is chosen in the installation or the server version is too old."
     }
   },
   "installations": {
@@ -202,6 +203,21 @@
         "kind": "Type and version",
         "models": "Models"
       }
+    },
+    "panel": {
+      "summary": "Servers connected: {{connected}} of {{total}}",
+      "reconnect": "Reconnect",
+      "edit": "Edit",
+      "connecting": "Connecting to the servers…",
+      "address": "Address",
+      "kind": "Type",
+      "detectedAs": "detected as {{kind}}",
+      "models": "Models",
+      "noModels": "no models",
+      "metrics": "Metrics",
+      "metricsYes": "exposed",
+      "metricsNo": "not exposed",
+      "notConnected": "Not connected"
     }
   }
 }
