@@ -60,3 +60,5 @@
 | `src-tauri/src/commands/folders.rs` | `src-tauri/src/commands/folders.rs` | `468e08a` | адаптирован: удаление ключей серверов, которых нет в файле; без exec-плагинов и сессий |
 | `src-tauri/src/servers/errors.rs` | `src-tauri/src/k8s/errors.rs` | `468e08a` | адаптирован: только сетевые ошибки и коды HTTP сервера инференса, ключи `errors.server.*` |
 | `src-tauri/src/servers/connectivity.rs` | `src-tauri/src/k8s/connectivity.rs` | `468e08a` | адаптирован: шаги сервера инференса (здоровье, вход ключом API, тип и версия, модели), предупреждения, системный прокси |
+| `src-tauri/src/commands/app.rs` | `src-tauri/src/commands/app.rs` | `468e08a` | адаптирован: только сведения «О программе», обновления — в I2 |
+| `src-tauri/src/commands/installations.rs` | `src-tauri/src/commands/connections.rs` | `468e08a` | адаптирован: ключи API серверов вместо токена и ключа сертификата, проверка сервера, подключение инсталляции |

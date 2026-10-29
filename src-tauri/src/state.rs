@@ -61,6 +61,20 @@ impl AppState {
     pub fn evict_installation(&self, id: &str) {
         self.pool.evict(id);
     }
+
+    /// Удаляет инсталляцию: профиль, ключи API её серверов и подключение.
+    pub fn delete_installation_full(&self, id: &str) -> AppResult<()> {
+        let profile = self.installations.get(id)?;
+        self.installations.delete(id)?;
+        for server in &profile.servers {
+            for field in crate::secrets::SERVER_SECRET_FIELDS {
+                self.secrets
+                    .delete(&crate::secrets::secret_key(id, &server.id, field))?;
+            }
+        }
+        self.evict_installation(id);
+        Ok(())
+    }
 }
 
 #[cfg(test)]

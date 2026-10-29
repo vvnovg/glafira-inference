@@ -41,6 +41,13 @@ pub fn run() {
             Ok(())
         })
         .invoke_handler(tauri::generate_handler![
+            commands::app::get_app_info,
+            commands::installations::list_installations,
+            commands::installations::save_installation,
+            commands::installations::delete_installation,
+            commands::installations::test_server_connection,
+            commands::installations::connect_installation,
+            commands::installations::disconnect_installation,
             commands::folders::list_folders,
             commands::folders::create_folder,
             commands::folders::rename_folder,
