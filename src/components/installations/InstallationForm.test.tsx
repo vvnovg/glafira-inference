@@ -150,6 +150,43 @@ describe("InstallationForm", () => {
     expect(screen.getAllByRole("group", { name: /Сервер \d/ })).toHaveLength(1);
   });
 
+  it("не больше 32 серверов: на 32-м кнопка «Добавить сервер» отключается", async () => {
+    const user = userEvent.setup();
+    renderWithClient(<InstallationForm initial={newInstallation()} tabId="t" />);
+    const add = screen.getByRole("button", { name: "Добавить сервер" });
+    // Лимит бэкенда (MAX_SERVERS в storage/profile.rs): до 31 серверов кнопка доступна.
+    for (let n = 1; n < 32; n++) {
+      expect(add).toBeEnabled();
+      await user.click(add);
+    }
+    expect(screen.getAllByRole("group", { name: /Сервер \d/ })).toHaveLength(32);
+    expect(add).toBeDisabled();
+    // Щелчок по отключённой кнопке 33-й сервер не добавляет.
+    await user.click(add);
+    expect(screen.getAllByRole("group", { name: /Сервер \d/ })).toHaveLength(32);
+  });
+
+  it("две формы на странице: подпись «Только чтение» переключает чекбокс своей формы", async () => {
+    const user = userEvent.setup();
+    // Вкладки приложения остаются смонтированными: «правка» и «новая» живут в одном документе.
+    const edit = renderWithClient(<InstallationForm initial={saved()} tabId="installation-form:i1" />);
+    const created = renderWithClient(<InstallationForm initial={newInstallation()} tabId="installation-form:new" />);
+    const editBox = within(edit.container).getByLabelText("Только чтение");
+    const createdBox = within(created.container).getByRole("checkbox");
+
+    await user.click(within(created.container).getByText("Только чтение"));
+    expect(createdBox).toBeChecked();
+    expect(editBox).not.toBeChecked();
+
+    // Так же с подписями полей серверов: каждая указывает на поле внутри своей формы.
+    for (const form of [edit, created]) {
+      for (const label of Array.from(form.container.querySelectorAll("label"))) {
+        expect(label.control, label.textContent ?? "").not.toBeNull();
+        expect(form.container).toContainElement(label.control);
+      }
+    }
+  });
+
   it("CA: введённый PEM не теряется при переключении режима; без проверки — запрет политикой", async () => {
     vi.mocked(api.getPolicyStatus).mockResolvedValue({ ...POLICY, allowInsecureTls: false });
     const user = userEvent.setup();

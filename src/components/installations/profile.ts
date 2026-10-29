@@ -3,6 +3,9 @@ import type { CaConfig, InstallationProfile, ProxyConfig, ServerConfig } from ".
 export type CaMode = CaConfig["mode"];
 export type ProxyMode = ProxyConfig["mode"];
 
+/** Больше серверов в инсталляции нельзя: тот же лимит держит бэкенд (MAX_SERVERS в storage/profile.rs), форма показывает его до «Сохранить». */
+export const MAX_SERVERS = 32;
+
 /**
  * Идентификатор нового сервера: часть ключа keychain, поэтому только латиница, цифры и «-».
  * `crypto.getRandomValues`, а не `randomUUID`: тот появился только в Safari 15.4, а нужен WebKit macOS 11.

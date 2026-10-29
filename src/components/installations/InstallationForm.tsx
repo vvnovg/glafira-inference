@@ -1,4 +1,4 @@
-import { useMemo, useState } from "react";
+import { useId, useMemo, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { api, toAppError } from "../../api/client";
@@ -7,7 +7,7 @@ import { tr } from "../../i18n/text";
 import { useWorkspace } from "../../state/workspace";
 import { ErrorBanner } from "../common/ErrorBanner";
 import { Hint } from "../common/Hint";
-import { type CaMode, isPlainHttp, newServer, type ProxyMode, withCaMode, withProxyMode } from "./profile";
+import { type CaMode, isPlainHttp, MAX_SERVERS, newServer, type ProxyMode, withCaMode, withProxyMode } from "./profile";
 import { folderPaths } from "./tree/folderTree";
 
 const ENVIRONMENTS: Environment[] = ["local", "dev", "test", "stage", "prod"];
@@ -23,6 +23,9 @@ interface KeyInput {
 
 export function InstallationForm({ initial, tabId }: { initial: InstallationProfile; tabId: string }) {
   const { t } = useTranslation();
+  // Вкладки остаются смонтированными: id полей уникальны для каждой формы, иначе подпись одной переключит поле другой.
+  const uid = useId();
+  const fid = (field: string) => `${uid}-${field}`;
   const [profile, setProfile] = useState(initial);
   // Ключи из формы: пустое поле — оставить сохранённый (у нового сервера его нет).
   const [keys, setKeys] = useState<Record<string, KeyInput>>({});
@@ -125,7 +128,10 @@ export function InstallationForm({ initial, tabId }: { initial: InstallationProf
       close(tabId);
     });
 
-  const addServer = () => update({ servers: [...profile.servers, newServer()] });
+  const atServerLimit = profile.servers.length >= MAX_SERVERS;
+  const addServer = () => {
+    if (!atServerLimit) update({ servers: [...profile.servers, newServer()] });
+  };
   const removeServer = (id: string) => {
     update({ servers: profile.servers.filter((s) => s.id !== id) });
     setReports((r) => {
@@ -141,12 +147,12 @@ export function InstallationForm({ initial, tabId }: { initial: InstallationProf
         <h2>{isNew ? t("installations.form.titleNew") : t("installations.form.titleEdit", { name: initial.name })}</h2>
       </div>
       <div className="form">
-        <label htmlFor="if-name">{t("installations.form.name")}</label>
-        <input id="if-name" value={profile.name} onChange={(e) => update({ name: e.target.value })} />
+        <label htmlFor={fid("name")}>{t("installations.form.name")}</label>
+        <input id={fid("name")} value={profile.name} onChange={(e) => update({ name: e.target.value })} />
 
-        <label htmlFor="if-folder">{t("installations.form.folder")}</label>
+        <label htmlFor={fid("folder")}>{t("installations.form.folder")}</label>
         <select
-          id="if-folder"
+          id={fid("folder")}
           value={folderId ?? ""}
           onChange={(e) => {
             setFolderTouched(true);
@@ -162,11 +168,11 @@ export function InstallationForm({ initial, tabId }: { initial: InstallationProf
         </select>
 
         <span className="field-label">
-          <label htmlFor="if-env">{t("installations.form.environment")}</label>
+          <label htmlFor={fid("env")}>{t("installations.form.environment")}</label>
           <Hint k="hints.installations.environment" label={t("installations.form.environment")} />
         </span>
         <select
-          id="if-env"
+          id={fid("env")}
           value={profile.environment}
           onChange={(e) => {
             const environment = e.target.value as Environment;
@@ -182,19 +188,19 @@ export function InstallationForm({ initial, tabId }: { initial: InstallationProf
         </select>
 
         <span className="field-label">
-          <label htmlFor="if-ro">{t("common.readOnly")}</label>
+          <label htmlFor={fid("ro")}>{t("common.readOnly")}</label>
           <Hint k="hints.installations.readOnly" label={t("common.readOnly")} />
         </span>
         <span>
-          <input id="if-ro" type="checkbox" checked={profile.readOnly} onChange={(e) => update({ readOnly: e.target.checked })} />
+          <input id={fid("ro")} type="checkbox" checked={profile.readOnly} onChange={(e) => update({ readOnly: e.target.checked })} />
         </span>
 
-        <label htmlFor="if-color">{t("installations.form.color")}</label>
-        <input id="if-color" type="color" value={profile.color} onChange={(e) => update({ color: e.target.value })} />
+        <label htmlFor={fid("color")}>{t("installations.form.color")}</label>
+        <input id={fid("color")} type="color" value={profile.color} onChange={(e) => update({ color: e.target.value })} />
 
-        <label htmlFor="if-timeout">{t("installations.form.requestTimeout")}</label>
+        <label htmlFor={fid("timeout")}>{t("installations.form.requestTimeout")}</label>
         <input
-          id="if-timeout"
+          id={fid("timeout")}
           type="number"
           min={1000}
           step={1000}
@@ -202,9 +208,9 @@ export function InstallationForm({ initial, tabId }: { initial: InstallationProf
           onChange={(e) => update({ requestTimeoutMs: Number(e.target.value) })}
         />
 
-        <label htmlFor="if-ctimeout">{t("installations.form.connectTimeout")}</label>
+        <label htmlFor={fid("ctimeout")}>{t("installations.form.connectTimeout")}</label>
         <input
-          id="if-ctimeout"
+          id={fid("ctimeout")}
           type="number"
           min={1000}
           step={1000}
@@ -219,6 +225,7 @@ export function InstallationForm({ initial, tabId }: { initial: InstallationProf
           key={s.id}
           server={s}
           index={i}
+          idPrefix={fid(`s-${s.id}`)}
           saved={!isNew && savedServers.has(s.id)}
           keyInput={keys[s.id] ?? { value: "", clear: false }}
           insecureForbidden={insecureForbidden}
@@ -247,7 +254,7 @@ export function InstallationForm({ initial, tabId }: { initial: InstallationProf
         />
       ))}
       <div className="toolbar">
-        <button type="button" disabled={busy} onClick={addServer}>
+        <button type="button" disabled={busy || atServerLimit} onClick={addServer}>
           {t("installations.form.addServer")}
         </button>
       </div>
@@ -283,6 +290,7 @@ export function InstallationForm({ initial, tabId }: { initial: InstallationProf
 function ServerFields({
   server: s,
   index,
+  idPrefix,
   saved,
   keyInput,
   insecureForbidden,
@@ -299,6 +307,8 @@ function ServerFields({
 }: {
   server: ServerConfig;
   index: number;
+  /** Префикс id полей: уникален для формы и сервера (по id сервера, а не по номеру — тот сдвигается при удалении). */
+  idPrefix: string;
   /** Сервер уже сохранён: у него может быть ключ в keychain. */
   saved: boolean;
   keyInput: KeyInput;
@@ -315,7 +325,7 @@ function ServerFields({
   onRemove: () => void;
 }) {
   const { t } = useTranslation();
-  const id = (field: string) => `if-s${index}-${field}`;
+  const id = (field: string) => `${idPrefix}-${field}`;
   const keyGoesPlain = isPlainHttp(s.baseUrl) && !keyInput.clear && (keyInput.value.trim() !== "" || saved);
   return (
     <fieldset className="server" aria-label={t("installations.form.server", { n: index + 1 })}>
