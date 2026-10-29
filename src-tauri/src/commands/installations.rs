@@ -39,11 +39,22 @@ pub struct InstallationInput {
 }
 
 /// Что сделать с ключом при сохранении.
-#[derive(Debug, PartialEq, Eq)]
+#[derive(PartialEq, Eq)]
 enum SecretOp {
     Keep,
     Set(String),
     Delete,
+}
+
+/// Значение ключа не печатается: операция может попасть в лог или сообщение об ошибке.
+impl std::fmt::Debug for SecretOp {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            Self::Keep => f.write_str("Keep"),
+            Self::Set(_) => f.debug_tuple("Set").field(&"***").finish(),
+            Self::Delete => f.write_str("Delete"),
+        }
+    }
 }
 
 /// Ключи серверов профиля — по данным формы. Серверу, которого не было в прежнем профиле,
@@ -307,6 +318,13 @@ mod tests {
             [("s1".to_string(), SecretOp::Delete)]
         );
         assert_eq!(format!("{s:?}"), r#"{"s2": "***", "s3": "***"}"#);
+    }
+
+    #[test]
+    fn secret_op_debug_hides_the_key() {
+        let debug = format!("{:?}", SecretOp::Set("sk-secret".into()));
+        assert!(!debug.contains("sk-secret"));
+        assert!(debug.contains("***"));
     }
 
     #[test]
