@@ -62,28 +62,48 @@ impl AppState {
         self.pool.evict(id);
     }
 
-    /// Удаляет инсталляцию: профиль, ключи API её серверов и подключение.
+    /// Удаляет все секреты сервера из keychain. Не останавливается на первой ошибке: иначе
+    /// остальные поля остались бы в keychain. Возвращает первую ошибку.
+    pub fn delete_server_secrets(&self, installation_id: &str, server_id: &str) -> AppResult<()> {
+        let mut first_err = None;
+        for field in crate::secrets::SERVER_SECRET_FIELDS {
+            let key = crate::secrets::secret_key(installation_id, server_id, field);
+            if let Err(e) = self.secrets.delete(&key) {
+                first_err.get_or_insert(e);
+            }
+        }
+        first_err.map_or(Ok(()), Err)
+    }
+
+    /// Удаляет инсталляцию: профиль, ключи API её серверов и подключение. Подключение
+    /// забывается сразу после профиля, а ключи удаляются все, даже если keychain отказал
+    /// на части из них: профиля уже нет, повторить удаление нельзя. Первая ошибка keychain
+    /// возвращается в конце.
     pub fn delete_installation_full(&self, id: &str) -> AppResult<()> {
         let profile = self.installations.get(id)?;
         self.installations.delete(id)?;
+        self.evict_installation(id);
+        let mut first_err = None;
         for server in &profile.servers {
-            for field in crate::secrets::SERVER_SECRET_FIELDS {
-                self.secrets
-                    .delete(&crate::secrets::secret_key(id, &server.id, field))?;
+            if let Err(e) = self.delete_server_secrets(id, &server.id) {
+                match first_err {
+                    None => first_err = Some(e),
+                    Some(_) => tracing::warn!("secrets of a deleted server were not deleted: {e}"),
+                }
             }
         }
-        self.evict_installation(id);
-        Ok(())
+        first_err.map_or(Ok(()), Err)
     }
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::error::ErrorCode;
+    use crate::error::{AppError, ErrorCode};
     use crate::secrets::{API_KEY, MemoryStore, secret_key};
+    use crate::servers::pool::InstallationInfo;
     use crate::servers::testing::{Reply, TestServer};
-    use crate::storage::profile::{ProxyConfig, sample_profile};
+    use crate::storage::profile::{ProxyConfig, sample_profile, sample_server};
 
     async fn state_with(url: &str) -> (tempfile::TempDir, AppState, Arc<MemoryStore>) {
         let dir = tempfile::tempdir().unwrap();
@@ -94,6 +114,68 @@ mod tests {
         p.servers[0].proxy = ProxyConfig::None;
         st.installations.upsert(p).unwrap();
         (dir, st, secrets)
+    }
+
+    /// Keychain, который не удаляет перечисленные ключи; остальное — как `MemoryStore`.
+    struct StuckKeys {
+        inner: MemoryStore,
+        stuck: Vec<String>,
+    }
+
+    impl SecretStore for StuckKeys {
+        fn get(&self, key: &str) -> AppResult<Option<String>> {
+            self.inner.get(key)
+        }
+        fn set(&self, key: &str, value: &str) -> AppResult<()> {
+            self.inner.set(key, value)
+        }
+        fn delete(&self, key: &str) -> AppResult<()> {
+            if self.stuck.iter().any(|k| k == key) {
+                return Err(AppError::internal_with(format!("delete {key} denied")));
+            }
+            self.inner.delete(key)
+        }
+    }
+
+    #[test]
+    fn keychain_failure_on_delete_still_forgets_the_connection_and_the_other_keys() {
+        let dir = tempfile::tempdir().unwrap();
+        let stuck = secret_key("a", "s1", API_KEY);
+        let secrets = Arc::new(StuckKeys {
+            inner: MemoryStore::default(),
+            stuck: vec![stuck.clone()],
+        });
+        let st = AppState::new(dir.path(), secrets.clone()).unwrap();
+        let mut p = sample_profile("a");
+        p.servers.push(sample_server("s2"));
+        p.servers.push(sample_server("s3"));
+        st.installations.upsert(p).unwrap();
+        for server in ["s1", "s2", "s3"] {
+            secrets
+                .set(&secret_key("a", server, API_KEY), "sk")
+                .unwrap();
+        }
+        st.pool.insert(
+            "a",
+            Arc::new(Connected {
+                info: InstallationInfo {
+                    installation_id: "a".into(),
+                    servers: Vec::new(),
+                },
+                clients: Default::default(),
+            }),
+        );
+        let e = st.delete_installation_full("a").unwrap_err();
+        assert_eq!(
+            e.details.as_deref(),
+            Some(format!("delete {stuck} denied").as_str())
+        );
+        assert!(st.installations.get("a").is_err(), "профиль удалён");
+        assert!(st.pool.get("a").is_none(), "подключение забыто");
+        let left = |server: &str| secrets.get(&secret_key("a", server, API_KEY)).unwrap();
+        assert_eq!(left("s1").as_deref(), Some("sk"), "отказавший ключ остался");
+        assert_eq!(left("s2"), None, "остальные ключи удалены");
+        assert_eq!(left("s3"), None);
     }
 
     #[tokio::test]
