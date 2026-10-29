@@ -13,6 +13,21 @@ affiliated with them.
 Спецификация: `docs/superpowers/specs/2026-10-29-glafira-inference-design.md`. Код, общий с Glafira for Kubernetes
 (а через неё — с Glafira for Apache Kafka), перечислен в `PORTED.md`.
 
+## Установка
+
+Установщики для macOS (`.dmg`, `.pkg`), Windows (`.msi`) и Linux (`.deb`, `.rpm`, `.AppImage`):
+https://github.com/vvnovg/glafira-inference-releases/releases
+
+Сборки для macOS подписаны и нотаризованы. Сборки для Windows пока не подписаны: если SmartScreen блокирует
+установщик, выберите «Подробнее», затем «Выполнить в любом случае». Новые версии приложение находит само:
+«О программе» → «Обновления».
+
+## Релиз
+
+Релиз собирает `.github/workflows/release.yml` по тегу `vX.Y.Z`. Он выпускает подписанные установщики для трёх ОС
+и `latest.json` для обновлений внутри приложения и публикует их в `vvnovg/glafira-inference-releases`. Подготовка
+версии, секреты, пробный прогон и смоук установщиков описаны в `docs/release-checklist.md`.
+
 ## Требования
 - Rust stable (`rustup`), Xcode Command Line Tools (macOS)
 - Node 22+, pnpm 11

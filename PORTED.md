@@ -136,3 +136,14 @@
 | `.github/workflows/ci.yml` | `.github/workflows/ci.yml` | `468e08a` | адаптирован: без стенда kind и крейтов MCP |
 | `.github/FUNDING.yml` | `.github/FUNDING.yml` | `468e08a` | адаптирован: адрес страницы поддержки |
 | `docs/i18n/README.md` | `docs/i18n/README.md` | `468e08a` | адаптирован: этап I7, пример ключа |
+| `.github/workflows/release.yml` | `.github/workflows/release.yml` | `468e08a` | адаптирован: репозиторий релизов, без крейтов MCP в комментарии |
+| `docs/release-checklist.md` | `docs/release-checklist.md` | `468e08a` | адаптирован: ключ, репозитории, upgradeCode, смоук с мок-сервером, обновление без MCP |
+| `docs/releases-repo/README.md` | `docs/releases-repo/README.md` | `468e08a` | адаптирован: описание продукта, имя MSI, товарные знаки |
+| `docs/releases-repo/SUPPORT.md` | `docs/releases-repo/SUPPORT.md` | `468e08a` | адаптирован: имя продукта |
+| `scripts/check-release.mjs` | `scripts/check-release.mjs` | `468e08a` | как есть |
+| `scripts/check-release.test.mjs` | `scripts/check-release.test.mjs` | `468e08a` | как есть |
+| `scripts/make-latest-json.mjs` | `scripts/make-latest-json.mjs` | `468e08a` | как есть |
+| `scripts/make-latest-json.test.mjs` | `scripts/make-latest-json.test.mjs` | `468e08a` | как есть |
+| `scripts/make-pkg.sh` | `scripts/make-pkg.sh` | `468e08a` | как есть |
+| `scripts/third-party.mjs` | `scripts/third-party.mjs` | `468e08a` | адаптирован: имя продукта |
+| `scripts/third-party.test.mjs` | `scripts/third-party.test.mjs` | `468e08a` | адаптирован: имя продукта в данных теста |
