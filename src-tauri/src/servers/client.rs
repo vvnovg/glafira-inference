@@ -430,6 +430,25 @@ mod tests {
         assert_eq!(r.status, 200);
     }
 
+    #[tokio::test]
+    async fn https_to_a_plain_http_server_is_a_tls_error() {
+        // Самая частая ошибка адреса: в профиле `https://`, а сервер отвечает по обычному HTTP.
+        // Настоящая ошибка reqwest здесь — «received corrupt message of type InvalidContentType»,
+        // слов «tls» и «certificate» в ней нет.
+        let srv = TestServer::start(vec![("/health", Reply::status(200))]).await;
+        let url = srv.url().replacen("http://", "https://", 1);
+        let e = client(&server(&url), None)
+            .get("/health", JSON_LIMIT)
+            .await
+            .unwrap_err();
+        assert_eq!(
+            (e.code, e.key.as_str()),
+            (ErrorCode::TlsError, "errors.server.tlsError"),
+            "{:?}",
+            e.details
+        );
+    }
+
     #[test]
     fn policy_forbids_insecure_servers() {
         let mut s = server("https://vllm:8000");

@@ -51,7 +51,15 @@ pub fn from_transport_text(text: &str) -> AppError {
                 "TLS connection error"
             )
         }
-    } else if t.contains("tls") || t.contains("handshake") {
+    } else if t.contains("tls")
+        || t.contains("handshake")
+        // Профиль с `https://`, а сервер отвечает по обычному HTTP: на ClientHello приходит
+        // «400 Bad Request» текстом, и rustls сообщает «received corrupt message of type
+        // InvalidContentType» — без слов «tls» и «certificate». Это ошибка TLS, а не отказ
+        // в соединении.
+        || t.contains("corrupt message")
+        || t.contains("invalidcontenttype")
+    {
         app_err!(
             ErrorCode::TlsError,
             "errors.server.tlsError",
@@ -189,6 +197,11 @@ mod tests {
             ),
             (
                 "invalid peer certificate: BadSignature",
+                ErrorCode::TlsError,
+                "errors.server.tlsError",
+            ),
+            (
+                "client error (Connect): received corrupt message of type InvalidContentType",
                 ErrorCode::TlsError,
                 "errors.server.tlsError",
             ),

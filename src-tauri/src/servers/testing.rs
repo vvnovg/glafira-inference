@@ -170,6 +170,18 @@ async fn serve<S: AsyncRead + AsyncWrite + Unpin>(
             Ok(0) | Err(_) => return,
             Ok(n) => head.extend_from_slice(&buf[..n]),
         }
+        // Запись TLS (ClientHello начинается с байта 0x16) пришла на сервер без TLS, то есть в
+        // профиле `https://`, а сервер работает по HTTP. Обычные HTTP-серверы отвечают на такой
+        // мусор текстом «400 Bad Request»; клиент TLS принимает этот ответ за повреждённую запись.
+        if head.first() == Some(&0x16) {
+            let _ = stream
+                .write_all(
+                    b"HTTP/1.1 400 Bad Request\r\nContent-Length: 0\r\nConnection: close\r\n\r\n",
+                )
+                .await;
+            let _ = stream.shutdown().await;
+            return;
+        }
         if head.len() > 64 * 1024 {
             return;
         }

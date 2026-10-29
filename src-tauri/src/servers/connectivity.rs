@@ -463,6 +463,20 @@ mod tests {
     }
 
     #[tokio::test]
+    async fn https_to_a_plain_http_server_fails_the_tls_step() {
+        let srv = TestServer::start(vllm(Reply::status(200))).await;
+        let url = srv.url().replacen("http://", "https://", 1);
+        let r = run(&server(&url), None).await;
+        assert!(!r.ok);
+        assert_eq!(names(&r), [("config", true), ("tcp", true), ("tls", false)]);
+        let e = r.steps[2].error.as_ref().unwrap();
+        assert_eq!(
+            (e.code, e.key.as_str()),
+            (ErrorCode::TlsError, "errors.server.tlsError")
+        );
+    }
+
+    #[tokio::test]
     async fn insecure_tls_step_does_not_claim_a_trusted_certificate() {
         let srv = TestServer::start_tls(vllm(Reply::status(200))).await;
         let mut s = server(&srv.url());
