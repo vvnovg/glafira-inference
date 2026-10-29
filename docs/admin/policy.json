@@ -1,0 +1,7 @@
+{
+  "updatesEnabled": false,
+  "updateUrl": "https://mirror.example.corp/glafira-inference/latest.json",
+  "language": "en",
+  "mcpEnabled": false,
+  "allowInsecureTls": false
+}

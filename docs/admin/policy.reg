@@ -1,0 +1,8 @@
+Windows Registry Editor Version 5.00
+
+[HKEY_LOCAL_MACHINE\SOFTWARE\Policies\Glafira\Inference]
+"updatesEnabled"=dword:00000000
+"updateUrl"="https://mirror.example.corp/glafira-inference/latest.json"
+"language"="en"
+"mcpEnabled"=dword:00000000
+"allowInsecureTls"=dword:00000000

@@ -44,3 +44,10 @@
 | `src-tauri/src/sync.rs` | `src-tauri/src/sync.rs` | `468e08a` | как есть |
 | `src-tauri/src/dock_name.rs` | `src-tauri/src/dock_name.rs` | `468e08a` | адаптирован: имя бинаря |
 | `src-tauri/src/tls.rs` | `src-tauri/src/tls.rs` | `468e08a` | как есть |
+| `src-tauri/src/policy/mod.rs` | `src-tauri/src/policy/mod.rs` | `468e08a` | адаптирован: без `allowExecAuth` (появится в I3 вместе с Kubernetes) |
+| `src-tauri/src/policy/sources.rs` | `src-tauri/src/policy/sources.rs` | `468e08a` | адаптирован: без `allowExecAuth` в проверке примеров |
+| `src-tauri/src/settings.rs` | `src-tauri/src/settings.rs` | `468e08a` | адаптирован: ссылка на этап I7 |
+| `src-tauri/src/commands/settings.rs` | `src-tauri/src/commands/settings.rs` | `468e08a` | как есть |
+| `docs/admin/policy.json` | `docs/admin/policy.json` | `468e08a` | адаптирован: идентификаторы, без `allowExecAuth` |
+| `docs/admin/policy.mobileconfig` | `docs/admin/policy.mobileconfig` | `468e08a` | адаптирован: идентификаторы, без `allowExecAuth` |
+| `docs/admin/policy.reg` | `docs/admin/policy.reg` | `468e08a` | адаптирован: ветка реестра, без `allowExecAuth` |
