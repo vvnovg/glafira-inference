@@ -51,3 +51,10 @@
 | `docs/admin/policy.json` | `docs/admin/policy.json` | `468e08a` | адаптирован: идентификаторы, без `allowExecAuth` |
 | `docs/admin/policy.mobileconfig` | `docs/admin/policy.mobileconfig` | `468e08a` | адаптирован: идентификаторы, без `allowExecAuth` |
 | `docs/admin/policy.reg` | `docs/admin/policy.reg` | `468e08a` | адаптирован: ветка реестра, без `allowExecAuth` |
+| `src-tauri/src/storage/testdata/test-cert.pem` | `src-tauri/src/storage/testdata/test-cert.pem` | `468e08a` | как есть |
+| `src-tauri/src/storage/testdata/test-key.pem` | `src-tauri/src/storage/testdata/test-key.pem` | `468e08a` | как есть |
+| `src-tauri/src/storage/profile.rs` | `src-tauri/src/storage/profile.rs` | `468e08a` | адаптирован: профиль инсталляции с серверами вместо профиля подключения; PEM, адреса и прокси — как есть |
+| `src-tauri/src/storage/installations.rs` | `src-tauri/src/storage/connections.rs` | `468e08a` | адаптирован: инсталляции вместо подключений, неизвестные поля серверов |
+| `src-tauri/src/storage/tree.rs` | `src-tauri/src/storage/tree.rs` | `468e08a` | адаптирован: инсталляции вместо подключений |
+| `src-tauri/src/storage/exchange.rs` | `src-tauri/src/storage/exchange.rs` | `468e08a` | адаптирован: ключи API серверов вместо токена и ключа сертификата, без exec-плагинов и доступа LLM, предупреждения о смене адреса сервера |
+| `src-tauri/src/commands/folders.rs` | `src-tauri/src/commands/folders.rs` | `468e08a` | адаптирован: удаление ключей серверов, которых нет в файле; без exec-плагинов и сессий |

@@ -27,6 +27,10 @@ tracing-subscriber = { version = "0.3", features = ["env-filter", "registry", "f
 keyring = { version = "3", features = ["apple-native", "windows-native", "sync-secret-service"] }
 rustls = { version = "0.23", default-features = false, features = ["ring", "std", "tls12"] }
 plist = "1"
+pem = "3"
+url = "2"
+uuid = { version = "1", features = ["v4"] }
+time = { version = "0.3", features = ["formatting", "parsing"] }
 sys-locale = "0.3"
 
 [target.'cfg(windows)'.dependencies]

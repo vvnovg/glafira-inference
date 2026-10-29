@@ -1,0 +1,830 @@
+use std::path::{Path, PathBuf};
+use std::sync::RwLock;
+
+use serde::{Deserialize, Serialize};
+
+use crate::error::{AppError, AppResult, ErrorCode};
+use crate::storage::fs::{read_json, write_json};
+#[cfg(test)]
+pub use crate::storage::profile::sample_profile;
+pub use crate::storage::profile::{Environment, InstallationProfile, validate_profile};
+use crate::sync::RwLockExt;
+
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct InstallationFolder {
+    pub id: String,
+    pub name: String,
+    #[serde(default)]
+    pub parent_id: Option<String>,
+    #[serde(default)]
+    pub order: i64,
+    /// Поля из более новой версии Glafira: сохраняются при записи как есть.
+    #[serde(flatten)]
+    pub extra: serde_json::Map<String, serde_json::Value>,
+}
+
+pub(crate) fn installation_not_found(id: &str) -> AppError {
+    app_err!(
+        ErrorCode::NotFound,
+        "errors.installations.notFound",
+        "Installation {{id}} not found",
+        id = id
+    )
+}
+
+const CURRENT_SCHEMA_VERSION: u32 = 1;
+const FOLDER_NAME_MAX_CHARS: usize = 100;
+
+/// Папки и инсталляции читаются по одному: запись, которую эта версия не понимает
+/// (например, новое окружение или тип сервера), не ломает весь файл.
+#[derive(Deserialize)]
+#[serde(rename_all = "camelCase")]
+struct InstallationsFile {
+    schema_version: u32,
+    #[serde(default)]
+    folders: Vec<serde_json::Value>,
+    installations: Vec<serde_json::Value>,
+    #[serde(flatten)]
+    extra: serde_json::Map<String, serde_json::Value>,
+}
+
+/// Список для записи: сначала разобранные записи, затем нечитаемые — как были в файле.
+struct WithRaw<'a, T>(&'a [T], &'a [serde_json::Value]);
+
+impl<T: Serialize> Serialize for WithRaw<'_, T> {
+    fn serialize<S: serde::Serializer>(&self, s: S) -> Result<S::Ok, S::Error> {
+        use serde::ser::SerializeSeq;
+        let mut seq = s.serialize_seq(Some(self.0.len() + self.1.len()))?;
+        for item in self.0 {
+            seq.serialize_element(item)?;
+        }
+        for item in self.1 {
+            seq.serialize_element(item)?;
+        }
+        seq.end()
+    }
+}
+
+/// Запись файла без копирования данных кэша.
+#[derive(Serialize)]
+#[serde(rename_all = "camelCase")]
+struct InstallationsFileRef<'a> {
+    schema_version: u32,
+    folders: WithRaw<'a, InstallationFolder>,
+    installations: WithRaw<'a, InstallationProfile>,
+    #[serde(flatten)]
+    extra: &'a serde_json::Map<String, serde_json::Value>,
+}
+
+/// Содержимое `installations.json` в памяти: инсталляции, папки и неизвестные поля файла.
+///
+/// `raw_installations` и `raw_folders` — записи, которые эта версия не смогла разобрать
+/// (из более новой Glafira). В приложении они не показываются, `check_tree` их не видит,
+/// ссылки на нечитаемую папку считаются корнем; при записи они возвращаются в файл без изменений.
+#[derive(Debug, Clone, Default)]
+pub(crate) struct StoreData {
+    pub installations: Vec<InstallationProfile>,
+    pub folders: Vec<InstallationFolder>,
+    pub extra: serde_json::Map<String, serde_json::Value>,
+    pub raw_installations: Vec<serde_json::Value>,
+    pub raw_folders: Vec<serde_json::Value>,
+}
+
+/// Разбирает записи по одной; нечитаемые уходят в `raw` с предупреждением в журнале.
+/// В журнал пишутся только номер и id записи: текст ошибки serde может содержать значения полей.
+fn parse_entries<T: serde::de::DeserializeOwned>(
+    kind: &str,
+    values: Vec<serde_json::Value>,
+    raw: &mut Vec<serde_json::Value>,
+) -> Vec<T> {
+    let mut out = Vec::with_capacity(values.len());
+    for (i, v) in values.into_iter().enumerate() {
+        match T::deserialize(&v) {
+            Ok(item) => out.push(item),
+            Err(_) => {
+                let id = v.get("id").and_then(|id| id.as_str()).unwrap_or("?");
+                tracing::warn!(
+                    "installations.json: {kind} #{i} (id {id}) is not supported by this version and is hidden; it is kept in the file"
+                );
+                raw.push(v);
+            }
+        }
+    }
+    out
+}
+
+pub(crate) fn folder_not_found(id: &str) -> AppError {
+    app_err!(
+        ErrorCode::NotFound,
+        "errors.folders.notFound",
+        "Folder {{id}} not found",
+        id = id
+    )
+}
+
+/// Проверяет имя папки: непустое после trim и не длиннее 100 символов.
+pub(crate) fn validate_folder_name(name: &str) -> AppResult<()> {
+    let name = name.trim();
+    if name.is_empty() {
+        return Err(app_err!(
+            ErrorCode::InvalidInput,
+            "errors.folders.nameEmpty",
+            "Enter a folder name"
+        ));
+    }
+    if name.chars().count() > FOLDER_NAME_MAX_CHARS {
+        return Err(app_err!(
+            ErrorCode::InvalidInput,
+            "errors.folders.nameTooLong",
+            "The folder name is longer than 100 characters"
+        ));
+    }
+    Ok(())
+}
+
+fn truncate_chars(s: &str, max: usize) -> &str {
+    match s.char_indices().nth(max) {
+        Some((i, _)) => &s[..i],
+        None => s,
+    }
+}
+
+/// Имя, не совпадающее (без учёта регистра) ни с одним из `taken`: при совпадении добавляется
+/// суффикс « (2)», « (3)»…; основа укорачивается, чтобы имя уложилось в 100 символов.
+pub(crate) fn unique_name(taken: &[&str], wanted: &str) -> String {
+    let is_taken = |name: &str| {
+        let name = name.to_lowercase();
+        taken.iter().any(|t| t.trim().to_lowercase() == name)
+    };
+    let wanted = truncate_chars(wanted, FOLDER_NAME_MAX_CHARS);
+    if !is_taken(wanted) {
+        return wanted.to_string();
+    }
+    (2..)
+        .map(|n| {
+            let suffix = format!(" ({n})");
+            let base = truncate_chars(wanted, FOLDER_NAME_MAX_CHARS - suffix.chars().count());
+            format!("{}{suffix}", base.trim_end())
+        })
+        .find(|candidate| !is_taken(candidate))
+        .expect("suffix sequence is infinite")
+}
+
+/// Инварианты дерева: ссылки на папки существуют, циклов нет,
+/// имена папок валидны и уникальны среди соседей без учёта регистра.
+pub(crate) fn check_tree(data: &StoreData) -> AppResult<()> {
+    use std::collections::{HashMap, HashSet};
+
+    let by_id: HashMap<&str, &InstallationFolder> =
+        data.folders.iter().map(|f| (f.id.as_str(), f)).collect();
+    for c in &data.installations {
+        if let Some(fid) = c.folder_id.as_deref()
+            && !by_id.contains_key(fid)
+        {
+            return Err(folder_not_found(fid));
+        }
+    }
+    for f in &data.folders {
+        if let Some(pid) = f.parent_id.as_deref()
+            && !by_id.contains_key(pid)
+        {
+            return Err(folder_not_found(pid));
+        }
+    }
+    for f in &data.folders {
+        let mut seen = HashSet::new();
+        let mut cur = Some(f);
+        while let Some(node) = cur {
+            if !seen.insert(node.id.as_str()) {
+                return Err(app_err!(
+                    ErrorCode::InvalidInput,
+                    "errors.folders.cycle",
+                    "A folder cannot be moved into itself or its subfolder"
+                ));
+            }
+            cur = node
+                .parent_id
+                .as_deref()
+                .and_then(|p| by_id.get(p).copied());
+        }
+    }
+    let mut names = HashSet::new();
+    for f in &data.folders {
+        validate_folder_name(&f.name)?;
+        let name = f.name.trim();
+        if !names.insert((f.parent_id.as_deref(), name.to_lowercase())) {
+            return Err(app_err!(
+                ErrorCode::InvalidInput,
+                "errors.folders.nameTaken",
+                "A folder named “{{name}}” already exists here",
+                name = name
+            ));
+        }
+    }
+    Ok(())
+}
+
+/// Приводит прочитанный файл к допустимому виду без ошибок:
+/// старый файл получает `order` по порядку списка, висячие ссылки и циклы уходят в корень.
+fn repair_on_read(data: &mut StoreData) {
+    use std::collections::{HashMap, HashSet};
+
+    if data.installations.len() > 1 && data.installations.iter().all(|c| c.order == 0) {
+        for (i, c) in data.installations.iter_mut().enumerate() {
+            c.order = i as i64;
+        }
+    }
+    let ids: HashSet<String> = data.folders.iter().map(|f| f.id.clone()).collect();
+    for c in &mut data.installations {
+        if c.folder_id.as_ref().is_some_and(|id| !ids.contains(id)) {
+            c.folder_id = None;
+        }
+    }
+    for f in &mut data.folders {
+        if f.parent_id.as_ref().is_some_and(|id| !ids.contains(id)) {
+            f.parent_id = None;
+        }
+    }
+    // Цикл из правленного вручную файла: в корень уходит первая папка, лежащая на цикле
+    // (путь вверх возвращается к ней самой); папки, лишь ведущие в цикл, остаются на месте.
+    for i in 0..data.folders.len() {
+        let parents: HashMap<&str, Option<&str>> = data
+            .folders
+            .iter()
+            .map(|f| (f.id.as_str(), f.parent_id.as_deref()))
+            .collect();
+        let start = data.folders[i].id.as_str();
+        let mut seen = HashSet::new();
+        let mut cur = parents.get(start).copied().flatten();
+        let mut on_cycle = false;
+        while let Some(id) = cur {
+            if id == start {
+                on_cycle = true;
+                break;
+            }
+            if !seen.insert(id) {
+                break;
+            }
+            cur = parents.get(id).copied().flatten();
+        }
+        if on_cycle {
+            data.folders[i].parent_id = None;
+        }
+    }
+    // Имена: trim, пустое — id папки, не длиннее 100 символов, уникальны среди соседей.
+    let mut taken: HashMap<Option<String>, Vec<String>> = HashMap::new();
+    for f in &mut data.folders {
+        let trimmed = f.name.trim();
+        let wanted = if trimmed.is_empty() {
+            f.id.trim()
+        } else {
+            trimmed
+        };
+        let wanted = truncate_chars(wanted, FOLDER_NAME_MAX_CHARS)
+            .trim_end()
+            .to_string();
+        let siblings = taken.entry(f.parent_id.clone()).or_default();
+        let refs: Vec<&str> = siblings.iter().map(String::as_str).collect();
+        let name = unique_name(&refs, &wanted);
+        siblings.push(name.clone());
+        f.name = name;
+    }
+}
+
+pub struct InstallationStore {
+    path: PathBuf,
+    cache: RwLock<StoreData>,
+}
+
+impl InstallationStore {
+    pub fn open(dir: &Path) -> AppResult<Self> {
+        std::fs::create_dir_all(dir)?;
+        let path = dir.join("installations.json");
+        let mut data = match read_json::<InstallationsFile>(&path)? {
+            Some(file) if file.schema_version > CURRENT_SCHEMA_VERSION => {
+                return Err(crate::storage::fs::newer_schema_error(
+                    &path,
+                    file.schema_version,
+                ));
+            }
+            Some(file) => {
+                let mut raw_installations = Vec::new();
+                let mut raw_folders = Vec::new();
+                StoreData {
+                    installations: parse_entries(
+                        "installation",
+                        file.installations,
+                        &mut raw_installations,
+                    ),
+                    folders: parse_entries("folder", file.folders, &mut raw_folders),
+                    extra: file.extra,
+                    raw_installations,
+                    raw_folders,
+                }
+            }
+            None => StoreData::default(),
+        };
+        repair_on_read(&mut data);
+        Ok(Self {
+            path,
+            cache: RwLock::new(data),
+        })
+    }
+
+    pub fn list(&self) -> Vec<InstallationProfile> {
+        self.cache.read_safe().installations.clone()
+    }
+
+    pub fn list_folders(&self) -> Vec<InstallationFolder> {
+        self.cache.read_safe().folders.clone()
+    }
+
+    pub fn get(&self, id: &str) -> AppResult<InstallationProfile> {
+        self.cache
+            .read_safe()
+            .installations
+            .iter()
+            .find(|c| c.id == id)
+            .cloned()
+            .ok_or_else(|| installation_not_found(id))
+    }
+
+    /// Копия всех данных хранилища (для расчётов без записи, например предпросмотра импорта).
+    pub(crate) fn snapshot(&self) -> StoreData {
+        self.cache.read_safe().clone()
+    }
+
+    /// Держит ли кто-то блокировку записи хранилища: тест проверяет, что keychain под ней
+    /// не читается.
+    #[cfg(test)]
+    pub(crate) fn is_write_locked(&self) -> bool {
+        matches!(
+            self.cache.try_read(),
+            Err(std::sync::TryLockError::WouldBlock)
+        )
+    }
+
+    /// Изменяет данные одной транзакцией: `f` работает с копией, затем проверяются
+    /// инварианты дерева и пишется файл; кэш заменяется только после успешной записи.
+    pub(crate) fn update<R>(&self, f: impl FnOnce(&mut StoreData) -> AppResult<R>) -> AppResult<R> {
+        let mut cache = self.cache.write_safe();
+        let mut next = cache.clone();
+        let result = f(&mut next)?;
+        check_tree(&next)?;
+        self.persist(&next)?;
+        *cache = next;
+        Ok(result)
+    }
+
+    /// Создаёт или обновляет инсталляцию и возвращает её в сохранённом виде.
+    ///
+    /// Новая инсталляция кладётся в конец папки `folder_id` входящего профиля.
+    /// У существующего `folder_id` и `order` берутся из сохранённого, входящие значения
+    /// игнорируются: место инсталляции меняют только команды перемещения. Входящий `extra`
+    /// игнорируется всегда: неизвестные поля пишет только сама Glafira (существующий профиль
+    /// сохраняет свои, новый получает пустые), поэтому через них нельзя записать секрет в файл.
+    /// То же у серверов: сервер с прежним id сохраняет свои неизвестные поля, новый — пустые.
+    pub fn upsert(&self, mut profile: InstallationProfile) -> AppResult<InstallationProfile> {
+        crate::storage::profile::normalize_profile(&mut profile);
+        validate_profile(&profile)?;
+        self.update(|data| {
+            match data.installations.iter_mut().find(|c| c.id == profile.id) {
+                Some(slot) => {
+                    for server in &mut profile.servers {
+                        server.extra = slot
+                            .server(&server.id)
+                            .map(|old| old.extra.clone())
+                            .unwrap_or_default();
+                    }
+                    profile.extra = std::mem::take(&mut slot.extra);
+                    profile.folder_id = slot.folder_id.take();
+                    profile.order = slot.order;
+                    *slot = profile.clone();
+                }
+                None => {
+                    profile.extra = Default::default();
+                    for server in &mut profile.servers {
+                        server.extra = Default::default();
+                    }
+                    profile.order = data
+                        .installations
+                        .iter()
+                        .filter(|c| c.folder_id == profile.folder_id)
+                        .map(|c| c.order + 1)
+                        .max()
+                        .unwrap_or(0);
+                    data.installations.push(profile.clone());
+                }
+            }
+            Ok(profile)
+        })
+    }
+
+    pub fn delete(&self, id: &str) -> AppResult<()> {
+        self.update(|data| {
+            if !data.installations.iter().any(|c| c.id == id) {
+                return Err(installation_not_found(id));
+            }
+            data.installations.retain(|c| c.id != id);
+            Ok(())
+        })
+    }
+
+    fn persist(&self, data: &StoreData) -> AppResult<()> {
+        write_json(
+            &self.path,
+            &InstallationsFileRef {
+                schema_version: CURRENT_SCHEMA_VERSION,
+                folders: WithRaw(&data.folders, &data.raw_folders),
+                installations: WithRaw(&data.installations, &data.raw_installations),
+                extra: &data.extra,
+            },
+        )
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::error::ErrorCode;
+
+    #[test]
+    fn persists_and_reloads() {
+        let dir = tempfile::tempdir().unwrap();
+        let store = InstallationStore::open(dir.path()).unwrap();
+        store.upsert(sample_profile("a")).unwrap();
+        let mut b = sample_profile("b");
+        b.servers[0].ca = crate::storage::profile::CaConfig::Pem {
+            pem: crate::storage::profile::TEST_CERT_PEM.into(),
+        };
+        b.servers.push(crate::storage::profile::sample_server("s2"));
+        b.servers[1].ca = crate::storage::profile::CaConfig::Insecure;
+        let b = store.upsert(b).unwrap();
+
+        let reopened = InstallationStore::open(dir.path()).unwrap();
+        assert_eq!(reopened.list().len(), 2);
+        assert_eq!(reopened.get("b").unwrap(), b);
+    }
+
+    #[test]
+    fn upsert_replaces_and_delete_removes() {
+        let dir = tempfile::tempdir().unwrap();
+        let store = InstallationStore::open(dir.path()).unwrap();
+        store.upsert(sample_profile("a")).unwrap();
+        let mut a2 = sample_profile("a");
+        a2.name = "renamed".into();
+        store.upsert(a2).unwrap();
+        assert_eq!(store.list().len(), 1);
+        assert_eq!(store.get("a").unwrap().name, "renamed");
+        store.delete("a").unwrap();
+        assert_eq!(store.get("a").unwrap_err().code, ErrorCode::NotFound);
+        assert_eq!(store.delete("a").unwrap_err().code, ErrorCode::NotFound);
+    }
+
+    #[test]
+    fn file_contains_schema_version_and_no_secrets() {
+        let dir = tempfile::tempdir().unwrap();
+        let store = InstallationStore::open(dir.path()).unwrap();
+        store.upsert(sample_profile("a")).unwrap();
+        let raw = std::fs::read_to_string(dir.path().join("installations.json")).unwrap();
+        assert!(raw.contains("\"schemaVersion\": 1"));
+        assert!(!raw.to_lowercase().contains("password"));
+        assert!(!raw.contains("\"token\":") && !raw.contains("apiKey"));
+    }
+
+    #[test]
+    fn migration_keeps_installations_in_root_with_order() {
+        let dir = tempfile::tempdir().unwrap();
+        std::fs::write(
+            dir.path().join("installations.json"),
+            r##"{"schemaVersion":1,"installations":[
+          {"id":"a","name":"A","color":"#fff","environment":"dev","readOnly":false,"servers":[{"id":"s1","name":"vllm","baseUrl":"http://vllm:8000"}]},
+          {"id":"b","name":"B","color":"#fff","environment":"dev","readOnly":false,"servers":[{"id":"s1","name":"vllm","baseUrl":"http://vllm:8000"}]}]}"##,
+        )
+        .unwrap();
+        let store = InstallationStore::open(dir.path()).unwrap();
+        let list = store.list();
+        assert_eq!(
+            list.iter()
+                .map(|c| (c.id.as_str(), c.folder_id.clone(), c.order))
+                .collect::<Vec<_>>(),
+            vec![("a", None, 0), ("b", None, 1)]
+        );
+        assert!(store.list_folders().is_empty());
+    }
+
+    #[test]
+    fn unknown_fields_survive_write() {
+        let dir = tempfile::tempdir().unwrap();
+        std::fs::write(
+            dir.path().join("installations.json"),
+            r##"{"schemaVersion":1,"future":{"x":1},"folders":[{"id":"f","name":"F","parentId":null,"order":0,"icon":"star"}],
+           "installations":[{"id":"a","name":"A","color":"#fff","environment":"dev","readOnly":false,"servers":[{"id":"s1","name":"vllm","baseUrl":"http://vllm:8000"}],
+           "folderId":"f","order":0,"pinned":true}]}"##,
+        )
+        .unwrap();
+        let store = InstallationStore::open(dir.path()).unwrap();
+        let mut p = store.get("a").unwrap();
+        p.name = "A2".into();
+        // Входящие неизвестные поля игнорируются: остаются сохранённые.
+        p.extra.insert("pinned".into(), serde_json::json!(false));
+        store.upsert(p).unwrap();
+        let raw: serde_json::Value =
+            serde_json::from_slice(&std::fs::read(dir.path().join("installations.json")).unwrap())
+                .unwrap();
+        assert_eq!(raw["future"]["x"], 1);
+        assert_eq!(raw["folders"][0]["icon"], "star");
+        assert_eq!(raw["installations"][0]["pinned"], true);
+        assert_eq!(raw["installations"][0]["name"], "A2");
+        assert_eq!(raw["installations"][0]["folderId"], "f");
+    }
+
+    #[test]
+    fn unparseable_entries_are_kept_but_hidden() {
+        let dir = tempfile::tempdir().unwrap();
+        let path = dir.path().join("installations.json");
+        let qa = serde_json::json!({"id":"q","name":"QA","color":"#fff","environment":"qa","readOnly":false,
+            "servers":[{"id":"s1","name":"vllm","baseUrl":"http://vllm:8000"}],"folderId":null,"order":0,"pinned":true});
+        let raw_folder =
+            serde_json::json!({"id":"rf","name":{"smart":"x"},"parentId":null,"order":1});
+        let file = serde_json::json!({"schemaVersion":1,
+            "folders":[raw_folder, {"id":"f","name":"F","parentId":"rf","order":0}],
+            "installations":[qa, {"id":"a","name":"A","color":"#fff","environment":"dev","readOnly":false,
+                "servers":[{"id":"s1","name":"vllm","baseUrl":"http://vllm:8000"}],"folderId":"rf","order":1}]});
+        std::fs::write(&path, serde_json::to_vec(&file).unwrap()).unwrap();
+
+        let store = InstallationStore::open(dir.path()).unwrap();
+        let list = store.list();
+        assert_eq!(list.len(), 1);
+        assert_eq!(list[0].id, "a");
+        // Ссылки на нечитаемую папку — корень.
+        assert_eq!(list[0].folder_id, None);
+        let folders = store.list_folders();
+        assert_eq!(folders.len(), 1);
+        assert_eq!(folders[0].parent_id, None);
+
+        let mut a = store.get("a").unwrap();
+        a.name = "A2".into();
+        store.upsert(a).unwrap();
+        let written: serde_json::Value =
+            serde_json::from_slice(&std::fs::read(&path).unwrap()).unwrap();
+        let conns = written["installations"].as_array().unwrap();
+        assert_eq!(conns.len(), 2);
+        assert!(conns.contains(&qa));
+        assert!(conns.iter().any(|c| c["id"] == "a" && c["name"] == "A2"));
+        let fl = written["folders"].as_array().unwrap();
+        assert_eq!(fl.len(), 2);
+        assert!(fl.contains(&raw_folder));
+
+        // После перезапуска то же самое: запись ничего не теряет.
+        let reopened = InstallationStore::open(dir.path()).unwrap();
+        assert_eq!(reopened.list().len(), 1);
+        reopened.delete("a").unwrap();
+        let written: serde_json::Value =
+            serde_json::from_slice(&std::fs::read(&path).unwrap()).unwrap();
+        assert_eq!(written["installations"], serde_json::json!([qa]));
+    }
+
+    #[test]
+    fn new_installation_goes_to_end_of_its_folder() {
+        let dir = tempfile::tempdir().unwrap();
+        let store = InstallationStore::open(dir.path()).unwrap();
+        store.upsert(sample_profile("a")).unwrap();
+        store.upsert(sample_profile("b")).unwrap();
+        assert_eq!(store.get("b").unwrap().order, 1);
+    }
+
+    #[test]
+    fn dangling_folder_reference_is_rejected_on_write() {
+        let dir = tempfile::tempdir().unwrap();
+        let store = InstallationStore::open(dir.path()).unwrap();
+        let mut p = sample_profile("a");
+        p.folder_id = Some("missing".into());
+        let e = store.upsert(p).unwrap_err();
+        assert_eq!(e.key, "errors.folders.notFound");
+    }
+
+    fn folder(id: &str, name: &str, parent: Option<&str>) -> InstallationFolder {
+        InstallationFolder {
+            id: id.into(),
+            name: name.into(),
+            parent_id: parent.map(String::from),
+            order: 0,
+            extra: Default::default(),
+        }
+    }
+
+    #[test]
+    fn check_tree_rejects_bad_folders() {
+        let data = |folders: Vec<InstallationFolder>| StoreData {
+            folders,
+            ..Default::default()
+        };
+        assert!(
+            check_tree(&data(vec![
+                folder("a", "A", None),
+                folder("b", "a", Some("a"))
+            ]))
+            .is_ok()
+        );
+        for (folders, key) in [
+            (
+                vec![folder("a", "A", Some("b")), folder("b", "B", Some("a"))],
+                "errors.folders.cycle",
+            ),
+            (vec![folder("a", "A", Some("a"))], "errors.folders.cycle"),
+            (vec![folder("a", "A", Some("x"))], "errors.folders.notFound"),
+            (vec![folder("a", "  ", None)], "errors.folders.nameEmpty"),
+            (
+                vec![folder("a", &"я".repeat(101), None)],
+                "errors.folders.nameTooLong",
+            ),
+            (
+                vec![folder("a", "Prod", None), folder("b", " prod ", None)],
+                "errors.folders.nameTaken",
+            ),
+        ] {
+            assert_eq!(check_tree(&data(folders)).unwrap_err().key, key);
+        }
+        assert!(check_tree(&data(vec![folder("a", &"я".repeat(100), None)])).is_ok());
+    }
+
+    #[test]
+    fn dangling_references_and_cycles_go_to_root_on_read() {
+        let dir = tempfile::tempdir().unwrap();
+        std::fs::write(
+            dir.path().join("installations.json"),
+            r##"{"schemaVersion":1,"folders":[
+              {"id":"f","name":"F","parentId":"gone"},
+              {"id":"x","name":"X","parentId":"y"},{"id":"y","name":"Y","parentId":"x"}],
+              "installations":[{"id":"a","name":"A","color":"#fff","environment":"dev","readOnly":false,
+              "servers":[{"id":"s1","name":"vllm","baseUrl":"http://vllm:8000"}],"folderId":"gone"}]}"##,
+        )
+        .unwrap();
+        let store = InstallationStore::open(dir.path()).unwrap();
+        assert_eq!(store.get("a").unwrap().folder_id, None);
+        let folders = store.list_folders();
+        assert_eq!(folders[0].parent_id, None);
+        check_tree(&store.cache.read_safe()).unwrap();
+        store.delete("a").unwrap();
+    }
+
+    #[test]
+    fn folder_names_are_repaired_on_read() {
+        let dir = tempfile::tempdir().unwrap();
+        let long = "я".repeat(101);
+        std::fs::write(
+            dir.path().join("installations.json"),
+            format!(
+                r##"{{"schemaVersion":1,"folders":[
+                  {{"id":"e","name":"   "}},{{"id":"l","name":"{long}"}},
+                  {{"id":"p1","name":"Prod"}},{{"id":"p2","name":" prod "}},{{"id":"p3","name":"PROD"}},
+                  {{"id":"c","name":"prod","parentId":"p1"}}],
+                  "installations":[]}}"##
+            ),
+        )
+        .unwrap();
+        let store = InstallationStore::open(dir.path()).unwrap();
+        check_tree(&store.cache.read_safe()).unwrap();
+        let names: Vec<_> = store.list_folders().into_iter().map(|f| f.name).collect();
+        assert_eq!(names[0], "e");
+        assert_eq!(names[1], "я".repeat(100));
+        assert_eq!(&names[2..], ["Prod", "prod (2)", "PROD (3)", "prod"]);
+        store.upsert(sample_profile("a")).unwrap();
+    }
+
+    #[test]
+    fn unique_name_adds_suffix_case_insensitively() {
+        assert_eq!(unique_name(&[], "A"), "A");
+        assert_eq!(unique_name(&["a"], "A"), "A (2)");
+        assert_eq!(unique_name(&["A", "a (2)"], "A"), "A (3)");
+        let long = "x".repeat(100);
+        let n = unique_name(&[long.as_str()], &long);
+        assert_eq!(n.chars().count(), 100);
+        assert!(n.ends_with(" (2)"));
+    }
+
+    #[test]
+    fn upsert_of_existing_profile_keeps_its_place() {
+        let dir = tempfile::tempdir().unwrap();
+        let store = InstallationStore::open(dir.path()).unwrap();
+        store
+            .update(|d| {
+                d.folders.push(folder("f", "F", None));
+                Ok(())
+            })
+            .unwrap();
+        store.upsert(sample_profile("x")).unwrap();
+        let mut p = sample_profile("a");
+        p.folder_id = Some("f".into());
+        let saved = store.upsert(p).unwrap();
+        assert_eq!(saved.order, 0);
+        let mut edited = saved.clone();
+        edited.folder_id = None;
+        edited.order = 99;
+        edited.name = "renamed".into();
+        let back = store.upsert(edited).unwrap();
+        assert_eq!(back.folder_id.as_deref(), Some("f"));
+        assert_eq!(back.order, 0);
+        let stored = store.get("a").unwrap();
+        assert_eq!(
+            (
+                stored.folder_id.as_deref(),
+                stored.order,
+                stored.name.as_str()
+            ),
+            (Some("f"), 0, "renamed")
+        );
+    }
+
+    #[test]
+    fn cycle_repair_detaches_only_folders_on_the_cycle() {
+        let dir = tempfile::tempdir().unwrap();
+        std::fs::write(
+            dir.path().join("installations.json"),
+            r##"{"schemaVersion":1,"folders":[
+              {"id":"z","name":"Z","parentId":"x"},
+              {"id":"x","name":"X","parentId":"y"},{"id":"y","name":"Y","parentId":"x"}],
+              "installations":[]}"##,
+        )
+        .unwrap();
+        let store = InstallationStore::open(dir.path()).unwrap();
+        let f = store.list_folders();
+        assert_eq!(f[0].parent_id.as_deref(), Some("x"));
+        let roots = f[1..].iter().filter(|f| f.parent_id.is_none()).count();
+        assert_eq!(roots, 1);
+        check_tree(&store.cache.read_safe()).unwrap();
+    }
+
+    #[test]
+    fn incoming_extra_is_ignored_on_save() {
+        let dir = tempfile::tempdir().unwrap();
+        let store = InstallationStore::open(dir.path()).unwrap();
+        // Новый профиль: неизвестные поля из запроса не пишутся.
+        let mut p = sample_profile("a");
+        p.extra.insert("token".into(), serde_json::json!("x"));
+        p.extra.insert("pinned".into(), serde_json::json!(true));
+        assert!(store.upsert(p).unwrap().extra.is_empty());
+        assert!(store.get("a").unwrap().extra.is_empty());
+        let raw = std::fs::read_to_string(dir.path().join("installations.json")).unwrap();
+        assert!(!raw.contains("\"token\":") && !raw.contains("pinned"));
+        // Существующий профиль всегда сохраняет свои неизвестные поля.
+        store
+            .update(|d| {
+                d.installations[0]
+                    .extra
+                    .insert("passwordRotationDays".into(), serde_json::json!(30));
+                Ok(())
+            })
+            .unwrap();
+        let mut edited = store.get("a").unwrap();
+        edited.extra.clear();
+        edited
+            .extra
+            .insert("clientSecret".into(), serde_json::json!("x"));
+        edited.name = "A2".into();
+        let saved = store.upsert(edited).unwrap();
+        assert_eq!(saved.name, "A2");
+        assert_eq!(
+            serde_json::Value::Object(saved.extra),
+            serde_json::json!({"passwordRotationDays": 30})
+        );
+        let raw = std::fs::read_to_string(dir.path().join("installations.json")).unwrap();
+        assert!(!raw.contains("clientSecret"));
+    }
+
+    #[test]
+    fn servers_keep_their_unknown_fields_and_new_ones_get_none() {
+        let dir = tempfile::tempdir().unwrap();
+        let store = InstallationStore::open(dir.path()).unwrap();
+        let mut p = sample_profile("a");
+        p.servers[0]
+            .extra
+            .insert("apiKey".into(), serde_json::json!("x"));
+        let saved = store.upsert(p).unwrap();
+        assert!(
+            saved.servers[0].extra.is_empty(),
+            "новый сервер — без чужих полей"
+        );
+        store
+            .update(|d| {
+                d.installations[0].servers[0]
+                    .extra
+                    .insert("gpuNode".into(), serde_json::json!("n1"));
+                Ok(())
+            })
+            .unwrap();
+        let mut edited = store.get("a").unwrap();
+        edited.servers[0].extra.clear();
+        edited.servers[0].name = "renamed".into();
+        let mut added = crate::storage::profile::sample_server("s2");
+        added.extra.insert("secret".into(), serde_json::json!("x"));
+        edited.servers.push(added);
+        let saved = store.upsert(edited).unwrap();
+        assert_eq!(saved.servers[0].extra["gpuNode"], "n1");
+        assert!(saved.servers[1].extra.is_empty());
+        let raw = std::fs::read_to_string(dir.path().join("installations.json")).unwrap();
+        assert!(!raw.contains("secret") && !raw.contains("apiKey"), "{raw}");
+    }
+}
