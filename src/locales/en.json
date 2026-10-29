@@ -219,5 +219,48 @@
       "metricsNo": "not exposed",
       "notConnected": "Not connected"
     }
+  },
+  "settings": {
+    "title": "Settings",
+    "language": {
+      "section": "Language",
+      "label": "Interface language",
+      "system": "System default ({{name}})",
+      "systemUnknown": "System default",
+      "policy": "The language is set by your organization"
+    }
+  },
+  "about": {
+    "summary": "Glafira is a desktop app for connecting to corporate LLM inference, monitoring, diagnosing and auditing it, with vLLM and SGLang in focus: installations of several servers, API keys in the system secret store, step-by-step server checks, folders, export and import.",
+    "version": "Version",
+    "build": "Build",
+    "system": "System",
+    "license": "License",
+    "policy": "Organization policy",
+    "policySet": "set",
+    "policyNone": "none",
+    "policyError": "Organization policy: {{error}}",
+    "dataDir": "Data:",
+    "logDir": "Logs:",
+    "trademarks": "vLLM, SGLang, LiteLLM, NVIDIA and other product names are trademarks of their respective owners. This project is not affiliated with them."
+  },
+  "support": {
+    "title": "Support the project",
+    "hint": "Glafira is free and open source; donations keep it going."
+  },
+  "help": {
+    "search": "Search the guide",
+    "noResults": "Nothing found",
+    "contents": "Contents",
+    "loadFailed": "Could not load the guide"
+  },
+  "sidebar": {
+    "settings": "Settings",
+    "help": "Help",
+    "about": "About",
+    "newInstallation": "New installation",
+    "newFolder": "New folder",
+    "exportAll": "Export all…",
+    "import": "Import…"
   }
 }

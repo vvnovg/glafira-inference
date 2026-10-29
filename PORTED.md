@@ -99,3 +99,19 @@
 | `src/state/workspace.ts` | `src/state/workspace.ts` | `468e08a` | адаптирован: вкладки инсталляций вместо вкладок кластера |
 | `src/state/workspace.test.ts` | `src/state/workspace.test.ts` | `468e08a` | адаптирован: вкладки инсталляций |
 | `src/components/installations/InstallationFormTab.tsx` | `src/components/connections/ConnectionFormTab.tsx` | `468e08a` | адаптирован: инсталляция вместо подключения |
+| `scripts/guide-publish.mjs` | `scripts/guide-publish.mjs` | `468e08a` | адаптирован: имя продукта |
+| `scripts/guide-publish.test.mjs` | `scripts/guide-publish.test.mjs` | `468e08a` | как есть |
+| `scripts/guide-publish.d.mts` | `scripts/guide-publish.d.mts` | `468e08a` | как есть |
+| `src/guide/chapters.ts` | `src/guide/chapters.ts` | `468e08a` | адаптирован: главы «Начало работы» и «Инсталляции» |
+| `src/guide/chapters.test.ts` | `src/guide/chapters.test.ts` | `468e08a` | адаптирован: глава «Инсталляции» |
+| `src/guide/parse.ts` | `src/guide/parse.ts` | `468e08a` | как есть |
+| `src/guide/parse.test.ts` | `src/guide/parse.test.ts` | `468e08a` | адаптирован: глава «Инсталляции» |
+| `src/components/help/HelpPanel.tsx` | `src/components/help/HelpPanel.tsx` | `468e08a` | как есть |
+| `src/components/help/HelpPanel.test.tsx` | `src/components/help/HelpPanel.test.tsx` | `468e08a` | адаптирован: глава «Инсталляции» |
+| `src/components/help/helpChapterFor.ts` | `src/components/help/helpChapterFor.ts` | `468e08a` | адаптирован: вкладки инсталляций |
+| `src/components/help/helpChapterFor.test.ts` | `src/components/help/helpChapterFor.test.ts` | `468e08a` | адаптирован: вкладки инсталляций |
+| `src/state/helpContext.ts` | `src/state/helpContext.ts` | `468e08a` | как есть |
+| `src/components/settings/SettingsPanel.tsx` | `src/components/settings/SettingsPanel.tsx` | `468e08a` | адаптирован: без раздела MCP (этап I2) |
+| `src/components/settings/SettingsPanel.test.tsx` | `src/components/settings/SettingsPanel.test.tsx` | `468e08a` | адаптирован: без раздела MCP |
+| `src/components/about/AboutPanel.tsx` | `src/components/about/AboutPanel.tsx` | `468e08a` | адаптирован: без обновлений (этап I2) |
+| `src/components/about/AboutPanel.test.tsx` | `src/components/about/AboutPanel.test.tsx` | `468e08a` | адаптирован: без обновлений |
