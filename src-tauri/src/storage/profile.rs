@@ -288,7 +288,8 @@ pub fn parse_base_url(s: &ServerConfig) -> AppResult<url::Url> {
     Ok(url)
 }
 
-fn validate_server(s: &ServerConfig) -> AppResult<()> {
+/// Проверка одного сервера: и при сохранении профиля, и при проверке подключения из формы.
+pub fn validate_server(s: &ServerConfig) -> AppResult<()> {
     if !is_valid_server_id(&s.id) {
         return Err(invalid(ltext!(
             "errors.installations.badServerId",
