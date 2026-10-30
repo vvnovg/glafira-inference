@@ -162,7 +162,9 @@ describe("ServerPanel", () => {
     });
     expect(await screen.findByText("Нет ответа сервера: timed out")).toBeInTheDocument();
     expect(within(kv).queryByText(/42\s?%/)).toBeNull();
-    expect(within(kv).getByText("…")).toBeInTheDocument();
+    expect(within(kv).getByText("—")).toBeInTheDocument();
+    expect(within(kv).queryByText("…")).toBeNull();
+    expect(kv).toHaveAttribute("title", "Нет ответа сервера");
   });
 
   it("предупреждение о перезапуске остаётся минуту после сброса, а не на один опрос", async () => {
@@ -180,8 +182,9 @@ describe("ServerPanel", () => {
   it("сброс старше минуты предупреждения не даёт", async () => {
     vi.mocked(api.readServerMetrics).mockResolvedValue(metrics(Date.now() - 61_000, { reset: true, rates: null }));
     renderWithClient(<ServerPanel installationId="i1" serverId="s1" />);
-    await screen.findByRole("region", { name: "KV-кэш" });
-    await waitFor(() => expect(api.readServerMetrics).toHaveBeenCalled());
+    const kv = await screen.findByRole("region", { name: "KV-кэш" });
+    await waitFor(() => expect(within(kv).getByText(/42\s?%/)).toBeInTheDocument());
+    expect(api.readServerMetrics).toHaveBeenCalled();
     expect(screen.queryByText(/Счётчики уменьшились/)).toBeNull();
   });
 

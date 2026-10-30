@@ -36,13 +36,25 @@ export function tiles(m: ServerMetrics | undefined, t: (k: string, o?: Record<st
 }
 
 /** «Обзор» сервера: тип и версия, модели, число движков, плитки метрик. `restarted` — сервер перезапущен меньше минуты назад. */
-export function ServerOverview({ facts, latest, restarted = false }: { facts: ServerFacts; latest?: ServerMetrics; restarted?: boolean }) {
+export function ServerOverview({
+  facts,
+  latest,
+  restarted = false,
+  error = false,
+}: {
+  facts: ServerFacts;
+  latest?: ServerMetrics;
+  restarted?: boolean;
+  /** Опрос метрик не прошёл: плитки «—» и подсказка «нет ответа», а не «…» и не «серии нет». */
+  error?: boolean;
+}) {
   const { t } = useTranslation();
   const kind = t(`installations.form.kinds.${facts.kind}`);
   const readable = readsMetrics(facts);
   const noSeriesHint = (c: Canonical) => {
     const key = noMetricsHintKey(facts);
     if (key) return t(key);
+    if (error) return t("servers.tiles.noAnswer");
     const series = latest?.series[c];
     return series ? t("servers.tiles.series", { series }) : t("servers.tiles.noSeries");
   };
@@ -75,7 +87,7 @@ export function ServerOverview({ facts, latest, restarted = false }: { facts: Se
           <section key={tile.id} className="tile" aria-label={t(`servers.tiles.${tile.id}`)} title={noSeriesHint(tile.canonical)}>
             <span className="tile-label">{t(`servers.tiles.${tile.id}`)}</span>
             <span className={tile.value == null ? "tile-value muted" : "tile-value"}>
-              {tile.value ?? (latest || !readable ? t("servers.metrics.noData") : "…")}
+              {tile.value ?? (error ? "—" : latest || !readable ? t("servers.metrics.noData") : "…")}
             </span>
           </section>
         ))}

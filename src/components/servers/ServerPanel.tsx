@@ -82,7 +82,7 @@ export function ServerPanel({ installationId, serverId }: { installationId: stri
               </button>
             ))}
           </div>
-          {sub === "overview" && <ServerOverview facts={state.facts} latest={live.error ? undefined : live.latest} restarted={restarted} />}
+          {sub === "overview" && <ServerOverview facts={state.facts} latest={live.error ? undefined : live.latest} restarted={restarted} error={!!live.error} />}
           {sub === "config" && <ServerConfigView installationId={installationId} serverId={serverId} />}
           {sub === "metrics" && <ServerMetricsView points={live.points} />}
         </>
