@@ -2,6 +2,7 @@ import { invoke } from "@tauri-apps/api/core";
 import type {
   AppError,
   AppInfo,
+  ConfigEntry,
   ExportSummary,
   ImportPreview,
   InstallationFolder,
@@ -10,6 +11,7 @@ import type {
   LanguageSettings,
   PolicyStatus,
   SecretsInput,
+  ServerMetrics,
   TestReport,
   TreeItemRef,
   UpdateCheck,
@@ -53,6 +55,11 @@ export const api = {
   connectInstallation: (installationId: string, fresh = false) =>
     call<InstallationInfo>("connect_installation", { installationId, fresh }),
   disconnectInstallation: (installationId: string) => call<void>("disconnect_installation", { installationId }),
+  /** Метрики сервера «сейчас»: снимок `/metrics` и производные по предыдущим снимкам. */
+  readServerMetrics: (installationId: string, serverId: string) =>
+    call<ServerMetrics>("read_server_metrics", { installationId, serverId }),
+  readServerConfig: (installationId: string, serverId: string) =>
+    call<ConfigEntry[]>("read_server_config", { installationId, serverId }),
 
   listFolders: () => call<InstallationFolder[]>("list_folders"),
   createFolder: (name: string, parentId: string | null) =>
