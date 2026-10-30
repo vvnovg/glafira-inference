@@ -5,7 +5,9 @@ use std::sync::Arc;
 use tauri::State;
 
 use crate::error::{AppError, AppResult, ErrorCode};
-use crate::metrics::derive::{ServerMetrics, Timed};
+use crate::metrics::canonical::Snapshot;
+use crate::metrics::derive::{ServerMetrics, Timed, derive};
+use crate::servers::adapters::adapter;
 use crate::servers::client::ServerClient;
 use crate::servers::config::{self, ConfigEntry};
 use crate::servers::detect::DetectedKind;
@@ -71,6 +73,14 @@ pub async fn read_server_metrics_inner(
     server_id: &str,
 ) -> AppResult<ServerMetrics> {
     let (client, kind) = connected_server(state, installation_id, server_id).await?;
+    // Тип без карты метрик (OpenAI-совместимый): сервер не опрашивается, `/metrics` у него обычно нет.
+    if adapter(kind).metric_map().is_empty() {
+        let empty = Timed {
+            at_ms: now_ms(),
+            snap: Snapshot::default(),
+        };
+        return Ok(derive(&[], &empty));
+    }
     // Чтения одного сервера идут по очереди: метка времени ставится после ответа под замком,
     // и более позднее чтение не получает более раннюю метку (иначе счётчики «убывают» и
     // история сбрасывается как после перезапуска сервера).
@@ -205,6 +215,24 @@ mod tests {
         let m = read_server_metrics_inner(&st, "a", "s1").await.unwrap();
         assert_eq!(m.gauges.requests_running, None);
         assert!(m.missing.is_empty() && m.series.is_empty());
+    }
+
+    #[tokio::test]
+    async fn openai_compatible_server_is_not_asked_for_metrics() {
+        // Ollama: маршрута /metrics нет (404); llama.cpp без --metrics отвечает 501.
+        let srv = TestServer::start(vec![(
+            "/v1/models",
+            Reply::json(r#"{"data":[{"id":"m","owned_by":"ollama"}]}"#),
+        )])
+        .await;
+        let (_d, st) = state_with(&[&srv.url()]);
+        // Подключение само проверяет `/metrics` при определении типа; считаем запросы после него.
+        st.connected("a", false).await.unwrap();
+        srv.seen.lock().unwrap().clear();
+        let m = read_server_metrics_inner(&st, "a", "s1").await.unwrap();
+        assert_eq!(m.rates, None);
+        assert!(m.series.is_empty() && m.missing.is_empty());
+        assert!(srv.paths().is_empty(), "{:?}", srv.paths());
     }
 
     #[tokio::test]

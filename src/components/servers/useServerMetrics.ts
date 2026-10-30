@@ -1,7 +1,7 @@
 import { useQuery } from "@tanstack/react-query";
 import { useEffect, useState } from "react";
 import { api, toAppError } from "../../api/client";
-import type { AppError, ServerMetrics } from "../../api/types";
+import type { AppError, ServerFacts, ServerMetrics } from "../../api/types";
 import { useRefetchInterval } from "../../lib/tabActive";
 
 /** Опрос `/metrics` сервера — раз в 5 с, только пока вкладка видна (спец. §6.6). */
@@ -25,6 +25,18 @@ export function appendPoint(buf: MetricPoint[], p: MetricPoint, windowMs = WINDO
 }
 
 const EMPTY: MetricPoint[] = [];
+
+/** Сервер отдаёт метрики, которые Glafira читает: не OpenAI-совместимый тип и `/metrics` с нужными сериями (иначе опрос только ошибается). */
+export function readsMetrics(facts: ServerFacts | undefined): boolean {
+  return !!facts && facts.kind !== "openai" && facts.metrics;
+}
+
+/** Подсказка, почему метрик нет (`undefined` — они есть). */
+export function noMetricsHintKey(facts: ServerFacts): string | undefined {
+  if (facts.kind === "openai") return "servers.tiles.openaiNoMetrics";
+  if (!facts.metrics) return facts.kind === "sglang" ? "servers.tiles.sglangEnableMetrics" : "servers.tiles.noSeries";
+  return undefined;
+}
 
 export function metricsQueryKey(installationId: string, serverId: string) {
   return ["server-metrics", installationId, serverId] as const;

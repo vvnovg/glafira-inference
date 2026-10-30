@@ -1,6 +1,7 @@
 import { useTranslation } from "react-i18next";
 import type { Canonical, ServerFacts, ServerMetrics } from "../../api/types";
 import { modelLabel } from "../installations/InstallationPanel";
+import { readsMetrics } from "./useServerMetrics";
 import { fmtAdaptive, fmtNumber, fmtPercent } from "./format";
 
 interface Tile {
@@ -38,6 +39,7 @@ export function tiles(m: ServerMetrics | undefined, t: (k: string, o?: Record<st
 export function ServerOverview({ facts, latest }: { facts: ServerFacts; latest?: ServerMetrics }) {
   const { t } = useTranslation();
   const kind = t(`installations.form.kinds.${facts.kind}`);
+  const readable = readsMetrics(facts);
   const noSeriesHint = (c: Canonical) => {
     if (facts.kind === "openai") return t("servers.tiles.openaiNoMetrics");
     if (!facts.metrics && facts.kind === "sglang") return t("servers.tiles.sglangEnableMetrics");
@@ -73,7 +75,7 @@ export function ServerOverview({ facts, latest }: { facts: ServerFacts; latest?:
           <section key={tile.id} className="tile" aria-label={t(`servers.tiles.${tile.id}`)} title={noSeriesHint(tile.canonical)}>
             <span className="tile-label">{t(`servers.tiles.${tile.id}`)}</span>
             <span className={tile.value == null ? "tile-value muted" : "tile-value"}>
-              {tile.value ?? (latest ? t("servers.metrics.noData") : "…")}
+              {tile.value ?? (latest || !readable ? t("servers.metrics.noData") : "…")}
             </span>
           </section>
         ))}

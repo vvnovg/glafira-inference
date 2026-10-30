@@ -8,7 +8,7 @@ import { EnvBadge } from "../common/EnvBadge";
 import { ErrorBanner } from "../common/ErrorBanner";
 import { Hint } from "../common/Hint";
 import { fmtNumber, fmtPercent } from "../servers/format";
-import { useServerMetrics } from "../servers/useServerMetrics";
+import { noMetricsHintKey, readsMetrics, useServerMetrics } from "../servers/useServerMetrics";
 
 /** Ключ запроса сведений о подключённой инсталляции. */
 export const installationQueryKey = (id: string) => ["installation", id] as const;
@@ -88,7 +88,7 @@ function ServerCard({ installationId, server, state }: { installationId: string;
         <dt>{t("installations.panel.address")}</dt>
         <dd>{server.baseUrl}</dd>
         {facts && <ServerFactsRows facts={facts} />}
-        {facts && <LiveRow installationId={installationId} serverId={server.id} />}
+        {facts && <LiveRow installationId={installationId} serverId={server.id} facts={facts} />}
       </dl>
       {state?.error && <ErrorBanner error={state.error} />}
       {!state && <p className="muted">{t("installations.panel.notConnected")}</p>}
@@ -142,9 +142,10 @@ function ServerFactsRows({ facts }: { facts: ServerFacts }) {
 }
 
 /** Строка «выполняются · ждут · KV» — тот же опрос, что у вкладки сервера (раз в 5 с, пока вкладка видна). */
-function LiveRow({ installationId, serverId }: { installationId: string; serverId: string }) {
+function LiveRow({ installationId, serverId, facts }: { installationId: string; serverId: string; facts: ServerFacts }) {
   const { t } = useTranslation();
-  const { latest, error } = useServerMetrics(installationId, serverId);
+  const polled = readsMetrics(facts);
+  const { latest, error } = useServerMetrics(installationId, serverId, polled);
   const g = latest?.gauges;
   const part = (v: number | null | undefined, f: (v: number) => string) => (v == null ? "—" : f(v));
   // react-query хранит последние успешные данные и после неудачного опроса: при ошибке показываем «нет ответа», а не устаревшие числа.
@@ -153,11 +154,12 @@ function LiveRow({ installationId, serverId }: { installationId: string; serverI
     : latest
       ? `${part(g?.requestsRunning, fmtNumber)} · ${part(g?.requestsWaiting, fmtNumber)} · ${part(g?.kvUsage, fmtPercent)}`
       : "…";
+  const noMetricsKey = polled ? undefined : noMetricsHintKey(facts);
   return (
     <>
       <dt>{t("installations.panel.live")}</dt>
-      <dd className="live" title={t("installations.panel.liveHint")}>
-        {text ?? <span className="muted">{t("installations.panel.liveError")}</span>}
+      <dd className="live" title={noMetricsKey ? t(noMetricsKey) : t("installations.panel.liveHint")}>
+        {noMetricsKey ? "—" : (text ?? <span className="muted">{t("installations.panel.liveError")}</span>)}
       </dd>
     </>
   );

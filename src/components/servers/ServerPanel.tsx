@@ -9,7 +9,7 @@ import { installationQueryKey } from "../installations/InstallationPanel";
 import { ServerConfigView } from "./ServerConfigView";
 import { ServerMetricsView } from "./ServerMetricsView";
 import { ServerOverview } from "./ServerOverview";
-import { useServerMetrics } from "./useServerMetrics";
+import { readsMetrics, useServerMetrics } from "./useServerMetrics";
 
 type Sub = "overview" | "config" | "metrics";
 const SUBS: Sub[] = ["overview", "config", "metrics"];
@@ -31,7 +31,7 @@ export function ServerPanel({ installationId, serverId }: { installationId: stri
     enabled: !!server,
   });
   const state = info.data?.servers.find((s) => s.serverId === serverId);
-  const live = useServerMetrics(installationId, serverId, !!state?.facts);
+  const live = useServerMetrics(installationId, serverId, readsMetrics(state?.facts));
 
   if (!profile || !server) {
     if (installations.error) return <ErrorBanner error={toAppError(installations.error)} onRetry={() => void installations.refetch()} />;

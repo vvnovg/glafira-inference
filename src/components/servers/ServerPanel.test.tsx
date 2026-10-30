@@ -117,6 +117,32 @@ describe("ServerPanel", () => {
     expect(await screen.findByText("Нет ответа сервера: timed out")).toBeInTheDocument();
   });
 
+  it("OpenAI-совместимый сервер (Ollama): метрики не опрашиваются, «Нет ответа сервера» нет, у плиток подсказка", async () => {
+    vi.mocked(api.connectInstallation).mockResolvedValue({
+      installationId: "i1",
+      servers: [{ serverId: "s1", facts: { kind: "openai", detected: "openai", version: null, models: [{ id: "llama3" }], metrics: false, warnings: [] } }],
+    });
+    renderWithClient(<ServerPanel installationId="i1" serverId="s1" />);
+    const kv = await screen.findByRole("region", { name: "KV-кэш" });
+    expect(within(kv).getByText("Нет данных")).toBeInTheDocument();
+    expect(kv).toHaveAttribute("title", "Glafira читает метрики только vLLM и SGLang");
+    expect(api.readServerMetrics).not.toHaveBeenCalled();
+    expect(screen.queryByText(/Нет ответа сервера/)).toBeNull();
+  });
+
+  it("SGLang без --enable-metrics: метрики не опрашиваются, подсказка про флаг", async () => {
+    vi.mocked(api.connectInstallation).mockResolvedValue({
+      installationId: "i1",
+      servers: [{ serverId: "s1", facts: { kind: "sglang", detected: "sglang", version: "0.5.4", models: [{ id: "m" }], metrics: false, warnings: [] } }],
+    });
+    renderWithClient(<ServerPanel installationId="i1" serverId="s1" />);
+    const kv = await screen.findByRole("region", { name: "KV-кэш" });
+    expect(kv).toHaveAttribute("title", "SGLang отдаёт метрики, только если запущен с --enable-metrics");
+    expect(within(kv).getByText("Нет данных")).toBeInTheDocument();
+    expect(api.readServerMetrics).not.toHaveBeenCalled();
+    expect(screen.queryByText(/Нет ответа сервера/)).toBeNull();
+  });
+
   it("ссылка на инсталляцию открывает её вкладку; удалённый сервер", async () => {
     const user = userEvent.setup();
     const { unmount } = renderWithClient(<ServerPanel installationId="i1" serverId="s1" />);

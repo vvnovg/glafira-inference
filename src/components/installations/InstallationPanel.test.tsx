@@ -177,6 +177,24 @@ describe("InstallationPanel", () => {
     expect(within(first).queryByText(/^3 · 1 · 42\s?%$/)).not.toBeInTheDocument();
   });
 
+  it("сервер без метрик (Ollama, SGLang без --enable-metrics): опроса нет, в строке «—» с подсказкой", async () => {
+    vi.mocked(api.connectInstallation).mockResolvedValue({
+      installationId: "i1",
+      servers: [
+        { serverId: "s1", facts: { kind: "openai", detected: "openai", version: null, models: [{ id: "llama3" }], metrics: false, warnings: [] } },
+        { serverId: "s2", facts: { kind: "sglang", detected: "sglang", version: "0.5.4", models: [{ id: "m" }], metrics: false, warnings: [] } },
+      ],
+    });
+    renderWithClient(<InstallationPanel installationId="i1" />);
+    const first = await screen.findByRole("region", { name: "gpu-1" });
+    const live = await within(first).findByText("—");
+    expect(live).toHaveAttribute("title", "Glafira читает метрики только vLLM и SGLang");
+    const second = screen.getByRole("region", { name: "gpu-2" });
+    expect(within(second).getByText("—")).toHaveAttribute("title", "SGLang отдаёт метрики, только если запущен с --enable-metrics");
+    expect(api.readServerMetrics).not.toHaveBeenCalled();
+    expect(screen.queryByText("нет ответа")).toBeNull();
+  });
+
   it("подпись модели", () => {
     expect(modelLabel({ id: "m" })).toBe("m");
     expect(modelLabel({ id: "m", maxModelLen: 4096 })).toBe("m · 4096");
