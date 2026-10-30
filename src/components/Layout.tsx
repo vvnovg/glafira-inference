@@ -26,6 +26,10 @@ function tabTitle(tab: Tab, byId: Map<string, InstallationProfile>): string {
       return tab.installationId ? i18n.t("tabs.installationForm", { name }) : i18n.t("tabs.newInstallation");
     case "installation":
       return name;
+    case "server": {
+      const server = byId.get(tab.installationId)?.servers.find((s) => s.id === tab.serverId)?.name ?? "?";
+      return `${server} · ${name}`;
+    }
   }
 }
 

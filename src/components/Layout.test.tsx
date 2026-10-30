@@ -14,7 +14,7 @@ vi.mock("../api/client", async (importOriginal) => {
     color: "#888",
     environment: "prod",
     readOnly: true,
-    servers: [],
+    servers: [{ id: "s1", name: "gpu-1", baseUrl: "http://gpu-1:8000", kind: "auto", metricsPath: "/metrics", ca: { mode: "system" }, proxy: { mode: "system" } }],
     requestTimeoutMs: 5000,
     connectTimeoutMs: 5000,
     folderId: null,
@@ -51,6 +51,12 @@ describe("Layout tabs", () => {
     expect(tabs[1].getAttribute("aria-selected")).toBe("false");
     expect((await within(list).findAllByText("PROD")).length).toBe(2);
     expect(within(list).getAllByRole("img", { name: "Только чтение" }).length).toBe(2);
+  });
+
+  it("server tab is titled «server · installation»", async () => {
+    useWorkspace.getState().open({ kind: "server", installationId: "c1", serverId: "s1" });
+    renderWithClient(<Layout />);
+    expect(await within(screen.getByRole("tablist")).findByRole("tab", { name: "gpu-1 · prod-1" })).toBeInTheDocument();
   });
 
   it("activates a tab via its button", () => {

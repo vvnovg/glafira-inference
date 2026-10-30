@@ -62,7 +62,7 @@ export function InstallationPanel({ installationId }: { installationId: string }
       {q.data && (
         <div className="cards">
           {profile.servers.map((s) => (
-            <ServerCard key={s.id} server={s} state={states.get(s.id)} />
+            <ServerCard key={s.id} installationId={installationId} server={s} state={states.get(s.id)} />
           ))}
         </div>
       )}
@@ -70,13 +70,17 @@ export function InstallationPanel({ installationId }: { installationId: string }
   );
 }
 
-function ServerCard({ server, state }: { server: ServerConfig; state?: ServerState }) {
+function ServerCard({ installationId, server, state }: { installationId: string; server: ServerConfig; state?: ServerState }) {
   const { t } = useTranslation();
+  const open = useWorkspace((s) => s.open);
   const facts = state?.facts;
   return (
     <section className="card" aria-label={server.name}>
       <h4>
-        {facts ? "✅" : "❌"} {server.name}
+        {facts ? "✅" : "❌"} {server.name}{" "}
+        <button type="button" className="link" onClick={() => open({ kind: "server", installationId, serverId: server.id })}>
+          {t("servers.panel.open")}
+        </button>
       </h4>
       <dl className="facts">
         <dt>{t("installations.panel.address")}</dt>

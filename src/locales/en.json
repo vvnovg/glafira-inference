@@ -355,7 +355,90 @@
   },
   "servers": {
     "metrics": {
-      "noData": "No data"
+      "noData": "No data",
+      "window": "Window",
+      "windows": {
+        "now": "Now",
+        "1h": "1 h",
+        "24h": "24 h",
+        "7d": "7 d",
+        "30d": "30 d"
+      },
+      "historyLater": "History comes with stage I1c"
+    },
+    "panel": {
+      "deleted": "The server or its installation has been deleted",
+      "noAnswer": "No answer from the server: {{error}}",
+      "open": "Open"
+    },
+    "tabs": {
+      "overview": "Overview",
+      "config": "Configuration",
+      "metrics": "Metrics"
+    },
+    "overview": {
+      "engines": "Engines (data parallel)",
+      "reset": "The counters went down: the server restarted. Rates and percentiles start again from the next poll."
+    },
+    "tiles": {
+      "requests": "Running · waiting",
+      "kv": "KV cache",
+      "promptTokens": "Input tokens",
+      "generationTokens": "Output tokens",
+      "ttft": "TTFT p95, 1 min",
+      "itl": "ITL p95, 1 min",
+      "prefixCache": "Prefix cache hits",
+      "preemptions": "Preemptions",
+      "series": "Series: {{series}}",
+      "noSeries": "The server does not expose a series for this metric",
+      "sglangEnableMetrics": "SGLang exposes metrics only when started with --enable-metrics",
+      "openaiNoMetrics": "Glafira reads metrics of vLLM and SGLang only"
+    },
+    "units": {
+      "ms": "{{value}} ms",
+      "perSec": "{{value}}/s",
+      "perMin": "{{value}}/min"
+    },
+    "config": {
+      "partial": "Over HTTP a server reports only part of its arguments; the rest come from the pod or the process (from stage I3).",
+      "refresh": "Refresh",
+      "empty": "The server reported no arguments",
+      "name": "Argument",
+      "value": "Value",
+      "source": "Source",
+      "secretSet": "set (hidden)",
+      "differs": "{{source}}: {{value}}"
+    },
+    "sources": {
+      "server_info": "server info",
+      "models": "models",
+      "metrics": "metrics"
+    },
+    "sourceHints": {
+      "server_info": "/server_info or /get_server_info of the server",
+      "models": "/v1/models (and /model_info of SGLang)",
+      "metrics": "Labels of info series in /metrics, such as vllm:cache_config_info"
+    },
+    "charts": {
+      "requests": "Requests",
+      "running": "running",
+      "waiting": "waiting",
+      "kv": "KV cache",
+      "max": "max",
+      "avg": "avg",
+      "preemptions": "Preemptions",
+      "perSec": "per second",
+      "tokens": "Tokens per second",
+      "prompt": "input",
+      "generation": "output",
+      "prefixCache": "Prefix cache hits",
+      "hit": "hits",
+      "ttft": "Time to first token (TTFT)",
+      "itl": "Inter-token latency (ITL)",
+      "e2e": "End-to-end latency (E2E)",
+      "queue": "Queue time",
+      "finished": "Finished requests per second",
+      "aborted": "aborted"
     }
   }
 }

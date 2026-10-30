@@ -34,6 +34,8 @@ describe("workspace", () => {
     expect(tabId({ kind: "installation-form", installationId: null })).toBe("installation-form:new");
     expect(tabId({ kind: "installation-form", installationId: "a" })).toBe("installation-form:a");
     expect(tabId({ kind: "installation", installationId: "a" })).toBe("installation:a");
+    expect(tabId({ kind: "server", installationId: "a", serverId: "s1" })).toBe("server:a:s1");
+    expect(tabInstallation({ kind: "server", installationId: "a", serverId: "s1" })).toBe("a");
     expect(tabId({ kind: "help", chapter: "installations" })).toBe("help");
     expect(tabId({ kind: "about" })).toBe("about");
     expect(tabInstallation({ kind: "installation-form", installationId: "a" })).toBe("a");
@@ -53,6 +55,7 @@ describe("workspace", () => {
     const { open, closeForInstallation } = useWorkspace.getState();
     open({ kind: "installation", installationId: "a" });
     open({ kind: "installation-form", installationId: "a" });
+    open({ kind: "server", installationId: "a", serverId: "s1" });
     open({ kind: "installation", installationId: "b" });
     open({ kind: "settings" });
     useWorkspace.getState().activate("installation-form:a");

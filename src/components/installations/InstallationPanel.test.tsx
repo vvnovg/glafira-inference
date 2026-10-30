@@ -147,6 +147,14 @@ describe("InstallationPanel", () => {
     expect(api.listInstallations).toHaveBeenCalledTimes(2);
   });
 
+  it("«Открыть» на карточке открывает вкладку сервера", async () => {
+    const user = userEvent.setup();
+    renderWithClient(<InstallationPanel installationId="i1" />);
+    const first = await screen.findByRole("region", { name: "gpu-1" });
+    await user.click(within(first).getByRole("button", { name: "Открыть" }));
+    expect(useWorkspace.getState().activeId).toBe("server:i1:s1");
+  });
+
   it("подпись модели", () => {
     expect(modelLabel({ id: "m" })).toBe("m");
     expect(modelLabel({ id: "m", maxModelLen: 4096 })).toBe("m · 4096");

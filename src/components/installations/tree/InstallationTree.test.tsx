@@ -639,14 +639,14 @@ describe("InstallationTree", () => {
       expect(api.connectInstallation).not.toHaveBeenCalled();
     });
 
-    it("щелчок по серверу открывает вкладку инсталляции", async () => {
+    it("щелчок по серверу открывает вкладку сервера", async () => {
       const user = userEvent.setup();
       renderWithClient(<InstallationTree />);
       await screen.findByText("gpu-pool");
       expect(useWorkspace.getState().tabs).toEqual([]);
       await user.click(serverButton("https://10.0.0.2:8000"));
-      expect(useWorkspace.getState().activeId).toBe("installation:z");
-      expect(useWorkspace.getState().tabs).toEqual([expect.objectContaining({ kind: "installation", installationId: "z" })]);
+      expect(useWorkspace.getState().activeId).toBe("server:z:s-err");
+      expect(useWorkspace.getState().tabs).toEqual([expect.objectContaining({ kind: "server", installationId: "z", serverId: "s-err" })]);
     });
 
     it("дерево само не подключается к серверам инсталляций", async () => {
