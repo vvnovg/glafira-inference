@@ -5,13 +5,14 @@ import { renderWithClient } from "../../test/render";
 
 vi.mock("../../api/client", async (importOriginal) => {
   const orig = await importOriginal<typeof import("../../api/client")>();
-  return { ...orig, api: { listInstallations: vi.fn(), connectInstallation: vi.fn() } };
+  return { ...orig, api: { listInstallations: vi.fn(), connectInstallation: vi.fn(), readServerMetrics: vi.fn() } };
 });
 
 import { api } from "../../api/client";
 import type { InstallationInfo, InstallationProfile } from "../../api/types";
 import { useWorkspace } from "../../state/workspace";
 import { InstallationPanel, modelLabel } from "./InstallationPanel";
+import { metrics } from "../servers/testMetrics";
 import { newInstallation } from "./profile";
 
 const msg = (key: string, text: string, params: Record<string, string> = {}) => ({ key, params, text });
@@ -56,6 +57,7 @@ beforeEach(() => {
   vi.clearAllMocks();
   vi.mocked(api.listInstallations).mockResolvedValue([PROFILE]);
   vi.mocked(api.connectInstallation).mockResolvedValue(INFO);
+  vi.mocked(api.readServerMetrics).mockResolvedValue(metrics(Date.now()));
   useWorkspace.setState({ tabs: [], activeId: null });
 });
 
@@ -153,6 +155,14 @@ describe("InstallationPanel", () => {
     const first = await screen.findByRole("region", { name: "gpu-1" });
     await user.click(within(first).getByRole("button", { name: "Открыть" }));
     expect(useWorkspace.getState().activeId).toBe("server:i1:s1");
+  });
+
+  it("строка «сейчас» на карточке подключённого сервера: выполняются · ждут · KV", async () => {
+    renderWithClient(<InstallationPanel installationId="i1" />);
+    const first = await screen.findByRole("region", { name: "gpu-1" });
+    await waitFor(() => expect(within(first).getByText(/^3 · 1 · 42\s?%$/)).toBeInTheDocument());
+    expect(api.readServerMetrics).toHaveBeenCalledWith("i1", "s1");
+    expect(api.readServerMetrics).not.toHaveBeenCalledWith("i1", "s2");
   });
 
   it("подпись модели", () => {

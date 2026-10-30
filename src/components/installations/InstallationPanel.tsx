@@ -7,6 +7,8 @@ import { useWorkspace } from "../../state/workspace";
 import { EnvBadge } from "../common/EnvBadge";
 import { ErrorBanner } from "../common/ErrorBanner";
 import { Hint } from "../common/Hint";
+import { fmtNumber, fmtPercent } from "../servers/format";
+import { useServerMetrics } from "../servers/useServerMetrics";
 
 /** Ключ запроса сведений о подключённой инсталляции. */
 export const installationQueryKey = (id: string) => ["installation", id] as const;
@@ -86,6 +88,7 @@ function ServerCard({ installationId, server, state }: { installationId: string;
         <dt>{t("installations.panel.address")}</dt>
         <dd>{server.baseUrl}</dd>
         {facts && <ServerFactsRows facts={facts} />}
+        {facts && <LiveRow installationId={installationId} serverId={server.id} />}
       </dl>
       {state?.error && <ErrorBanner error={state.error} />}
       {!state && <p className="muted">{t("installations.panel.notConnected")}</p>}
@@ -134,6 +137,26 @@ function ServerFactsRows({ facts }: { facts: ServerFacts }) {
       </dd>
       <dt>{t("installations.panel.metrics")}</dt>
       <dd>{facts.metrics ? t("installations.panel.metricsYes") : t("installations.panel.metricsNo")}</dd>
+    </>
+  );
+}
+
+/** Строка «выполняются · ждут · KV» — тот же опрос, что у вкладки сервера (раз в 5 с, пока вкладка видна). */
+function LiveRow({ installationId, serverId }: { installationId: string; serverId: string }) {
+  const { t } = useTranslation();
+  const { latest, error } = useServerMetrics(installationId, serverId);
+  const g = latest?.gauges;
+  const part = (v: number | null | undefined, f: (v: number) => string) => (v == null ? "—" : f(v));
+  return (
+    <>
+      <dt>{t("installations.panel.live")}</dt>
+      <dd className="live" title={t("installations.panel.liveHint")}>
+        {error && !latest
+          ? <span className="muted">{t("installations.panel.liveError")}</span>
+          : latest
+            ? `${part(g?.requestsRunning, fmtNumber)} · ${part(g?.requestsWaiting, fmtNumber)} · ${part(g?.kvUsage, fmtPercent)}`
+            : "…"}
+      </dd>
     </>
   );
 }

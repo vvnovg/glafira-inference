@@ -238,7 +238,10 @@
       "metrics": "Метрики",
       "metricsYes": "отдаёт",
       "metricsNo": "не отдаёт",
-      "notConnected": "Не подключался"
+      "notConnected": "Не подключался",
+      "live": "Сейчас",
+      "liveHint": "Выполняются · ждут · KV-кэш, раз в 5 с, пока вкладка открыта",
+      "liveError": "нет ответа"
     }
   },
   "settings": {

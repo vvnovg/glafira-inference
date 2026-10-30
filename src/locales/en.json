@@ -238,7 +238,10 @@
       "metrics": "Metrics",
       "metricsYes": "exposed",
       "metricsNo": "not exposed",
-      "notConnected": "Not connected"
+      "notConnected": "Not connected",
+      "live": "Now",
+      "liveHint": "Running · waiting · KV cache, refreshed every 5 s while the tab is shown",
+      "liveError": "no answer"
     }
   },
   "settings": {
