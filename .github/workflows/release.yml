@@ -172,20 +172,41 @@ jobs:
           dst="$BUNDLE/macos/${name}_${VERSION}_${{ matrix.arch }}.app.tar.gz"
           mv "$src" "$dst"
           mv "$src.sig" "$dst.sig"
+      # Tauri не проверяет, прикрепился ли билет нотаризации к .app, и не нотаризует .dmg (scripts/macos-notarize.sh).
+      # Билет у .app — до шага .pkg: тот собирается из этого .app.
+      - name: Билет нотаризации у .app (macOS)
+        if: steps.apple.outputs.signing == 'true'
+        shell: bash
+        run: scripts/macos-notarize.sh app "$BUNDLE"/macos/*.app
+      - name: Нотаризация .dmg (macOS)
+        if: steps.apple.outputs.signing == 'true'
+        shell: bash
+        env:
+          APPLE_CERTIFICATE: ${{ secrets.APPLE_CERTIFICATE }}
+          APPLE_CERTIFICATE_PASSWORD: ${{ secrets.APPLE_CERTIFICATE_PASSWORD }}
+          APPLE_SIGNING_IDENTITY: ${{ secrets.APPLE_SIGNING_IDENTITY }}
+          APPLE_ID: ${{ secrets.APPLE_ID }}
+          APPLE_PASSWORD: ${{ secrets.APPLE_PASSWORD }}
+          APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
+        run: scripts/macos-notarize.sh dmg "$BUNDLE"/dmg/*.dmg
       # .pkg подписывается, только если задан APPLE_INSTALLER_IDENTITY (сертификата Developer ID Installer пока нет),
-      # и отдельно не нотаризуется. TODO(подпись Apple): с сертификатом — подпись и notarytool submit + stapler staple.
+      # и сам не нотаризуется; проверяется билет у .app внутри. TODO(подпись Apple): с сертификатом — импорт его
+      # в связку ключей (связка Tauri к этому шагу удалена), notarytool submit и stapler staple для .pkg.
       - name: .pkg (macOS)
         if: runner.os == 'macOS'
         shell: bash
         env:
           INSTALLER_IDENTITY: ${{ secrets.APPLE_INSTALLER_IDENTITY }}
+          SIGNING: ${{ steps.apple.outputs.signing }}
         run: |
           shopt -s nullglob
           apps=("$BUNDLE"/macos/*.app)
           if [ "${#apps[@]}" -ne 1 ]; then echo "::error::ожидался один .app, найдено ${#apps[@]}"; exit 1; fi
           app="${apps[0]}"
           name="$(basename "$app" .app)"
-          scripts/make-pkg.sh "$app" "$BUNDLE/macos/${name}_${VERSION}_${{ matrix.arch }}.pkg" "$INSTALLER_IDENTITY"
+          pkg="$BUNDLE/macos/${name}_${VERSION}_${{ matrix.arch }}.pkg"
+          scripts/make-pkg.sh "$app" "$pkg" "$INSTALLER_IDENTITY"
+          if [ "$SIGNING" = "true" ]; then scripts/macos-notarize.sh pkg "$pkg"; fi
       - name: Тихая установка MSI (проверка)
         if: runner.os == 'Windows'
         shell: pwsh
