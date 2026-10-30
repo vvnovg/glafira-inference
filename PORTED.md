@@ -11,18 +11,11 @@
 | `LICENSE` | `LICENSE` | `468e08a` | как есть |
 | `index.html` | `index.html` | `468e08a` | адаптирован: заголовок |
 | `pnpm-workspace.yaml` | `pnpm-workspace.yaml` | `468e08a` | как есть |
-| `public/app-icon.svg` | `public/app-icon.svg` | `468e08a` | как есть (значок Kubernetes-версии до своего значка) |
 | `scripts/check-dist-compat.mjs` | `scripts/check-dist-compat.mjs` | `468e08a` | как есть |
 | `scripts/check-dist-compat.test.mjs` | `scripts/check-dist-compat.test.mjs` | `468e08a` | как есть |
 | `src-tauri/.gitignore` | `src-tauri/.gitignore` | `468e08a` | как есть |
 | `src-tauri/build.rs` | `src-tauri/build.rs` | `468e08a` | как есть |
 | `src-tauri/capabilities/default.json` | `src-tauri/capabilities/default.json` | `468e08a` | как есть |
-| `src-tauri/icons/32x32.png` | `src-tauri/icons/32x32.png` | `468e08a` | как есть (значок Kubernetes-версии до своего значка) |
-| `src-tauri/icons/128x128.png` | `src-tauri/icons/128x128.png` | `468e08a` | как есть (значок Kubernetes-версии до своего значка) |
-| `src-tauri/icons/128x128@2x.png` | `src-tauri/icons/128x128@2x.png` | `468e08a` | как есть (значок Kubernetes-версии до своего значка) |
-| `src-tauri/icons/icon.icns` | `src-tauri/icons/icon.icns` | `468e08a` | как есть (значок Kubernetes-версии до своего значка) |
-| `src-tauri/icons/icon.ico` | `src-tauri/icons/icon.ico` | `468e08a` | как есть (значок Kubernetes-версии до своего значка) |
-| `src-tauri/icons/icon.png` | `src-tauri/icons/icon.png` | `468e08a` | как есть (значок Kubernetes-версии до своего значка) |
 | `src/polyfills.ts` | `src/polyfills.ts` | `468e08a` | как есть |
 | `src/polyfills.test.ts` | `src/polyfills.test.ts` | `468e08a` | как есть |
 | `src/styles.css` | `src/styles.css` | `468e08a` | как есть |
