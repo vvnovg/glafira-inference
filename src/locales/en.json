@@ -98,6 +98,9 @@
       "badSignature": "The update signature failed verification — the update was not installed",
       "installFailed": "Failed to install the update",
       "none": "No updates available"
+    },
+    "metrics": {
+      "tooLarge": "The metrics response is too large or is not in the Prometheus format"
     }
   },
   "messages": {

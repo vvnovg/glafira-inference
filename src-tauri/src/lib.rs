@@ -4,6 +4,7 @@ pub mod commands;
 mod dock_name;
 pub mod error;
 pub mod logging;
+pub mod metrics;
 pub mod policy;
 pub mod product;
 pub mod secrets;
