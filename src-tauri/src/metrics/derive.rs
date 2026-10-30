@@ -233,9 +233,9 @@ pub fn derive(history: &[Timed], cur: &Timed) -> ServerMetrics {
     };
     let minute_base = (!reset)
         .then(|| {
-            history
-                .iter()
-                .find(|t| t.at_ms < cur.at_ms && cur.at_ms - t.at_ms <= MINUTE_MS)
+            history.iter().find(|t| {
+                t.at_ms < cur.at_ms && cur.at_ms - t.at_ms <= MINUTE_MS && !is_reset(s, &t.snap)
+            })
         })
         .flatten();
     let mut totals = s.counters.clone();
@@ -349,6 +349,17 @@ mod tests {
         assert_eq!(m.rates, None);
         assert_eq!(m.latency_1m, LatencySet::default());
         assert_eq!(m.interval_sec, Some(5.0));
+    }
+
+    #[test]
+    fn minute_window_never_spans_a_server_restart() {
+        // Перезапуск был на 10 с: снимок 0 с — до него, 10 с — после.
+        let m = derive(
+            &[vllm(0, AFTER), vllm(10_000, BEFORE)],
+            &vllm(20_000, BEFORE),
+        );
+        assert!(!m.reset);
+        assert_eq!(m.latency_1m.ttft.as_ref().unwrap().count, 0.0);
     }
 
     #[test]
