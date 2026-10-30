@@ -56,7 +56,7 @@ cargo test --manifest-path src-tauri/Cargo.toml --lib     # Rust: unit-тест�
 [--engines 1..8] [--reset-after N]` отвечает как сервер инференса снимками ответов из `src-tauri/src/servers/testdata` —
 теми же, что проверяют тесты Rust. Виды: `vllm` (0.32, настоящий снимок), `vllm-0.11`, `vllm-0.10` (старые и новые имена
 метрик рядом, два движка), `vllm-0.8` (модель с адаптером LoRA; ниже границы поддержки), `vllm-old` (0.7), `sglang`
-(0.5.22), `sglang-0.5.4`, `sglang-0.4` (устаревшие пути `/get_*`, без метрик; ниже границы), `llamacpp`, `ollama`
+(0.5.22), `sglang-no-metrics` (0.5.22 без `/metrics`, как без `--enable-metrics`), `sglang-0.5.4`, `sglang-0.4` (устаревшие пути `/get_*`, без метрик; ниже границы), `llamacpp`, `ollama`
 (без `/health`).
 - `/metrics` видов `vllm`, `vllm-0.10` и `sglang` «живой»: счётчики и гистограммы растут с каждым опросом, KV-кэш
   колеблется. `--engines N` — N движков data parallel, `--reset-after N` — после N опросов счётчики начинаются заново,

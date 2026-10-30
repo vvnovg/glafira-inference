@@ -2,7 +2,7 @@
 // Мок-сервер инференса для разработки и смоука без GPU: отвечает как vLLM, SGLang или OpenAI-совместимый
 // сервер снимками ответов из src-tauri/src/servers/testdata (те же снимки проверяют тесты Rust).
 // Только модули node:. Использование:
-//   node scripts/mock-server.mjs --kind vllm|vllm-0.11|vllm-0.10|vllm-0.8|vllm-old|sglang|sglang-0.5.4|sglang-0.4|llamacpp|ollama
+//   node scripts/mock-server.mjs --kind vllm|vllm-0.11|vllm-0.10|vllm-0.8|vllm-old|sglang|sglang-no-metrics|sglang-0.5.4|sglang-0.4|llamacpp|ollama
 //        [--port 8000] [--host 127.0.0.1] [--api-key sk-dev]
 //        [--health 200..599] [--models full|empty] [--engines 1..8] [--reset-after N]
 //   --port    целое 0..65535 (0 — любой свободный порт).
@@ -70,6 +70,12 @@ export const KINDS = {
     },
     open: openHealthAndMetrics,
     live: true,
+  },
+  // SGLang 0.5.22 без --enable-metrics: пути сведений как у `sglang`, а /metrics нет (404).
+  "sglang-no-metrics": {
+    dir: "sglang-0.5.22",
+    routes: { "/model_info": "model_info.json", "/server_info": "server_info.json", "/v1/models": "models.json" },
+    open: openHealthAndMetrics,
   },
   "sglang-0.5.4": {
     dir: "sglang-0.5.4",

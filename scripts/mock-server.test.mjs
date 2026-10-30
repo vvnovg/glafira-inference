@@ -75,6 +75,17 @@ test("vLLM: версия и метрики; SGLang 0.4 — только стар
   }
 });
 
+test("sglang-no-metrics: пути sglang 0.5.22 без /metrics", async () => {
+  const s = await serve({ kind: "sglang-no-metrics" });
+  try {
+    assert.equal((await (await fetch(`${s.base}/server_info`)).json()).version, "0.5.22");
+    assert.equal((await fetch(`${s.base}/model_info`)).status, 200);
+    assert.equal((await fetch(`${s.base}/metrics`)).status, 404);
+  } finally {
+    await s.close();
+  }
+});
+
 test("ключ API: /health без ключа, остальное — только с ним; здоровье задаётся", async () => {
   const s = await serve({ kind: "vllm", apiKey: "sk-dev", health: 503 });
   try {
