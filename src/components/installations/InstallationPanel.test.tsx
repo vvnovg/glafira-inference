@@ -87,7 +87,7 @@ describe("InstallationPanel", () => {
             version: null,
             models: [],
             metrics: false,
-            warnings: [msg("messages.servers.unsupportedVersion", "old", { kind: "vLLM", version: "0.7.3", min: "0.8" })],
+            warnings: [msg("messages.servers.unsupportedVersion", "old", { kind: "vLLM", version: "0.7.3", min: "0.10" })],
           },
         },
       ],
@@ -98,7 +98,7 @@ describe("InstallationPanel", () => {
     expect(within(first).getByText("OpenAI-совместимый")).toBeInTheDocument();
     expect(within(first).getByText("по признакам — vLLM")).toBeInTheDocument();
     expect(within(first).getByText("моделей нет")).toBeInTheDocument();
-    expect(within(first).getByText(/vLLM 0\.7\.3 старше 0\.8/)).toBeInTheDocument();
+    expect(within(first).getByText(/vLLM 0\.7\.3 старше 0\.10/)).toBeInTheDocument();
     expect(within(screen.getByRole("region", { name: "gpu-2" })).getByText("Не подключался")).toBeInTheDocument();
   });
 

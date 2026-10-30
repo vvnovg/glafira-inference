@@ -95,7 +95,7 @@ describe("InstallationForm", () => {
         { name: "tcp", ok: true, message: msg("messages.connectionTest.tcpOk", "TCP", { address: "10.0.0.5:8000" }) },
         { name: "kind", ok: true, message: msg("messages.connectionTest.kindVersion", "vLLM 0.7.3", { kind: "vLLM", version: "0.7.3" }) },
       ],
-      warnings: [msg("messages.servers.unsupportedVersion", "old", { kind: "vLLM", version: "0.7.3", min: "0.8" })],
+      warnings: [msg("messages.servers.unsupportedVersion", "old", { kind: "vLLM", version: "0.7.3", min: "0.10" })],
     });
     const user = userEvent.setup();
     renderWithClient(<InstallationForm initial={saved()} tabId="t" />);
@@ -110,7 +110,7 @@ describe("InstallationForm", () => {
     expect(secrets).toEqual({ apiKeys: { s2: "sk-2" } });
     const report = await within(second).findByRole("list", { name: "Результат проверки" });
     expect(within(report).getByText("TCP-соединение с 10.0.0.5:8000 установлено")).toBeInTheDocument();
-    expect(within(report).getByText(/vLLM 0\.7\.3 старше 0\.8/)).toBeInTheDocument();
+    expect(within(report).getByText(/vLLM 0\.7\.3 старше 0\.10/)).toBeInTheDocument();
     expect(within(screen.getByRole("group", { name: "Сервер 1" })).queryByRole("list")).toBeNull();
   });
 
