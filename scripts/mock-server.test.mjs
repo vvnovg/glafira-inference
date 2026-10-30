@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import { createServer } from "node:http";
 import { test } from "node:test";
-import { handler, KINDS, parseArgs } from "./mock-server.mjs";
+import { handler, KINDS, liveMetrics, parseArgs } from "./mock-server.mjs";
 
 async function serve(opts) {
   const server = createServer(handler({ health: 200, apiKey: null, ...opts }));
@@ -11,11 +11,14 @@ async function serve(opts) {
 }
 
 test("параметры: значения по умолчанию, свои и ошибки", () => {
-  assert.deepEqual(parseArgs([]), { kind: "vllm", port: 8000, host: "127.0.0.1", apiKey: null, health: 200, models: "full" });
+  const defaults = { kind: "vllm", port: 8000, host: "127.0.0.1", apiKey: null, health: 200, models: "full", engines: 1, resetAfter: 0 };
+  assert.deepEqual(parseArgs([]), defaults);
   assert.deepEqual(
-    parseArgs(["--kind", "sglang", "--port", "30000", "--api-key", "sk", "--health", "503", "--models", "empty"]),
-    { kind: "sglang", port: 30000, host: "127.0.0.1", apiKey: "sk", health: 503, models: "empty" },
+    parseArgs(["--kind", "sglang", "--port", "30000", "--api-key", "sk", "--health", "503", "--models", "empty", "--engines", "2", "--reset-after", "3"]),
+    { ...defaults, kind: "sglang", port: 30000, apiKey: "sk", health: 503, models: "empty", engines: 2, resetAfter: 3 },
   );
+  assert.throws(() => parseArgs(["--engines", "9"]), /--engines.*Использование/s);
+  assert.throws(() => parseArgs(["--reset-after", "0"]), /--reset-after/);
   assert.throws(() => parseArgs(["--kind", "tgi"]), /неизвестный вид/);
   assert.throws(() => parseArgs(["--verbose", "1"]), /неизвестный параметр/);
 });
@@ -56,7 +59,7 @@ test("каждый вид отдаёт свои снимки", async () => {
 test("vLLM: версия и метрики; SGLang 0.4 — только старые пути", async () => {
   let s = await serve({ kind: "vllm" });
   try {
-    assert.deepEqual(await (await fetch(`${s.base}/version`)).json(), { version: "0.11.0" });
+    assert.deepEqual(await (await fetch(`${s.base}/version`)).json(), { version: "0.32.0" });
     assert.match(await (await fetch(`${s.base}/metrics`)).text(), /^vllm:num_requests_running/m);
   } finally {
     await s.close();
@@ -150,7 +153,7 @@ test("--models empty: /v1/models отдаёт пустой список, ост�
   }
   const s = await serve({ kind: "vllm", models: "empty" });
   try {
-    assert.deepEqual(await (await fetch(`${s.base}/version`)).json(), { version: "0.11.0" });
+    assert.deepEqual(await (await fetch(`${s.base}/version`)).json(), { version: "0.32.0" });
   } finally {
     await s.close();
   }
@@ -178,6 +181,78 @@ test("--health 3xx: перенаправление с заголовком Locat
     const r = await fetch(`${s.base}/health`, { redirect: "manual" });
     assert.equal(r.status, 503);
     assert.equal(r.headers.get("location"), null, "Location только у 3xx");
+  } finally {
+    await s.close();
+  }
+});
+
+/** Значение первой серии `name` (с метками `labels`, если заданы) в тексте /metrics. */
+function value(text, name, labels = "") {
+  const line = text.split("\n").find((l) => l.startsWith(name) && l.includes(labels) && /[ {]/.test(l[name.length]));
+  return line === undefined ? undefined : Number(line.slice(line.lastIndexOf(" ") + 1));
+}
+
+test("живые метрики: счётчики и гистограммы растут от опроса к опросу, KV колеблется в 0..1", async () => {
+  const s = await serve({ kind: "vllm" });
+  try {
+    const a = await (await fetch(`${s.base}/metrics`)).text();
+    const b = await (await fetch(`${s.base}/metrics`)).text();
+    assert.equal(value(a, "vllm:prompt_tokens_total"), 1041);
+    assert.ok(value(b, "vllm:prompt_tokens_total") > value(a, "vllm:prompt_tokens_total"));
+    assert.ok(value(b, "vllm:time_to_first_token_seconds_count") > value(a, "vllm:time_to_first_token_seconds_count"));
+    assert.equal(value(b, "vllm:num_requests_running"), value(a, "vllm:num_requests_running"), "gauge не растёт");
+    for (const t of [a, b]) {
+      const kv = value(t, "vllm:kv_cache_usage_perc");
+      assert.ok(kv >= 0 && kv <= 1, String(kv));
+    }
+  } finally {
+    await s.close();
+  }
+});
+
+test("--reset-after: после N опросов счётчики начинаются заново", async () => {
+  const s = await serve({ kind: "sglang", resetAfter: 2 });
+  try {
+    const read = async () => value(await (await fetch(`${s.base}/metrics`)).text(), "sglang:prompt_tokens_total");
+    const [a, b, c] = [await read(), await read(), await read()];
+    assert.ok(b > a);
+    assert.equal(c, a, "третий опрос — как после перезапуска");
+  } finally {
+    await s.close();
+  }
+});
+
+test("--engines: серии по движкам — engine у vLLM, dp_rank у SGLang", () => {
+  const vllm = liveMetrics('# TYPE vllm:num_requests_running gauge\nvllm:num_requests_running{engine="0"} 3.0\nprocess_open_fds 7.0', 0, 3, "vllm");
+  assert.deepEqual(vllm.split("\n").slice(1), [
+    'vllm:num_requests_running{engine="0"} 3.0',
+    'vllm:num_requests_running{engine="1"} 3.0',
+    'vllm:num_requests_running{engine="2"} 3.0',
+    "process_open_fds 7.0",
+  ]);
+  const sglang = liveMetrics('sglang:num_running_reqs{tp_rank="0"} 4.0\nsglang:x 1', 0, 2, "sglang");
+  assert.deepEqual(sglang.split("\n"), [
+    'sglang:num_running_reqs{dp_rank="0",tp_rank="0"} 4.0',
+    'sglang:num_running_reqs{dp_rank="1",tp_rank="0"} 4.0',
+    'sglang:x{dp_rank="0"} 1.0',
+    'sglang:x{dp_rank="1"} 1.0',
+  ]);
+});
+
+test("vllm-0.10: старые и новые имена рядом, два движка; неживые виды отдают снимок как есть", async () => {
+  let s = await serve({ kind: "vllm-0.10" });
+  try {
+    const t = await (await fetch(`${s.base}/metrics`)).text();
+    assert.match(t, /^vllm:gpu_cache_usage_perc\{engine="1"/m);
+    assert.match(t, /^vllm:kv_cache_usage_perc\{engine="0"/m);
+    assert.deepEqual(await (await fetch(`${s.base}/version`)).json(), { version: "0.11.0" });
+  } finally {
+    await s.close();
+  }
+  s = await serve({ kind: "vllm-0.11" });
+  try {
+    const [a, b] = [await (await fetch(`${s.base}/metrics`)).text(), await (await fetch(`${s.base}/metrics`)).text()];
+    assert.equal(a, b);
   } finally {
     await s.close();
   }
