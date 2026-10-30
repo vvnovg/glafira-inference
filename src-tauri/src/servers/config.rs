@@ -85,7 +85,35 @@ fn scalar(v: &Value) -> Option<String> {
     }
 }
 
-/// Скалярные поля JSON-объекта; `skip` — не аргументы, `secrets` — значение скрывается.
+/// Имя поля похоже на секрет: среди сегментов (`_`, `-`) есть key/token/password/…
+pub fn is_secret_field(name: &str) -> bool {
+    const WORDS: [&str; 10] = [
+        "key",
+        "keys",
+        "token",
+        "password",
+        "passwd",
+        "secret",
+        "secrets",
+        "credential",
+        "credentials",
+        "auth",
+    ];
+    name.to_lowercase()
+        .split(['_', '-'])
+        .any(|seg| WORDS.contains(&seg))
+}
+
+/// URL с данными пользователя перед хостом (`scheme://user:pass@host`).
+fn has_url_userinfo(v: &Value) -> bool {
+    let Some((_, rest)) = v.as_str().and_then(|s| s.split_once("://")) else {
+        return false;
+    };
+    let authority = rest.split(['/', '?', '#']).next().unwrap_or("");
+    authority.contains('@')
+}
+
+/// Скалярные поля JSON-объекта; `skip` — не аргументы, `secrets` и секретоподобные поля (по имени или URL с логином) — значение скрывается.
 pub fn json_fields(
     m: &Map<String, Value>,
     source: ConfigSource,
@@ -95,7 +123,7 @@ pub fn json_fields(
     m.iter()
         .filter(|(k, _)| !skip.contains(&k.as_str()))
         .filter_map(|(k, v)| {
-            if secrets.contains(&k.as_str()) {
+            if secrets.contains(&k.as_str()) || is_secret_field(k) || has_url_userinfo(v) {
                 let set = !v.is_null() && v.as_str() != Some("");
                 return set.then(|| Found {
                     secret: true,
@@ -350,6 +378,69 @@ mod tests {
         let j = serde_json::to_value(&e).unwrap();
         assert_eq!(j[0]["source"], "server_info");
         assert!(j[1].get("alternatives").is_none() && j[1].get("secret").is_none());
+    }
+
+    #[test]
+    fn secret_field_names_are_recognised_by_segment() {
+        for n in [
+            "api_key",
+            "admin_api_key",
+            "hf_token",
+            "ssl_keyfile_password",
+            "some_service_token",
+            "db_secret",
+            "http_auth",
+        ] {
+            assert!(is_secret_field(n), "{n}");
+        }
+        for n in [
+            "tokenizer_path",
+            "max_total_tokens",
+            "served_model_name",
+            "kv_cache_dtype",
+            "model_path",
+            "chunked_prefill_size",
+        ] {
+            assert!(!is_secret_field(n), "{n}");
+        }
+    }
+
+    #[test]
+    fn json_fields_hide_credential_like_names_and_url_user_info() {
+        let m = obj(
+            r#"{"custom_token":"t","otlp_traces_endpoint":"http://u:p@h:4317","tokenizer_path":"/m","tp_size":2}"#,
+        )
+        .unwrap();
+        let f = json_fields(&m, ConfigSource::ServerInfo, &[], &[]);
+        let by = |n: &str| {
+            f.iter()
+                .find(|x| x.name == n)
+                .unwrap_or_else(|| panic!("{n}"))
+        };
+        for n in ["custom_token", "otlp_traces_endpoint"] {
+            assert!(by(n).secret && by(n).value.is_empty(), "{n}");
+        }
+        assert_eq!(by("tokenizer_path").value, "/m");
+        assert!(!by("tokenizer_path").secret);
+        assert_eq!(by("tp_size").value, "2");
+    }
+
+    #[test]
+    fn sglang_config_json_has_no_unlisted_secret_values() {
+        let mut info = obj(include_str!("testdata/sglang-0.5.4/server_info.json")).unwrap();
+        info.insert("my_service_token".into(), "tok-s3cr3t".into());
+        info.insert("sink_url".into(), "https://bob:pw-s3cr3t@host/x".into());
+        let input = ConfigInput {
+            models: parse_models(include_bytes!("testdata/sglang-0.5.4/models.json")).unwrap(),
+            server_info: Some(info),
+            model_info: obj(include_str!("testdata/sglang-0.5.4/model_info.json")),
+            metrics: None,
+        };
+        let e = adapter(DetectedKind::Sglang).config(&input);
+        let json = serde_json::to_string(&e).unwrap();
+        assert!(!json.contains("s3cr3t"), "{json}");
+        assert!(get(&e, "my_service_token").secret);
+        assert!(get(&e, "sink_url").secret);
     }
 
     #[test]
