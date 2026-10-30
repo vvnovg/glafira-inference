@@ -1,9 +1,9 @@
 import { keepPreviousData, useQuery } from "@tanstack/react-query";
-import { openUrl } from "@tauri-apps/plugin-opener";
 import { type ReactNode, useEffect, useMemo, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
 import Markdown, { type Components } from "react-markdown";
 import { currentLocale } from "../../i18n";
+import { ExternalLink } from "../common/ExternalLink";
 import { type ChapterId, GUIDE_CHAPTERS, isChapterId, loadGuide } from "../../guide/chapters";
 import { type GuideChapter, parseChapter, searchGuide } from "../../guide/parse";
 
@@ -168,18 +168,5 @@ function GuideLink({ href, go, children }: { href?: string; go: (id: ChapterId, 
       </a>
     );
   }
-  if (href?.startsWith("https://")) {
-    return (
-      <a
-        href={href}
-        onClick={(e) => {
-          e.preventDefault();
-          void openUrl(href);
-        }}
-      >
-        {children}
-      </a>
-    );
-  }
-  return <span>{children}</span>;
+  return <ExternalLink href={href}>{children}</ExternalLink>;
 }

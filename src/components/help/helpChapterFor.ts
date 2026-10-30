@@ -7,6 +7,8 @@ export function helpChapterFor(tab: TabSpec | null): ChapterId {
     case "installation-form":
     case "installation":
       return "installations";
+    case "about":
+      return "updates";
     default:
       return "getting-started";
   }
