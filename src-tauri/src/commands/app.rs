@@ -257,10 +257,7 @@ async fn download_with_retry(update: &tauri_plugin_updater::Update) -> AppResult
                 }
                 DownloadErrorKind::Transient => {
                     tracing::warn!(attempt, "update download failed, retrying");
-                    let pause = backoff(attempt);
-                    tauri::async_runtime::spawn_blocking(move || std::thread::sleep(pause))
-                        .await
-                        .ok();
+                    tokio::time::sleep(backoff(attempt)).await;
                     attempt += 1;
                 }
             },
@@ -483,7 +480,12 @@ mod tests {
         let conf: serde_json::Value =
             serde_json::from_str(include_str!("../../tauri.conf.json")).unwrap();
         let up = &conf["plugins"]["updater"];
-        assert!(up["pubkey"].is_string());
+        // Ключ updater менять нельзя: установленные версии перестанут принимать обновления
+        // (minisign, ID ключа C0A9B0D71F280F4A; docs/release-checklist.md, «Никогда не менять»).
+        assert_eq!(
+            up["pubkey"],
+            "dW50cnVzdGVkIGNvbW1lbnQ6IG1pbmlzaWduIHB1YmxpYyBrZXk6IEMwQTlCMEQ3MUYyODBGNEEKUldSS0R5Z2YxN0Nwd0FucnY5eDJRWE5IVFQ1UXBQZlFpY2xUc2NXNTV3cGllZGZWeWlxdzlqdmYK"
+        );
         assert_eq!(
             up["endpoints"][0],
             "https://github.com/vvnovg/glafira-inference-releases/releases/latest/download/latest.json"

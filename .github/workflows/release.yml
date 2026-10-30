@@ -172,8 +172,8 @@ jobs:
           dst="$BUNDLE/macos/${name}_${VERSION}_${{ matrix.arch }}.app.tar.gz"
           mv "$src" "$dst"
           mv "$src.sig" "$dst.sig"
-      # TODO(подпись Apple): .pkg подписывается Developer ID Installer, но отдельно не нотаризуется
-      # (notarytool submit + stapler staple) — добавить, когда появятся секреты APPLE_*.
+      # .pkg подписывается, только если задан APPLE_INSTALLER_IDENTITY (сертификата Developer ID Installer пока нет),
+      # и отдельно не нотаризуется. TODO(подпись Apple): с сертификатом — подпись и notarytool submit + stapler staple.
       - name: .pkg (macOS)
         if: runner.os == 'macOS'
         shell: bash

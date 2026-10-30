@@ -4,12 +4,14 @@ Desktop app for corporate open-source LLM inference inside your network, with vL
 the servers, checking them, and later monitoring, diagnostics and audit. Download the installer for your OS from
 [Releases](../../releases/latest).
 
-**macOS** — open the `.dmg` and drag the app to Applications (or run the `.pkg`). The builds are signed by Apple and notarized, so the app opens right away. If macOS says the app is damaged or cannot be verified, the download is corrupted: download it again.
+**macOS** — open the `.dmg` and drag the app to Applications. The app is signed by Apple and notarized, so it opens right away. If macOS says the app is damaged or cannot be verified, the download is corrupted: download it again.
+
+The `.pkg` is for deployment with Jamf or Intune. It is not signed yet, so macOS blocks it on the first open: go to System Settings → Privacy & Security and click "Open Anyway". The app it installs is the same signed and notarized app.
 
 User guide: [English](guide/en/getting-started.md) · [Русский](guide/ru/getting-started.md)
 
 ## Windows builds (unsigned)
-macOS builds are signed by Apple and notarized. Windows builds are not signed yet, so SmartScreen may warn on first launch:
+The macOS app is signed by Apple and notarized. Windows builds are not signed yet, so SmartScreen may warn on first launch:
 
 **Windows** — in the SmartScreen dialog click "More info" → "Run anyway", or unblock the installer in PowerShell:
 ```powershell

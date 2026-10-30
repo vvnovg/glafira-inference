@@ -12,5 +12,5 @@ First version of Glafira for LLM Inference: a desktop app for corporate open-sou
 - Server check, step by step: configuration, DNS/TCP, TLS, `/health`, API key, kind and version, models.
 - The installation tab: for each server, the kind and version, models with context length and LoRA adapters, metrics availability and errors.
 - Glafira never reads or shows the texts of your users' requests and answers.
-- Updates from About → Updates, signed installers for macOS (signed and notarized by Apple), Windows and Linux.
+- Updates from About → Updates, with a signature check. Installers for macOS (the app is signed and notarized by Apple), Windows and Linux.
 - Guide in English and Russian.
