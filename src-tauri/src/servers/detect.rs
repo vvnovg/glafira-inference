@@ -119,7 +119,13 @@ pub struct Model {
 
 #[derive(Deserialize)]
 struct ModelList {
+    /// Ollama без моделей отдаёт `"data": null`; без поля `data` ответ по-прежнему чужой.
+    #[serde(deserialize_with = "null_as_empty")]
     data: Vec<RawModel>,
+}
+
+fn null_as_empty<'de, D: serde::Deserializer<'de>>(d: D) -> Result<Vec<RawModel>, D::Error> {
+    Ok(Option::<Vec<RawModel>>::deserialize(d)?.unwrap_or_default())
 }
 
 /// Модель как её отдают серверы: `max_model_len` у vLLM бывает `null`, у прочих его нет.
@@ -570,6 +576,14 @@ mod tests {
         assert_eq!(e.key, "errors.server.badJson");
         p.models = br#"{"object":"list","data":[]}"#.to_vec();
         assert!(analyze(ServerKind::Auto, &p).unwrap().models.is_empty());
+        // Ollama без моделей отдаёт `"data": null` — это пустой список, а не чужой ответ.
+        p.models = br#"{"object":"list","data":null}"#.to_vec();
+        assert!(analyze(ServerKind::Auto, &p).unwrap().models.is_empty());
+        p.models = br#"{"object":"list"}"#.to_vec();
+        assert_eq!(
+            analyze(ServerKind::Auto, &p).unwrap_err().key,
+            "errors.server.badJson"
+        );
     }
 
     #[test]
