@@ -9,7 +9,7 @@ use crate::storage::profile::ServerConfig;
 /// Сколько читается из `/metrics` для определения типа: признаки — в первых сериях.
 pub const METRICS_PROBE_LIMIT: usize = 256 * 1024;
 
-async fn optional(c: &ServerClient, path: &str) -> Option<Answer> {
+pub(crate) async fn optional(c: &ServerClient, path: &str) -> Option<Answer> {
     let r = c.get(path, JSON_LIMIT).await.ok()?;
     Some(Answer {
         status: r.status,
@@ -18,7 +18,7 @@ async fn optional(c: &ServerClient, path: &str) -> Option<Answer> {
 }
 
 /// Ответ первого пути, который есть у сервера: новые имена SGLang, затем устаревшие.
-async fn first_found(c: &ServerClient, paths: [&str; 2]) -> Option<Answer> {
+pub(crate) async fn first_found(c: &ServerClient, paths: [&str; 2]) -> Option<Answer> {
     match optional(c, paths[0]).await {
         Some(a) if a.status == 404 => optional(c, paths[1]).await.or(Some(a)),
         other => other,

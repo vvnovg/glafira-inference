@@ -9,6 +9,7 @@ mod vllm;
 
 use serde::Serialize;
 
+use crate::servers::config::{ConfigEntry, ConfigInput};
 use crate::servers::detect::DetectedKind;
 
 /// Каноническая метрика — имя внутри Glafira (спец. §4.3).
@@ -116,10 +117,11 @@ impl MetricSpec {
     }
 }
 
-/// Адаптер сервера (спец. §4.3). С этапа I1b — карта метрик; аргументы запуска и шаблоны
-/// журнала запросов добавляются следующими задачами и этапами.
+/// Адаптер сервера (спец. §4.3): карта метрик и аргументы запуска. Шаблоны журнала запросов
+/// (`request_log_patterns`) — с этапа I3.
 pub trait ServerAdapter: Sync {
     fn metric_map(&self) -> &'static [MetricSpec];
+    fn config(&self, input: &ConfigInput) -> Vec<ConfigEntry>;
 }
 
 /// Адаптер типа, с которым работает Glafira.

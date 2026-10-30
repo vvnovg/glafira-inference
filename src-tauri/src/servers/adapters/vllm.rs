@@ -3,6 +3,9 @@
 //! — с 0.10.2 (раньше `time_per_output_token_seconds`, убран к 0.16).
 
 use super::{Canonical as C, MetricKind as K, MetricSpec as S, ServerAdapter};
+use crate::servers::config::{
+    ConfigEntry, ConfigInput, ConfigSource, info_labels, json_fields, merge, model_fields,
+};
 
 pub struct Vllm;
 
@@ -77,8 +80,55 @@ const MAP: &[S] = &[
     S::new(C::GenLen, K::Histogram, &["vllm:request_generation_tokens"]),
 ];
 
+/// Порядок известных аргументов: модель, контекст, параллелизм, память и KV-кэш, батч.
+const ORDER: &[&str] = &[
+    "model",
+    "served_model_name",
+    "max_model_len",
+    "tensor_parallel_size",
+    "pipeline_parallel_size",
+    "data_parallel_size",
+    "gpu_memory_utilization",
+    "block_size",
+    "cache_dtype",
+    "num_gpu_blocks",
+    "kv_cache_size_tokens",
+    "kv_cache_max_concurrency",
+    "enable_prefix_caching",
+    "prefix_caching_hash_algo",
+    "max_num_seqs",
+    "max_num_batched_tokens",
+    "max_lora",
+];
+
 impl ServerAdapter for Vllm {
     fn metric_map(&self) -> &'static [S] {
         MAP
+    }
+
+    fn config(&self, input: &ConfigInput) -> Vec<ConfigEntry> {
+        let mut found = model_fields(&input.models, "served_model_name", "model", "max_model_len");
+        if let Some(m) = &input.metrics {
+            found.extend(info_labels(
+                m,
+                "vllm:cache_config_info",
+                &["engine", "model_name"],
+            ));
+            found.extend(
+                info_labels(m, "vllm:lora_requests_info", &[])
+                    .into_iter()
+                    .filter(|f| f.name == "max_lora"),
+            );
+        }
+        // `/server_info` у vLLM — только в dev-режиме (`VLLM_SERVER_DEV_MODE=1`).
+        if let Some(info) = &input.server_info {
+            found.extend(json_fields(
+                info,
+                ConfigSource::ServerInfo,
+                &["version"],
+                &["api_key"],
+            ));
+        }
+        merge(found, ORDER)
     }
 }

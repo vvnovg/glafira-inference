@@ -3,6 +3,7 @@
 
 pub mod adapters;
 pub mod client;
+pub mod config;
 pub mod connectivity;
 pub mod detect;
 pub mod errors;

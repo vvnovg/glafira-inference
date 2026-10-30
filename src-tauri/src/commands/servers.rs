@@ -1,9 +1,14 @@
-//! Команды сервера (спец. I1b §4): метрики «сейчас».
+//! Команды сервера (спец. I1b §4–5): метрики «сейчас» и аргументы запуска.
+
+use std::sync::Arc;
 
 use tauri::State;
 
-use crate::error::{AppResult, ErrorCode};
+use crate::error::{AppError, AppResult, ErrorCode};
 use crate::metrics::derive::{ServerMetrics, Timed};
+use crate::servers::client::ServerClient;
+use crate::servers::config::{self, ConfigEntry};
+use crate::servers::detect::DetectedKind;
 use crate::servers::live::{fetch, now_ms, record};
 use crate::state::AppState;
 use crate::sync::MutexExt;
@@ -19,11 +24,23 @@ pub async fn read_server_metrics(
     read_server_metrics_inner(&state, &installation_id, &server_id).await
 }
 
-pub async fn read_server_metrics_inner(
+/// Аргументы запуска сервера с источниками (спец. I1b §5).
+#[tauri::command]
+pub async fn read_server_config(
+    state: State<'_, AppState>,
+    installation_id: String,
+    server_id: String,
+) -> AppResult<Vec<ConfigEntry>> {
+    let (client, kind) = connected_server(&state, &installation_id, &server_id).await?;
+    config::fetch(&client, kind).await
+}
+
+/// Клиент и тип подключённого сервера; не подключился — его ошибка подключения.
+async fn connected_server(
     state: &AppState,
     installation_id: &str,
     server_id: &str,
-) -> AppResult<ServerMetrics> {
+) -> AppResult<(Arc<ServerClient>, DetectedKind)> {
     let c = state.connected(installation_id, false).await?;
     let server = c
         .info
@@ -41,12 +58,21 @@ pub async fn read_server_metrics_inner(
     if let Some(e) = &server.error {
         return Err(e.clone());
     }
-    let (Some(facts), Some(client)) = (&server.facts, c.client(server_id)) else {
-        return Err(crate::error::AppError::internal_with(format!(
+    match (&server.facts, c.client(server_id)) {
+        (Some(facts), Some(client)) => Ok((client, facts.kind)),
+        _ => Err(AppError::internal_with(format!(
             "server {server_id} has neither facts nor an error"
-        )));
-    };
-    let snap = fetch(&client, facts.kind).await?;
+        ))),
+    }
+}
+
+pub async fn read_server_metrics_inner(
+    state: &AppState,
+    installation_id: &str,
+    server_id: &str,
+) -> AppResult<ServerMetrics> {
+    let (client, kind) = connected_server(state, installation_id, server_id).await?;
+    let snap = fetch(&client, kind).await?;
     let live = state.pool.live(installation_id, server_id);
     let mut history = live.lock_safe();
     Ok(record(
@@ -60,8 +86,6 @@ pub async fn read_server_metrics_inner(
 
 #[cfg(test)]
 mod tests {
-    use std::sync::Arc;
-
     use super::*;
     use crate::secrets::MemoryStore;
     use crate::servers::testing::{Reply, TestServer};
@@ -145,5 +169,14 @@ mod tests {
         let m = read_server_metrics_inner(&st, "a", "s1").await.unwrap();
         assert_eq!(m.gauges.requests_running, None);
         assert!(m.missing.is_empty() && m.series.is_empty());
+    }
+
+    #[tokio::test]
+    async fn config_of_a_connected_server() {
+        let srv = TestServer::start(vllm_routes()).await;
+        let (_d, st) = state_with(&[&srv.url()]);
+        let (client, kind) = connected_server(&st, "a", "s1").await.unwrap();
+        let e = config::fetch(&client, kind).await.unwrap();
+        assert!(e.iter().any(|x| x.name == "block_size" && x.value == "16"));
     }
 }
