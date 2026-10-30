@@ -11,7 +11,6 @@ use crate::servers::config::{self, ConfigEntry};
 use crate::servers::detect::DetectedKind;
 use crate::servers::live::{fetch, now_ms, record};
 use crate::state::AppState;
-use crate::sync::MutexExt;
 
 /// Метрики сервера с производными по предыдущим снимкам. Сервер, который не подключился,
 /// возвращает свою ошибку подключения.
@@ -72,9 +71,12 @@ pub async fn read_server_metrics_inner(
     server_id: &str,
 ) -> AppResult<ServerMetrics> {
     let (client, kind) = connected_server(state, installation_id, server_id).await?;
-    let snap = fetch(&client, kind).await?;
+    // Чтения одного сервера идут по очереди: метка времени ставится после ответа под замком,
+    // и более позднее чтение не получает более раннюю метку (иначе счётчики «убывают» и
+    // история сбрасывается как после перезапуска сервера).
     let live = state.pool.live(installation_id, server_id);
-    let mut history = live.lock_safe();
+    let mut history = live.lock().await;
+    let snap = fetch(&client, kind).await?;
     Ok(record(
         &mut history,
         Timed {
@@ -138,6 +140,40 @@ mod tests {
         assert_eq!(
             m.interval_sec, None,
             "переподключение начинает историю заново"
+        );
+    }
+
+    #[tokio::test]
+    async fn concurrent_reads_of_one_server_are_serialized_and_stay_in_order() {
+        let mut routes = vllm_routes();
+        routes.retain(|(p, _)| *p != "/metrics");
+        routes.push((
+            "/metrics",
+            Reply::text(AFTER).delayed(std::time::Duration::from_millis(50)),
+        ));
+        let srv = TestServer::start(routes).await;
+        let (_d, st) = state_with(&[&srv.url()]);
+        read_server_metrics_inner(&st, "a", "s1").await.unwrap();
+        let started = std::time::Instant::now();
+        let (a, b) = tokio::join!(
+            read_server_metrics_inner(&st, "a", "s1"),
+            read_server_metrics_inner(&st, "a", "s1")
+        );
+        assert!(
+            started.elapsed() >= std::time::Duration::from_millis(100),
+            "второе чтение не начинает запрос, пока идёт первое"
+        );
+        assert!(!a.unwrap().reset);
+        assert!(!b.unwrap().reset);
+        let live = st.pool.live("a", "s1");
+        let history = live.lock().await;
+        assert_eq!(history.len(), 3);
+        assert!(
+            history
+                .iter()
+                .zip(history.iter().skip(1))
+                .all(|(x, y)| x.at_ms < y.at_ms),
+            "снимки идут строго по порядку чтения"
         );
     }
 

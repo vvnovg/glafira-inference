@@ -48,7 +48,7 @@ impl Connected {
 }
 
 /// Снимки метрик одного сервера за последнюю минуту.
-pub type LiveHistory = Arc<Mutex<VecDeque<Timed>>>;
+pub type LiveHistory = Arc<tokio::sync::Mutex<VecDeque<Timed>>>;
 
 #[derive(Default)]
 pub struct ServerPool {
