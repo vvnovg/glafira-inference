@@ -141,7 +141,7 @@ fn split_segments(name: &str) -> Vec<String> {
     out
 }
 
-/// Строка, которая сама JSON-объект с секретоподобным ключом (на любой глубине): значение скрывается целиком.
+/// Строка, которая сама JSON-объект или массив (или похожий на Python-repr текст) с секретоподобным ключом (на любой глубине): значение скрывается целиком.
 fn embeds_secret(v: &Value) -> bool {
     fn walk(v: &Value) -> bool {
         match v {
@@ -150,10 +150,33 @@ fn embeds_secret(v: &Value) -> bool {
             _ => false,
         }
     }
-    v.as_str()
-        .filter(|s| s.trim_start().starts_with('{'))
-        .and_then(|s| serde_json::from_str::<Value>(s).ok())
-        .is_some_and(|parsed| walk(&parsed))
+    /// Python-repr и прочий не-JSON: в кавычках токен, который `is_secret_field` принимает, а следом `:`.
+    fn quoted_secret_key(s: &str) -> bool {
+        let mut rest = s;
+        while let Some(i) = rest.find(['\'', '"']) {
+            let quote = rest.as_bytes()[i] as char;
+            let after = &rest[i + 1..];
+            let Some(end) = after.find(quote) else {
+                return false;
+            };
+            let tail = after[end + 1..].trim_start();
+            if tail.starts_with(':') && is_secret_field(&after[..end]) {
+                return true;
+            }
+            rest = &after[end + 1..];
+        }
+        false
+    }
+    let Some(s) = v.as_str().map(str::trim_start) else {
+        return false;
+    };
+    if !(s.starts_with('{') || s.starts_with('[')) {
+        return false;
+    }
+    match serde_json::from_str::<Value>(s) {
+        Ok(parsed) => walk(&parsed),
+        Err(_) => quoted_secret_key(s),
+    }
 }
 
 /// URL с данными пользователя перед хостом (`scheme://user:pass@host`).
@@ -490,6 +513,21 @@ mod tests {
         assert_eq!(by("plain_json").value, "{\"a\":1}");
         assert!(!by("plain_json").secret);
         assert_eq!(by("note").value, "{not json");
+    }
+
+    #[test]
+    fn json_fields_hide_arrays_and_python_repr_with_secret_keys() {
+        let m = obj(
+            r#"{"hdrs":"[{\"api_key\":\"x\"}]","repr":"{'api_key': 'x'}","repr_dq":"{\"api_key\": 'x'}","plain_repr":"{'model': 'qwen'}","plain_list":"[1, 2]"}"#,
+        )
+        .unwrap();
+        let f = json_fields(&m, ConfigSource::ServerInfo, &[], &[]);
+        let by = |n: &str| f.iter().find(|x| x.name == n).unwrap();
+        for n in ["hdrs", "repr", "repr_dq"] {
+            assert!(by(n).secret && by(n).value.is_empty(), "{n}");
+        }
+        assert_eq!(by("plain_repr").value, "{'model': 'qwen'}");
+        assert!(!by("plain_repr").secret && !by("plain_list").secret);
     }
 
     #[test]
