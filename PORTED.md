@@ -147,3 +147,5 @@
 | `src/components/common/ExternalLink.tsx` | `src/components/common/ExternalLink.tsx` | `468e08a` | как есть |
 | `docs/guide/en/updates.md` | `docs/guide/en/updates.md` | `468e08a` | адаптирован: без абзаца об ассистентах MCP, папка данных, адреса репозитория релизов |
 | `docs/guide/ru/updates.md` | `docs/guide/ru/updates.md` | `468e08a` | адаптирован: без абзаца об ассистентах MCP, папка данных, адреса репозитория релизов |
+| `src/components/servers/MetricChart.tsx` | `src/components/resources/UsageChart.tsx` | `07d5165` | переписан по образцу: ряды метрик сервера из буфера опроса вместо худшего пода, без линий request/limit и отметок, `setData` вместо пересоздания, «нет данных» |
+| `src/components/servers/chart.ts` | `src/components/resources/chart.ts` | `07d5165` | `themeColor` как есть; `chartData` — по буферу точек опроса, разрывы на ошибках |

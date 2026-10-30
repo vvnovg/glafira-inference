@@ -352,5 +352,10 @@
       "secrets_other": "Enter API keys for {{count}} installations after import",
       "apply": "Import"
     }
+  },
+  "servers": {
+    "metrics": {
+      "noData": "No data"
+    }
   }
 }
