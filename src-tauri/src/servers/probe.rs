@@ -139,11 +139,12 @@ mod tests {
         let srv = TestServer::start(sglang_0_4_routes()).await;
         let s = config(&srv.url());
         let f = facts(&client(&s), &s).await.unwrap();
+        // Версию даёт `/get_server_info`; SGLang 0.4 ниже границы и работает как openai.
         assert_eq!(
-            (f.kind, f.version.as_deref()),
+            (f.detected, f.version.as_deref()),
             (DetectedKind::Sglang, Some("0.4.6.post1"))
         );
-        assert!(!f.metrics);
+        assert_eq!(f.kind, DetectedKind::Openai);
     }
 
     #[tokio::test]
@@ -156,8 +157,8 @@ mod tests {
         let srv = TestServer::start(routes).await;
         let mut s = config(&srv.url());
         s.metrics_path = "/stats".into();
-        let f = facts(&client(&s), &s).await.unwrap();
-        assert!(f.metrics);
+        facts(&client(&s), &s).await.unwrap();
+        assert!(srv.paths().contains(&"/stats".to_string()));
         assert!(!srv.paths().contains(&"/metrics".to_string()));
     }
 
