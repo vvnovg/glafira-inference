@@ -41,6 +41,24 @@ usage() {
 
 stapled() { xcrun stapler validate "$1" >/dev/null 2>&1; }
 
+# Итоговая проверка без прикрепления: `stapler validate` обращается к CloudKit Apple и иногда отвечает «билета нет»
+# при прикреплённом билете, поэтому — несколько попыток, а при неудаче — вывод stapler и есть ли файл билета.
+verify_stapled() { # <путь> <что проверяем — для сообщения>
+  local path="$1" what="$2" i out
+  for ((i = 1; i <= 3; i++)); do
+    if out="$(xcrun stapler validate "$path" 2>&1)"; then
+      echo "билет на месте: $what"
+      return 0
+    fi
+    if ((i < 3)); then sleep "$((DELAY < 10 ? DELAY : 10))"; fi
+  done
+  printf '%s\n' "$out" >&2
+  if [ -d "$path" ]; then
+    echo "файл билета Contents/CodeResources: $([ -f "$path/Contents/CodeResources" ] && echo есть || echo нет)" >&2
+  fi
+  die "$what: нет билета нотаризации"
+}
+
 # Доказательство — только `stapler validate`: код возврата `stapler staple` Tauri и так не смотрит, а нам он не нужен.
 staple() {
   local path="$1" i
@@ -159,7 +177,7 @@ cmd_dmg() {
   # Итог — по готовому файлу: у .app в образе есть билет, Gatekeeper его пускает.
   mnt="$(mount_image "$dmg" final -readonly)"
   app="$(one_app "$mnt"/*.app)"
-  stapled "$app" || die "в $(basename "$dmg") приложение без билета нотаризации"
+  verify_stapled "$app" "приложение в $(basename "$dmg")"
   spctl --assess --type exec -vv "$app"
   hdiutil detach "$mnt" -quiet
 }
@@ -168,8 +186,7 @@ cmd_pkg() {
   local app
   pkgutil --expand-full "$1" "$TMP/pkg" >/dev/null
   app="$(one_app "$TMP"/pkg/*.pkg/Payload/*.app)"
-  stapled "$app" || die "в $(basename "$1") приложение без билета нотаризации"
-  echo "билет у приложения в $(basename "$1") на месте"
+  verify_stapled "$app" "приложение в $(basename "$1")"
 }
 
 case "${1:-}" in
