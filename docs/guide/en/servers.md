@@ -17,7 +17,7 @@ shows their number. The tiles show the current state:
 - [[ui:servers.tiles.ttft]] and [[ui:servers.tiles.itl]] — the 95th percentile of time to first token and of
   inter-token latency over the last minute.
 - [[ui:servers.tiles.prefixCache]] — the share of request tokens found in the prefix cache.
-- [[ui:servers.tiles.preemptions]] — requests preempted from the batch: the server freed KV cache for other requests.
+- [[ui:servers.tiles.preemptions]] — requests preempted from the batch over the last minute (a count, not a rate): the server freed KV cache for other requests.
 
 "No data" means the server does not expose the series (the tile's tooltip names it) or there were no requests in the
 interval. Glafira never shows zero in place of an unknown value.
@@ -55,4 +55,5 @@ Metrics are read from vLLM 0.10 and later and from SGLang 0.5 and later; SGLang 
 `--enable-metrics`. Series names changed between versions: Glafira takes the new name and falls back to the old one
 when the new one has no data.
 OpenAI-compatible servers (Ollama, llama.cpp) have no metrics: their tab shows the models and arguments from
-`/v1/models`.
+`/v1/models`, and the tiles say "No data". If the server is detected as vLLM or SGLang but its version is below the
+floor, the tiles' tooltip says so. The restart notice stays visible for a minute.

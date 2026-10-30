@@ -209,7 +209,7 @@ crates/glafira-mcp-inference — инструменты, типы ответов
 `request_success_total{finished_reason}`, гистограммы `ttft`, `itl`, `e2e`, `queue_time`, `prompt_len`, `gen_len`.
 Таблица соответствия ведёт для каждого типа имена серий по диапазонам версий (например, `gpu_cache_usage_perc` →
 `kv_cache_usage_perc`, `time_per_output_token_seconds` → `inter_token_latency_seconds` у vLLM); отсутствующая серия —
-«нет данных», а не ноль. Диапазоны фиксирует спека I1b по снимкам `/metrics` реальных версий.
+«нет данных», а не ноль. Упорядоченные имена-кандидаты на каждую метрику фиксирует спека I1b по снимкам `/metrics` реальных версий.
 
 ---
 
