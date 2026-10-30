@@ -1,7 +1,7 @@
 import { useTranslation } from "react-i18next";
 import type { Canonical, ServerFacts, ServerMetrics } from "../../api/types";
 import { modelLabel } from "../installations/InstallationPanel";
-import { readsMetrics } from "./useServerMetrics";
+import { noMetricsHintKey, readsMetrics } from "./useServerMetrics";
 import { fmtAdaptive, fmtNumber, fmtPercent } from "./format";
 
 interface Tile {
@@ -30,19 +30,19 @@ export function tiles(m: ServerMetrics | undefined, t: (k: string, o?: Record<st
     {
       id: "preemptions",
       canonical: "preemptionsTotal",
-      value: r?.preemptions == null ? null : t("servers.units.perMin", { value: fmtAdaptive(r.preemptions * 60) }),
+      value: m?.preemptions1m == null ? null : t("servers.units.perMin", { value: fmtAdaptive(m.preemptions1m) }),
     },
   ];
 }
 
-/** «Обзор» сервера: тип и версия, модели, число движков, плитки метрик. */
-export function ServerOverview({ facts, latest }: { facts: ServerFacts; latest?: ServerMetrics }) {
+/** «Обзор» сервера: тип и версия, модели, число движков, плитки метрик. `restarted` — сервер перезапущен меньше минуты назад. */
+export function ServerOverview({ facts, latest, restarted = false }: { facts: ServerFacts; latest?: ServerMetrics; restarted?: boolean }) {
   const { t } = useTranslation();
   const kind = t(`installations.form.kinds.${facts.kind}`);
   const readable = readsMetrics(facts);
   const noSeriesHint = (c: Canonical) => {
-    if (facts.kind === "openai") return t("servers.tiles.openaiNoMetrics");
-    if (!facts.metrics && facts.kind === "sglang") return t("servers.tiles.sglangEnableMetrics");
+    const key = noMetricsHintKey(facts);
+    if (key) return t(key);
     const series = latest?.series[c];
     return series ? t("servers.tiles.series", { series }) : t("servers.tiles.noSeries");
   };
@@ -69,7 +69,7 @@ export function ServerOverview({ facts, latest }: { facts: ServerFacts; latest?:
           </>
         )}
       </dl>
-      {latest?.reset && <p className="warn">{t("servers.overview.reset")}</p>}
+      {restarted && <p className="warn">{t("servers.overview.reset")}</p>}
       <div className="tiles">
         {tiles(latest, t).map((tile) => (
           <section key={tile.id} className="tile" aria-label={t(`servers.tiles.${tile.id}`)} title={noSeriesHint(tile.canonical)}>

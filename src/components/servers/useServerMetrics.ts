@@ -33,7 +33,7 @@ export function readsMetrics(facts: ServerFacts | undefined): boolean {
 
 /** Подсказка, почему метрик нет (`undefined` — они есть). */
 export function noMetricsHintKey(facts: ServerFacts): string | undefined {
-  if (facts.kind === "openai") return "servers.tiles.openaiNoMetrics";
+  if (facts.kind === "openai") return facts.detected === "openai" ? "servers.tiles.openaiNoMetrics" : "servers.tiles.belowFloor";
   if (!facts.metrics) return facts.kind === "sglang" ? "servers.tiles.sglangEnableMetrics" : "servers.tiles.noSeries";
   return undefined;
 }

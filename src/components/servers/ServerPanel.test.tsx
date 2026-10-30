@@ -1,4 +1,4 @@
-import { screen, waitFor, within } from "@testing-library/react";
+import { act, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { renderWithClient } from "../../test/render";
@@ -141,6 +141,59 @@ describe("ServerPanel", () => {
     expect(within(kv).getByText("Нет данных")).toBeInTheDocument();
     expect(api.readServerMetrics).not.toHaveBeenCalled();
     expect(screen.queryByText(/Нет ответа сервера/)).toBeNull();
+  });
+
+  it("плитка «Вытеснения» — число за минуту, а не скорость × 60", async () => {
+    vi.mocked(api.readServerMetrics).mockResolvedValue(
+      metrics(Date.now(), { preemptions1m: 7, rates: { promptTokens: 1, generationTokens: 1, requests: 1, preemptions: 5, aborted: 0, finishedByReason: {} } }),
+    );
+    renderWithClient(<ServerPanel installationId="i1" serverId="s1" />);
+    const tile = await screen.findByRole("region", { name: "Вытеснения" });
+    await waitFor(() => expect(within(tile).getByText("7/мин")).toBeInTheDocument());
+  });
+
+  it("после ошибки опроса плитки не выглядят свежими", async () => {
+    const { client } = renderWithClient(<ServerPanel installationId="i1" serverId="s1" />);
+    const kv = await screen.findByRole("region", { name: "KV-кэш" });
+    await waitFor(() => expect(within(kv).getByText(/42\s?%/)).toBeInTheDocument());
+    vi.mocked(api.readServerMetrics).mockRejectedValue({ code: "TIMEOUT", key: "errors.server.timeout", message: "timed out", retryable: true });
+    await act(async () => {
+      await client.refetchQueries({ queryKey: ["server-metrics", "i1", "s1"] });
+    });
+    expect(await screen.findByText("Нет ответа сервера: timed out")).toBeInTheDocument();
+    expect(within(kv).queryByText(/42\s?%/)).toBeNull();
+    expect(within(kv).getByText("…")).toBeInTheDocument();
+  });
+
+  it("предупреждение о перезапуске остаётся минуту после сброса, а не на один опрос", async () => {
+    vi.mocked(api.readServerMetrics).mockResolvedValue(metrics(Date.now(), { reset: true, rates: null }));
+    const { client } = renderWithClient(<ServerPanel installationId="i1" serverId="s1" />);
+    expect(await screen.findByText(/Счётчики уменьшились/)).toBeInTheDocument();
+    vi.mocked(api.readServerMetrics).mockResolvedValue(metrics(Date.now() + 5_000));
+    await act(async () => {
+      await client.refetchQueries({ queryKey: ["server-metrics", "i1", "s1"] });
+    });
+    await waitFor(() => expect(within(screen.getByRole("region", { name: "Токены на входе" })).getByText("120/с")).toBeInTheDocument());
+    expect(screen.getByText(/Счётчики уменьшились/)).toBeInTheDocument();
+  });
+
+  it("сброс старше минуты предупреждения не даёт", async () => {
+    vi.mocked(api.readServerMetrics).mockResolvedValue(metrics(Date.now() - 61_000, { reset: true, rates: null }));
+    renderWithClient(<ServerPanel installationId="i1" serverId="s1" />);
+    await screen.findByRole("region", { name: "KV-кэш" });
+    await waitFor(() => expect(api.readServerMetrics).toHaveBeenCalled());
+    expect(screen.queryByText(/Счётчики уменьшились/)).toBeNull();
+  });
+
+  it("версия ниже границы (тип openai, определён как vLLM): подсказка про версию, опроса нет", async () => {
+    vi.mocked(api.connectInstallation).mockResolvedValue({
+      installationId: "i1",
+      servers: [{ serverId: "s1", facts: { kind: "openai", detected: "vllm", version: "0.7.3", models: [{ id: "m" }], metrics: false, warnings: [] } }],
+    });
+    renderWithClient(<ServerPanel installationId="i1" serverId="s1" />);
+    const kv = await screen.findByRole("region", { name: "KV-кэш" });
+    expect(kv).toHaveAttribute("title", "Версия ниже поддерживаемой: метрики читаются у vLLM с 0.10 и SGLang с 0.5");
+    expect(api.readServerMetrics).not.toHaveBeenCalled();
   });
 
   it("ссылка на инсталляцию открывает её вкладку; удалённый сервер", async () => {

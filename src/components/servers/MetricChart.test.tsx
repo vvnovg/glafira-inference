@@ -24,6 +24,7 @@ globalThis.ResizeObserver ??= class {
 
 import { chartData, hasValues } from "./chart";
 import { MetricChart } from "./MetricChart";
+import { ServerMetricsView } from "./ServerMetricsView";
 import { metrics } from "./testMetrics";
 import type { MetricPoint } from "./useServerMetrics";
 
@@ -90,5 +91,23 @@ describe("MetricChart", () => {
     expect(screen.getByText("KV")).toBeTruthy();
     expect(screen.getByText(/no data|нет данных/i)).toBeTruthy();
     expect(plots).toHaveLength(0);
+  });
+});
+
+describe("ServerMetricsView", () => {
+  const finished = (reasons: Record<string, number>, aborted: number | null) =>
+    metrics(1_000, { rates: { promptTokens: 1, generationTokens: 1, requests: 1, preemptions: 0, aborted, finishedByReason: reasons } });
+  const finishedLabels = () => plots.filter((p) => p.opts.title === "Завершения в секунду").pop()?.opts.series.map((s) => s.label);
+
+  it("«Завершения»: прерванные запросы vLLM — одна линия, причина abort не дублирует «прерваны»", () => {
+    plots.length = 0;
+    render(<ServerMetricsView points={[{ at: 1_000, m: finished({ stop: 2, abort: 1 }, 1) }]} />);
+    expect(finishedLabels()).toEqual([undefined, "stop", "прерваны"]);
+  });
+
+  it("«Завершения»: без отдельного счётчика прерываний причина abort остаётся", () => {
+    plots.length = 0;
+    render(<ServerMetricsView points={[{ at: 1_000, m: finished({ stop: 2, abort: 1 }, null) }]} />);
+    expect(finishedLabels()).toEqual([undefined, "abort", "stop", "прерваны"]);
   });
 });

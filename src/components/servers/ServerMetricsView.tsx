@@ -15,7 +15,12 @@ const lat = (k: "ttft" | "itl" | "e2e", q: "p50" | "p95" | "p99") => (m: ServerM
 export function ServerMetricsView({ points }: { points: MetricPoint[] }) {
   const { t } = useTranslation();
   // Причины завершения — из буфера; от точек зависит только их список, иначе графики пересоздавались бы каждый опрос.
-  const reasonsKey = [...new Set(points.flatMap((x) => Object.keys(x.m?.rates?.finishedByReason ?? {})))].sort().join("\n");
+  // Прерывания vLLM приходят и причиной `abort`, и отдельным счётчиком: если счётчик есть, причину не рисуем второй раз.
+  const hasAborted = points.some((x) => x.m?.rates?.aborted != null);
+  const reasonsKey = [...new Set(points.flatMap((x) => Object.keys(x.m?.rates?.finishedByReason ?? {})))]
+    .filter((r) => !(hasAborted && r === "abort"))
+    .sort()
+    .join("\n");
   const charts = useMemo(() => {
     const p = (label: string, pick: ChartPick["pick"]): ChartPick => ({ label, pick });
     const latency = (k: "ttft" | "itl" | "e2e") => [p("p50", lat(k, "p50")), p("p95", lat(k, "p95")), p("p99", lat(k, "p99"))];

@@ -220,6 +220,8 @@ export interface ServerMetrics {
   latency: LatencySet;
   /** Перцентили за последнюю минуту — для плиток. */
   latency1m: LatencySet;
+  /** Вытеснений за ту же минуту; `null` — счётчика нет или минуты ещё нет. */
+  preemptions1m: number | null;
   totals: Partial<Record<Canonical, number>>;
   missing: Canonical[];
   series: Partial<Record<Canonical, string>>;

@@ -12,6 +12,7 @@ export function metrics(at: number, over: Partial<ServerMetrics> = {}): ServerMe
     prefixCacheHitRatio: 0.35,
     latency: { ttft: { p50: 80, p95: 240, p99: 400, count: 10 }, itl: null, e2e: null, queueTime: null },
     latency1m: { ttft: { p50: 90, p95: 250, p99: 410, count: 120 }, itl: null, e2e: null, queueTime: null },
+    preemptions1m: 0,
     totals: { promptTokensTotal: 1000 },
     missing: [],
     series: { kvUsage: "vllm:kv_cache_usage_perc" },

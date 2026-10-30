@@ -78,6 +78,9 @@ pub struct ServerMetrics {
     /// То же за последнюю минуту — по самому старому снимку не старше 60 с.
     #[serde(rename = "latency1m")]
     pub latency_1m: LatencySet,
+    /// Вытеснений за ту же минуту (прирост счётчика от самого старого снимка не старше 60 с).
+    #[serde(rename = "preemptions1m")]
+    pub preemptions_1m: Option<f64>,
     pub totals: BTreeMap<Canonical, f64>,
     pub missing: Vec<Canonical>,
     pub series: BTreeMap<Canonical, String>,
@@ -257,6 +260,12 @@ pub fn derive(history: &[Timed], cur: &Timed) -> ServerMetrics {
         prefix_cache_hit_ratio: ratio,
         latency: lat,
         latency_1m: minute_base.map_or_else(LatencySet::default, |b| latency_set(s, &b.snap)),
+        preemptions_1m: minute_base.and_then(|b| {
+            Some(
+                s.counters.get(&Canonical::PreemptionsTotal)?
+                    - b.snap.counters.get(&Canonical::PreemptionsTotal)?,
+            )
+        }),
         totals,
         missing: s.missing.clone(),
         series: s.series.clone(),
@@ -375,6 +384,28 @@ mod tests {
             0.0,
             "снимок старше минуты не берётся"
         );
+    }
+
+    #[test]
+    fn preemptions_over_the_minute_are_a_count_not_a_scaled_rate() {
+        let with = |at, n: f64| {
+            let mut t = vllm(at, AFTER);
+            t.snap.counters.insert(Canonical::PreemptionsTotal, n);
+            t
+        };
+        let hist = [with(0, 10.0), with(55_000, 14.0)];
+        let m = derive(&hist, &with(60_000, 14.0));
+        assert_eq!(m.rates.unwrap().preemptions, Some(0.0));
+        assert_eq!(m.preemptions_1m, Some(4.0));
+        let m = derive(&hist, &with(61_000, 15.0));
+        assert_eq!(
+            m.preemptions_1m,
+            Some(1.0),
+            "от снимка 55 с, 0 с старше минуты"
+        );
+        assert_eq!(derive(&[], &with(1_000, 3.0)).preemptions_1m, None);
+        let j = serde_json::to_value(derive(&hist, &with(60_000, 14.0))).unwrap();
+        assert_eq!(j["preemptions1m"], 4.0);
     }
 
     #[test]

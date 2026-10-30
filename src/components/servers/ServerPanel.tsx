@@ -1,5 +1,5 @@
 import { useQuery } from "@tanstack/react-query";
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { api, toAppError } from "../../api/client";
 import { useWorkspace } from "../../state/workspace";
@@ -10,6 +10,9 @@ import { ServerConfigView } from "./ServerConfigView";
 import { ServerMetricsView } from "./ServerMetricsView";
 import { ServerOverview } from "./ServerOverview";
 import { readsMetrics, useServerMetrics } from "./useServerMetrics";
+
+/** Сколько предупреждение о перезапуске остаётся на экране после сброса счётчиков. */
+const RESTART_NOTICE_MS = 60_000;
 
 type Sub = "overview" | "config" | "metrics";
 const SUBS: Sub[] = ["overview", "config", "metrics"];
@@ -32,6 +35,21 @@ export function ServerPanel({ installationId, serverId }: { installationId: stri
   });
   const state = info.data?.servers.find((s) => s.serverId === serverId);
   const live = useServerMetrics(installationId, serverId, readsMetrics(state?.facts));
+  // Предупреждение о перезапуске живёт минуту с момента сброса, а не один опрос (ответ после сброса уже `reset: false`).
+  const [resetAt, setResetAt] = useState<number | null>(null);
+  const [, redraw] = useState(0);
+  const latestReset = live.latest?.reset ? live.latest.at : null;
+  useEffect(() => {
+    if (latestReset != null) setResetAt(latestReset);
+  }, [latestReset]);
+  useEffect(() => {
+    if (resetAt == null) return;
+    const left = resetAt + RESTART_NOTICE_MS - Date.now();
+    if (left <= 0) return;
+    const id = setTimeout(() => redraw((n) => n + 1), left);
+    return () => clearTimeout(id);
+  }, [resetAt]);
+  const restarted = resetAt != null && Date.now() - resetAt < RESTART_NOTICE_MS;
 
   if (!profile || !server) {
     if (installations.error) return <ErrorBanner error={toAppError(installations.error)} onRetry={() => void installations.refetch()} />;
@@ -64,7 +82,7 @@ export function ServerPanel({ installationId, serverId }: { installationId: stri
               </button>
             ))}
           </div>
-          {sub === "overview" && <ServerOverview facts={state.facts} latest={live.latest} />}
+          {sub === "overview" && <ServerOverview facts={state.facts} latest={live.error ? undefined : live.latest} restarted={restarted} />}
           {sub === "config" && <ServerConfigView installationId={installationId} serverId={serverId} />}
           {sub === "metrics" && <ServerMetricsView points={live.points} />}
         </>

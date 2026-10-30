@@ -399,7 +399,8 @@
       "series": "Серия: {{series}}",
       "noSeries": "Сервер не отдаёт серию для этой метрики",
       "sglangEnableMetrics": "SGLang отдаёт метрики, только если запущен с --enable-metrics",
-      "openaiNoMetrics": "Glafira читает метрики только vLLM и SGLang"
+      "openaiNoMetrics": "Glafira читает метрики только vLLM и SGLang",
+      "belowFloor": "Версия ниже поддерживаемой: метрики читаются у vLLM с 0.10 и SGLang с 0.5"
     },
     "units": {
       "ms": "{{value}} мс",

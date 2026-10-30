@@ -395,7 +395,8 @@
       "series": "Series: {{series}}",
       "noSeries": "The server does not expose a series for this metric",
       "sglangEnableMetrics": "SGLang exposes metrics only when started with --enable-metrics",
-      "openaiNoMetrics": "Glafira reads metrics of vLLM and SGLang only"
+      "openaiNoMetrics": "Glafira reads metrics of vLLM and SGLang only",
+      "belowFloor": "Version below the supported floor: metrics are read for vLLM 0.10+ and SGLang 0.5+"
     },
     "units": {
       "ms": "{{value}} ms",
