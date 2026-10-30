@@ -52,6 +52,7 @@ pub fn run() {
             commands::installations::test_server_connection,
             commands::installations::connect_installation,
             commands::installations::disconnect_installation,
+            commands::servers::read_server_metrics,
             commands::folders::list_folders,
             commands::folders::create_folder,
             commands::folders::rename_folder,

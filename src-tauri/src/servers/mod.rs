@@ -6,6 +6,7 @@ pub mod client;
 pub mod connectivity;
 pub mod detect;
 pub mod errors;
+pub mod live;
 pub mod pool;
 pub mod probe;
 #[cfg(test)]
