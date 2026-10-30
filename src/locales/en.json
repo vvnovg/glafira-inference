@@ -255,7 +255,7 @@
     }
   },
   "about": {
-    "summary": "Glafira is a desktop app for connecting to corporate LLM inference, monitoring, diagnosing and auditing it, with vLLM and SGLang in focus. This version (stage I1a) covers connecting and checking: installations of several servers, API keys in the system secret store, step-by-step server checks, folders, export and import. Monitoring, diagnostics and audit come in the next stages.",
+    "summary": "Glafira is a desktop app for connecting to corporate LLM inference, monitoring, diagnosing and auditing it, with vLLM and SGLang in focus. This version (stage I1b) covers connecting and checking: installations of several servers, API keys in the system secret store, step-by-step server checks, folders, export and import, and live server metrics with launch arguments. Metric history, GPUs, diagnostics and audit come in the next stages.",
     "version": "Version",
     "build": "Build",
     "system": "System",
