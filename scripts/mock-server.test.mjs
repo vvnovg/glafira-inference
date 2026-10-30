@@ -1,4 +1,5 @@
 import assert from "node:assert/strict";
+import { readFileSync } from "node:fs";
 import { createServer } from "node:http";
 import { test } from "node:test";
 import { handler, KINDS, liveMetrics, parseArgs } from "./mock-server.mjs";
@@ -237,6 +238,19 @@ test("--engines: серии по движкам — engine у vLLM, dp_rank у S
     'sglang:x{dp_rank="0"} 1.0',
     'sglang:x{dp_rank="1"} 1.0',
   ]);
+});
+
+test("--engines не размножает снимок, где уже несколько движков (vllm-0.10): без дублей серий", () => {
+  const text = readFileSync("src-tauri/src/servers/testdata/vllm-0.10.0/metrics.txt", "utf8");
+  for (const engines of [2, 3]) {
+    const samples = liveMetrics(text, 1, engines, "vllm-0.10")
+      .split("\n")
+      .filter((l) => l && !l.startsWith("#"));
+    const keys = samples.map((l) => l.slice(0, l.lastIndexOf(" ")));
+    assert.equal(new Set(keys).size, keys.length, `дубли серий при engines=${engines}`);
+    const ids = new Set(samples.map((l) => /engine="(\d+)"/.exec(l)?.[1]).filter((x) => x !== undefined));
+    assert.deepEqual([...ids].sort(), ["0", "1"]);
+  }
 });
 
 test("vllm-0.10: старые и новые имена рядом, два движка; неживые виды отдают снимок как есть", async () => {

@@ -10,7 +10,8 @@
 //             у 3xx добавляется заголовок Location на https://<хост>:<порт>/health.
 //   --models  full — снимок /v1/models (по умолчанию), empty — {"object":"list","data":[]}.
 //   /metrics видов vllm, vllm-0.10 и sglang «живые»: счётчики и гистограммы растут на 10 % снимка за опрос,
-//   KV-кэш колеблется. --engines N — N движков data parallel (vLLM — метка engine, SGLang — dp_rank);
+//   KV-кэш колеблется. --engines N — N движков data parallel (vLLM — метка engine, SGLang — dp_rank;
+//   снимок, где уже несколько движков, например vllm-0.10, не размножается);
 //   --reset-after N — после N опросов /metrics счётчики начинаются заново, как при перезапуске сервера.
 import { readFileSync } from "node:fs";
 import { createServer } from "node:http";
@@ -124,9 +125,11 @@ export function parseArgs(argv) {
 }
 
 /** «Живой» /metrics: опрос `poll` (с 0) растит счётчики и гистограммы на 10 % снимка за опрос,
- *  KV-кэш колеблется; `engines` > 1 размножает серии по движкам. Целые значения пишутся с `.0`,
- *  как у Python prometheus_client. */
+ *  KV-кэш колеблется; `engines` > 1 размножает серии по движкам. Если в снимке уже несколько движков
+ *  (vLLM — engine, отличный от "0"; SGLang — dp_rank), `engines` игнорируется. Целые значения пишутся
+ *  с `.0`, как у Python prometheus_client. */
 export function liveMetrics(text, poll, engines, kind) {
+  if (/engine="(?!0")[^"]*"|dp_rank="/.test(text)) engines = 1;
   const types = new Map();
   for (const m of text.matchAll(/^# TYPE (\S+) (\S+)$/gm)) types.set(m[1], m[2]);
   const typeOf = (name) =>
