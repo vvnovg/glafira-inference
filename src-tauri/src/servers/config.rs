@@ -85,9 +85,9 @@ fn scalar(v: &Value) -> Option<String> {
     }
 }
 
-/// Имя поля похоже на секрет: среди сегментов (`_`, `-`) есть key/token/password/…
+/// Имя поля похоже на секрет: среди сегментов (`_`, `-`, границы camelCase) есть key/token/password/…
 pub fn is_secret_field(name: &str) -> bool {
-    const WORDS: [&str; 10] = [
+    const WORDS: [&str; 16] = [
         "key",
         "keys",
         "token",
@@ -98,10 +98,62 @@ pub fn is_secret_field(name: &str) -> bool {
         "credential",
         "credentials",
         "auth",
+        "apikey",
+        "authorization",
+        "passphrase",
+        "pwd",
+        "bearer",
+        "accesstoken",
     ];
-    name.to_lowercase()
-        .split(['_', '-'])
-        .any(|seg| WORDS.contains(&seg))
+    split_segments(name)
+        .iter()
+        .any(|seg| WORDS.contains(&seg.as_str()))
+}
+
+/// Сегменты имени в нижнем регистре: разделители `_`/`-` и границы camelCase (`apiKey` → api, key; `APIKey` → api, key).
+fn split_segments(name: &str) -> Vec<String> {
+    let chars: Vec<char> = name.chars().collect();
+    let mut out = Vec::new();
+    let mut cur = String::new();
+    for (i, &c) in chars.iter().enumerate() {
+        if !c.is_alphanumeric() {
+            if !cur.is_empty() {
+                out.push(std::mem::take(&mut cur));
+            }
+            continue;
+        }
+        let prev = i.checked_sub(1).map(|p| chars[p]);
+        let next = chars.get(i + 1);
+        let boundary = c.is_uppercase()
+            && prev.is_some_and(|p| {
+                p.is_lowercase()
+                    || p.is_ascii_digit()
+                    || (p.is_uppercase() && next.is_some_and(|n| n.is_lowercase()))
+            });
+        if boundary && !cur.is_empty() {
+            out.push(std::mem::take(&mut cur));
+        }
+        cur.extend(c.to_lowercase());
+    }
+    if !cur.is_empty() {
+        out.push(cur);
+    }
+    out
+}
+
+/// Строка, которая сама JSON-объект с секретоподобным ключом (на любой глубине): значение скрывается целиком.
+fn embeds_secret(v: &Value) -> bool {
+    fn walk(v: &Value) -> bool {
+        match v {
+            Value::Object(m) => m.iter().any(|(k, x)| is_secret_field(k) || walk(x)),
+            Value::Array(a) => a.iter().any(walk),
+            _ => false,
+        }
+    }
+    v.as_str()
+        .filter(|s| s.trim_start().starts_with('{'))
+        .and_then(|s| serde_json::from_str::<Value>(s).ok())
+        .is_some_and(|parsed| walk(&parsed))
 }
 
 /// URL с данными пользователя перед хостом (`scheme://user:pass@host`).
@@ -123,7 +175,11 @@ pub fn json_fields(
     m.iter()
         .filter(|(k, _)| !skip.contains(&k.as_str()))
         .filter_map(|(k, v)| {
-            if secrets.contains(&k.as_str()) || is_secret_field(k) || has_url_userinfo(v) {
+            if secrets.contains(&k.as_str())
+                || is_secret_field(k)
+                || has_url_userinfo(v)
+                || embeds_secret(v)
+            {
                 let set = !v.is_null() && v.as_str() != Some("");
                 return set.then(|| Found {
                     secret: true,
@@ -390,6 +446,17 @@ mod tests {
             "some_service_token",
             "db_secret",
             "http_auth",
+            "apiKey",
+            "adminApiKey",
+            "APIKey",
+            "accessToken",
+            "access_token",
+            "apikey",
+            "Authorization",
+            "passphrase",
+            "pwd",
+            "bearer",
+            "hfToken",
         ] {
             assert!(is_secret_field(n), "{n}");
         }
@@ -400,9 +467,29 @@ mod tests {
             "kv_cache_dtype",
             "model_path",
             "chunked_prefill_size",
+            "tokenizerPath",
+            "maxTotalTokens",
+            "monkey",
+            "keyboard",
         ] {
             assert!(!is_secret_field(n), "{n}");
         }
+    }
+
+    #[test]
+    fn json_fields_hide_a_string_that_is_json_with_a_secret_key() {
+        let m = obj(
+            r#"{"extra_headers":"{\"Authorization\":\"Bearer s3\"}","nested":"{\"a\":{\"apiKey\":\"k\"}}","plain_json":"{\"a\":1}","note":"{not json"}"#,
+        )
+        .unwrap();
+        let f = json_fields(&m, ConfigSource::ServerInfo, &[], &[]);
+        let by = |n: &str| f.iter().find(|x| x.name == n).unwrap();
+        for n in ["extra_headers", "nested"] {
+            assert!(by(n).secret && by(n).value.is_empty(), "{n}");
+        }
+        assert_eq!(by("plain_json").value, "{\"a\":1}");
+        assert!(!by("plain_json").secret);
+        assert_eq!(by("note").value, "{not json");
     }
 
     #[test]
