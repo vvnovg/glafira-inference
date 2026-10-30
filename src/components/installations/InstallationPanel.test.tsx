@@ -1,4 +1,4 @@
-import { screen, waitFor, within } from "@testing-library/react";
+import { act, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { renderWithClient } from "../../test/render";
@@ -163,6 +163,18 @@ describe("InstallationPanel", () => {
     await waitFor(() => expect(within(first).getByText(/^3 · 1 · 42\s?%$/)).toBeInTheDocument());
     expect(api.readServerMetrics).toHaveBeenCalledWith("i1", "s1");
     expect(api.readServerMetrics).not.toHaveBeenCalledWith("i1", "s2");
+  });
+
+  it("после неудачного опроса строка «сейчас» говорит «нет ответа», а не показывает старые значения", async () => {
+    const { client } = renderWithClient(<InstallationPanel installationId="i1" />);
+    const first = await screen.findByRole("region", { name: "gpu-1" });
+    await waitFor(() => expect(within(first).getByText(/^3 · 1 · 42\s?%$/)).toBeInTheDocument());
+    vi.mocked(api.readServerMetrics).mockRejectedValue(new Error("down"));
+    await act(async () => {
+      await client.refetchQueries({ queryKey: ["server-metrics", "i1", "s1"] });
+    });
+    await waitFor(() => expect(within(first).getByText("нет ответа")).toBeInTheDocument());
+    expect(within(first).queryByText(/^3 · 1 · 42\s?%$/)).not.toBeInTheDocument();
   });
 
   it("подпись модели", () => {

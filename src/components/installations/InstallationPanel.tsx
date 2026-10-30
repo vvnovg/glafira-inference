@@ -147,15 +147,17 @@ function LiveRow({ installationId, serverId }: { installationId: string; serverI
   const { latest, error } = useServerMetrics(installationId, serverId);
   const g = latest?.gauges;
   const part = (v: number | null | undefined, f: (v: number) => string) => (v == null ? "—" : f(v));
+  // react-query хранит последние успешные данные и после неудачного опроса: при ошибке показываем «нет ответа», а не устаревшие числа.
+  const text = error
+    ? null
+    : latest
+      ? `${part(g?.requestsRunning, fmtNumber)} · ${part(g?.requestsWaiting, fmtNumber)} · ${part(g?.kvUsage, fmtPercent)}`
+      : "…";
   return (
     <>
       <dt>{t("installations.panel.live")}</dt>
       <dd className="live" title={t("installations.panel.liveHint")}>
-        {error && !latest
-          ? <span className="muted">{t("installations.panel.liveError")}</span>
-          : latest
-            ? `${part(g?.requestsRunning, fmtNumber)} · ${part(g?.requestsWaiting, fmtNumber)} · ${part(g?.kvUsage, fmtPercent)}`
-            : "…"}
+        {text ?? <span className="muted">{t("installations.panel.liveError")}</span>}
       </dd>
     </>
   );
