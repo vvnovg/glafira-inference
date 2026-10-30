@@ -24,6 +24,8 @@ export function appendPoint(buf: MetricPoint[], p: MetricPoint, windowMs = WINDO
   return [...kept, p];
 }
 
+const EMPTY: MetricPoint[] = [];
+
 export function metricsQueryKey(installationId: string, serverId: string) {
   return ["server-metrics", installationId, serverId] as const;
 }
@@ -43,12 +45,17 @@ export function useServerMetrics(installationId: string, serverId: string, enabl
     retry: false,
     refetchOnWindowFocus: false,
   });
-  const [points, setPoints] = useState<MetricPoint[]>([]);
+  // Буфер привязан к ключу запроса: при смене сервера он начинается заново, точки двух серверов не смешиваются.
+  const key = metricsQueryKey(installationId, serverId).join("\u0000");
+  const [buf, setBuf] = useState<{ key: string; points: MetricPoint[] }>({ key, points: [] });
+  const push = (p: MetricPoint) =>
+    setBuf((b) => ({ key, points: appendPoint(b.key === key ? b.points : [], p) }));
   useEffect(() => {
-    if (q.data) setPoints((b) => appendPoint(b, { at: q.data.at, m: q.data }));
-  }, [q.data, q.dataUpdatedAt]);
+    if (q.data) push({ at: q.data.at, m: q.data });
+  }, [key, q.data, q.dataUpdatedAt]);
   useEffect(() => {
-    if (q.error && q.errorUpdatedAt) setPoints((b) => appendPoint(b, { at: q.errorUpdatedAt, m: null, error: toAppError(q.error) }));
-  }, [q.error, q.errorUpdatedAt]);
+    if (q.error && q.errorUpdatedAt) push({ at: q.errorUpdatedAt, m: null, error: toAppError(q.error) });
+  }, [key, q.error, q.errorUpdatedAt]);
+  const points = buf.key === key ? buf.points : EMPTY;
   return { latest: q.data, points, error: q.error ? toAppError(q.error) : null, isPending: q.isPending, refetch: q.refetch };
 }

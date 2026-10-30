@@ -67,19 +67,43 @@ describe("useServerMetrics", () => {
     expect(result.current.error).toBeNull();
   });
 
+  it("смена сервера начинает новый буфер: точки двух серверов не смешиваются", async () => {
+    vi.mocked(api.readServerMetrics).mockImplementation(async (_i, s) => metrics(s === "s1" ? 1_000 : 2_000));
+    const { result, rerender } = renderHook(({ s }) => useServerMetrics("i1", s), {
+      wrapper: wrapper(true),
+      initialProps: { s: "s1" },
+    });
+    await waitFor(() => expect(result.current.points.map((p) => p.at)).toEqual([1_000]));
+    rerender({ s: "s2" });
+    expect(result.current.points).toEqual([]);
+    await waitFor(() => expect(result.current.points.map((p) => p.at)).toEqual([2_000]));
+  });
+
   it("disabled — сервер не опрашивается", async () => {
-    renderHook(() => useServerMetrics("i1", "s1", false), { wrapper: wrapper(true) });
-    await new Promise((r) => setTimeout(r, 20));
-    expect(api.readServerMetrics).not.toHaveBeenCalled();
+    vi.useFakeTimers();
+    try {
+      renderHook(() => useServerMetrics("i1", "s1", false), { wrapper: wrapper(true) });
+      await act(async () => {
+        await vi.advanceTimersByTimeAsync(20_000);
+      });
+      expect(api.readServerMetrics).not.toHaveBeenCalled();
+    } finally {
+      vi.useRealTimers();
+    }
   });
 
   it("на скрытой вкладке интервального опроса нет", async () => {
-    vi.useFakeTimers({ shouldAdvanceTime: true });
+    vi.useFakeTimers();
     try {
       vi.mocked(api.readServerMetrics).mockResolvedValue(metrics(1));
       renderHook(() => useServerMetrics("i1", "s1"), { wrapper: wrapper(false) });
-      await waitFor(() => expect(api.readServerMetrics).toHaveBeenCalledTimes(1));
-      await vi.advanceTimersByTimeAsync(20_000);
+      await act(async () => {
+        await vi.advanceTimersByTimeAsync(0);
+      });
+      expect(api.readServerMetrics).toHaveBeenCalledTimes(1);
+      await act(async () => {
+        await vi.advanceTimersByTimeAsync(20_000);
+      });
       expect(api.readServerMetrics).toHaveBeenCalledTimes(1);
     } finally {
       vi.useRealTimers();
@@ -87,13 +111,18 @@ describe("useServerMetrics", () => {
   });
 
   it("на видимой вкладке — раз в 5 с", async () => {
-    vi.useFakeTimers({ shouldAdvanceTime: true });
+    vi.useFakeTimers();
     try {
       let at = 0;
       vi.mocked(api.readServerMetrics).mockImplementation(async () => metrics((at += 5_000)));
       renderHook(() => useServerMetrics("i1", "s1"), { wrapper: wrapper(true) });
-      await waitFor(() => expect(api.readServerMetrics).toHaveBeenCalledTimes(1));
-      await vi.advanceTimersByTimeAsync(10_500);
+      await act(async () => {
+        await vi.advanceTimersByTimeAsync(0);
+      });
+      expect(api.readServerMetrics).toHaveBeenCalledTimes(1);
+      await act(async () => {
+        await vi.advanceTimersByTimeAsync(10_500);
+      });
       expect(vi.mocked(api.readServerMetrics).mock.calls.length).toBeGreaterThanOrEqual(3);
     } finally {
       vi.useRealTimers();
