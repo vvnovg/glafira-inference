@@ -34,19 +34,25 @@ export function MetricChart({ title, points, picks, format }: Props) {
   const empty = !hasValues(data);
   const labels = picks.map((p) => p.label).join("\n");
   const plotRef = useRef<uPlot | null>(null);
+  // Последние данные и format — в ref: пересоздание графика (язык, заголовок) не теряет данные, а новая функция format
+  // от родителя график не пересоздаёт.
+  const dataRef = useRef(data);
+  dataRef.current = data;
+  const formatRef = useRef(format);
+  formatRef.current = format;
 
   useEffect(() => {
     const el = ref.current;
     if (!el || empty) return;
     const muted = themeColor("--muted", "#6b7280");
     const axis = { stroke: muted, grid: { stroke: themeColor("--border", "#e3e5e8") }, ticks: { stroke: muted } };
-    const value = (_u: uPlot, v: number | null) => (v == null ? "—" : format(v));
+    const value = (_u: uPlot, v: number | null) => (v == null ? "—" : formatRef.current(v));
     const plot = new uPlot(
       {
         width: el.clientWidth || 600,
         height: HEIGHT,
         title,
-        axes: [axis, { ...axis, size: 60, values: (_u: uPlot, vals: number[]) => vals.map(format) }],
+        axes: [axis, { ...axis, size: 60, values: (_u: uPlot, vals: number[]) => vals.map((v) => formatRef.current(v)) }],
         series: [
           {},
           ...labels.split("\n").map((label, i) => ({
@@ -58,7 +64,7 @@ export function MetricChart({ title, points, picks, format }: Props) {
           })),
         ],
       },
-      [[], ...labels.split("\n").map(() => [])] as unknown as uPlot.AlignedData,
+      dataRef.current as uPlot.AlignedData,
       el,
     );
     plotRef.current = plot;
@@ -69,7 +75,7 @@ export function MetricChart({ title, points, picks, format }: Props) {
       plot.destroy();
       plotRef.current = null;
     };
-  }, [title, labels, format, empty]);
+  }, [title, labels, empty]);
 
   // Новые точки — без пересоздания графика: setData сохраняет выделение и легенду.
   useEffect(() => {

@@ -66,6 +66,24 @@ describe("MetricChart", () => {
     expect(plots[0].destroy).toHaveBeenCalled();
   });
 
+  it("пересоздание при смене заголовка не теряет данные", () => {
+    plots.length = 0;
+    const pts: MetricPoint[] = [{ at: 1_000, m: metrics(1_000) }];
+    const { rerender } = render(<MetricChart title="Запросы" points={pts} picks={picks} format={String} />);
+    expect(plots).toHaveLength(1);
+    rerender(<MetricChart title="Requests" points={pts} picks={picks} format={String} />);
+    expect(plots).toHaveLength(2);
+    expect(plots[1].data).toEqual([[1], [3], [1]]);
+  });
+
+  it("новая функция format график не пересоздаёт", () => {
+    plots.length = 0;
+    const pts: MetricPoint[] = [{ at: 1_000, m: metrics(1_000) }];
+    const { rerender } = render(<MetricChart title="Запросы" points={pts} picks={picks} format={String} />);
+    rerender(<MetricChart title="Запросы" points={pts} picks={picks} format={(v) => `${v}`} />);
+    expect(plots).toHaveLength(1);
+  });
+
   it("без значений — «нет данных», график не строится", () => {
     plots.length = 0;
     render(<MetricChart title="KV" points={[{ at: 1, m: null }]} picks={picks} format={String} />);
