@@ -10,7 +10,7 @@ The kind, version and models are the same as on the installation card; a server 
 shows their number. The tiles show the current state:
 
 - [[ui:servers.tiles.requests]] — requests in progress and in the queue. A growing queue with a full KV cache is the
-  first sign of short GPU memory.
+  first sign of a lack of GPU memory.
 - [[ui:servers.tiles.kv]] — how full the KV cache is; with several engines, the fullest one.
 - [[ui:servers.tiles.promptTokens]] and [[ui:servers.tiles.generationTokens]] — tokens per second over the last
   polling interval.
@@ -24,9 +24,10 @@ interval. Glafira never shows zero in place of an unknown value.
 
 ## Percentiles {#percentiles}
 
-Percentiles come from the server's histograms over the interval between polls, the same way as `histogram_quantile`
-in Prometheus, with linear interpolation inside a bucket. Their precision is limited by the server's bucket bounds. If
-the counters went down, the server restarted: Glafira starts over from the next poll and says so.
+Percentiles come from the server's histograms, the same way as `histogram_quantile` in Prometheus, with linear
+interpolation inside a bucket. The tiles show percentiles over the last minute, the charts over the interval between
+polls. Their precision is limited by the server's bucket bounds. The minute never spans a server restart. If the
+counters went down, the server restarted: Glafira starts over from the next poll and says so.
 
 ## Configuration {#config}
 
@@ -37,9 +38,9 @@ A table of launch arguments with their values and sources. Over HTTP a server re
 - [[ui:servers.sources.metrics]] — labels of info series in `/metrics`, such as `vllm:cache_config_info`: block size,
   GPU memory share, KV cache blocks, prefix caching.
 
-When sources disagree, the most direct one wins and the other values are shown under it with ⚠. Secrets (the API key
-in SGLang's server info) are never shown, only that a key is set. The rest of the arguments, from the pod or the
-process, come with the Kubernetes and SSH connections.
+When sources disagree, the most direct one wins and the other values are shown under it with ⚠. Values that look
+like keys, tokens, passwords, and addresses with a login are never shown, only that the value is set. The rest of the
+arguments, from the pod or the process, come with the Kubernetes and SSH connections.
 
 ## Metrics {#metrics}
 
@@ -51,6 +52,7 @@ source (Prometheus or VictoriaMetrics).
 ## Server versions {#versions}
 
 Metrics are read from vLLM 0.10 and later and from SGLang 0.5 and later; SGLang exposes them only when started with
-`--enable-metrics`. Series names changed between versions: Glafira takes the new name and falls back to the old one.
+`--enable-metrics`. Series names changed between versions: Glafira takes the new name and falls back to the old one
+when the new one has no data.
 OpenAI-compatible servers (Ollama, llama.cpp) have no metrics: their tab shows the models and arguments from
 `/v1/models`.
