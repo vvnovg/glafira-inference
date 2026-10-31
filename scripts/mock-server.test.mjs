@@ -2,7 +2,7 @@ import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import { createServer } from "node:http";
 import { test } from "node:test";
-import { handler, KINDS, liveMetrics, parseArgs } from "./mock-server.mjs";
+import { handler, KINDS, liveMetrics, parseArgs, prometheusReply } from "./mock-server.mjs";
 
 async function serve(opts) {
   const server = createServer(handler({ health: 200, apiKey: null, ...opts }));
@@ -12,7 +12,7 @@ async function serve(opts) {
 }
 
 test("параметры: значения по умолчанию, свои и ошибки", () => {
-  const defaults = { kind: "vllm", port: 8000, host: "127.0.0.1", apiKey: null, health: 200, models: "full", engines: 1, resetAfter: 0 };
+  const defaults = { kind: "vllm", port: 8000, host: "127.0.0.1", apiKey: null, health: 200, models: "full", engines: 1, resetAfter: 0, slow: 0, huge: false };
   assert.deepEqual(parseArgs([]), defaults);
   assert.deepEqual(
     parseArgs(["--kind", "sglang", "--port", "30000", "--api-key", "sk", "--health", "503", "--models", "empty", "--engines", "2", "--reset-after", "3"]),
@@ -20,6 +20,8 @@ test("параметры: значения по умолчанию, свои и 
   );
   assert.throws(() => parseArgs(["--engines", "9"]), /--engines.*Использование/s);
   assert.throws(() => parseArgs(["--reset-after", "0"]), /--reset-after/);
+  assert.deepEqual(parseArgs(["--kind", "prometheus", "--huge", "--slow", "40"]), { ...defaults, kind: "prometheus", huge: true, slow: 40 });
+  assert.throws(() => parseArgs(["--slow", "0"]), /--slow/);
   assert.throws(() => parseArgs(["--kind", "tgi"]), /неизвестный вид/);
   assert.throws(() => parseArgs(["--verbose", "1"]), /неизвестный параметр/);
 });
@@ -152,7 +154,7 @@ test("ключ API у llama.cpp и Ollama — как у vLLM: только /v1",
 });
 
 test("--models empty: /v1/models отдаёт пустой список, остальное без изменений", async () => {
-  for (const kind of Object.keys(KINDS)) {
+  for (const kind of Object.keys(KINDS).filter((k) => !KINDS[k].prometheus)) {
     const s = await serve({ kind, models: "empty" });
     try {
       const r = await fetch(`${s.base}/v1/models`);
@@ -278,6 +280,56 @@ test("vllm-0.10: старые и новые имена рядом, два дви
   try {
     const [a, b] = [await (await fetch(`${s.base}/metrics`)).text(), await (await fetch(`${s.base}/metrics`)).text()];
     assert.equal(a, b);
+  } finally {
+    await s.close();
+  }
+});
+
+
+const promql = (path, params) => new URL(`http://x${path}?${new URLSearchParams(params)}`);
+
+test("prometheus: служебные ответы, цели и сопоставление — ответами настоящего Prometheus", () => {
+  const body = (url) => JSON.parse(prometheusReply(url, {})[1]);
+  assert.equal(body(promql("/api/v1/query", { query: "up" })).data.result.length, 4);
+  const all = body(promql("/api/v1/query", { query: 'count by (job, instance) ({__name__=~"vllm:.+|sglang:.+"})' }));
+  assert.equal(all.data.result.length, 4);
+  const sglang = body(promql("/api/v1/query", { query: 'count by (job, instance) ({__name__=~"sglang:.+"})' }));
+  assert.deepEqual(sglang.data.result.map((r) => r.metric.job), ["sglang"]);
+  const one = body(promql("/api/v1/query", { query: 'count({job="vllm",__name__=~"vllm:.+|sglang:.+"})' }));
+  assert.equal(one.data.result[0].value[1], "57");
+  assert.deepEqual(body(promql("/api/v1/query", { query: "foo" })).data.result, []);
+  const [status, bad] = prometheusReply(promql("/api/v1/query_range", { query: 'sum(x{__bad__="1"})', start: 0, end: 60, step: 15 }), {});
+  assert.equal(status, 400);
+  assert.equal(JSON.parse(bad).errorType, "bad_data");
+});
+
+test("prometheus: query_range — снятый ряд шаблона на сетке запроса, для любого селектора", () => {
+  const expr = 'sum(rate(vllm:prompt_tokens_total{job="other",instance="10.0.0.5:8000"}[2m]))';
+  const [status, text] = prometheusReply(promql("/api/v1/query_range", { query: expr, start: 1000, end: 1180, step: 60 }), {});
+  assert.equal(status, 200);
+  const result = JSON.parse(text).data.result;
+  assert.equal(result.length, 1);
+  assert.deepEqual(result[0].values.map(([t]) => t), [1000, 1060, 1120, 1180]);
+  assert.ok(result[0].values.every(([, v]) => Number(v) > 0));
+  const reasons = JSON.parse(prometheusReply(promql("/api/v1/query_range", {
+    query: 'sum by (finished_reason) (rate(vllm:request_success_total{job="vllm"}[1m]))', start: 0, end: 30, step: 15,
+  }), {})[1]).data.result;
+  assert.ok(reasons.map((r) => r.metric.finished_reason).includes("stop"));
+  const unknown = JSON.parse(prometheusReply(promql("/api/v1/query_range", { query: "sum(nothing)", start: 0, end: 30, step: 15 }), {})[1]);
+  assert.deepEqual(unknown.data.result, []);
+  const huge = prometheusReply(promql("/api/v1/query_range", { query: expr, start: 0, end: 3600, step: 15 }), { huge: true })[1];
+  assert.ok(huge.length > 8 * 1024 * 1024, `${huge.length}`);
+});
+
+test("prometheus: --api-key закрывает всё, --slow задерживает ответ", async () => {
+  const s = await serve({ kind: "prometheus", apiKey: "prom-t0ken", slow: 1 });
+  try {
+    const started = Date.now();
+    assert.equal((await fetch(`${s.base}/api/v1/status/buildinfo`)).status, 401);
+    assert.ok(Date.now() - started >= 900, "ответ задержан");
+    const ok = await fetch(`${s.base}/api/v1/query?query=up`, { headers: { authorization: "Bearer prom-t0ken" } });
+    assert.equal(ok.status, 200);
+    assert.equal((await ok.json()).data.result.length, 4);
   } finally {
     await s.close();
   }

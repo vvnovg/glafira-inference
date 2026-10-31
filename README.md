@@ -53,11 +53,12 @@ cargo test --manifest-path src-tauri/Cargo.toml --lib     # Rust: unit-тест�
 
 ## Мок-сервер
 `pnpm mock-server --kind <вид> [--port 8000] [--host 127.0.0.1] [--api-key sk-dev] [--health 200..599] [--models full|empty]
-[--engines 1..8] [--reset-after N]` отвечает как сервер инференса снимками ответов из `src-tauri/src/servers/testdata` —
+[--engines 1..8] [--reset-after N] [--slow N] [--huge]` отвечает как сервер инференса снимками ответов из `src-tauri/src/servers/testdata` —
 теми же, что проверяют тесты Rust. Виды: `vllm` (0.32, настоящий снимок), `vllm-0.11`, `vllm-0.10` (старые и новые имена
 метрик рядом, два движка), `vllm-0.8` (модель с адаптером LoRA; ниже границы поддержки), `vllm-old` (0.7), `sglang`
 (0.5.22), `sglang-no-metrics` (0.5.22 без `/metrics`, как без `--enable-metrics`), `sglang-0.5.4`, `sglang-0.4` (устаревшие пути `/get_*`, без метрик; ниже границы), `llamacpp`, `ollama`
-(без `/health`).
+(без `/health`), `prometheus` (источник истории метрик, ответами настоящего Prometheus 3.15.1 из
+`src-tauri/src/history/testdata`).
 - `/metrics` видов `vllm`, `vllm-0.10` и `sglang` «живой»: счётчики и гистограммы растут с каждым опросом, KV-кэш
   колеблется. `--engines N` — N движков data parallel, `--reset-after N` — после N опросов счётчики начинаются заново,
   как при перезапуске сервера.
@@ -66,6 +67,10 @@ cargo test --manifest-path src-tauri/Cargo.toml --lib     # Rust: unit-тест�
 - `--health` — код ответа `/health`; у 3xx есть заголовок `Location` на `https://…/health`.
 - `--models empty` отдаёт пустой список моделей, `--models full` (по умолчанию) — снимок.
 - `--port 0` занимает любой свободный порт.
+- Вид `prometheus` — для отказов источника истории: с `--api-key` закрыто всё (без токена — 401), `--slow N` отвечает
+  через N секунд (таймаут), `--huge` отдаёт `query_range` больше 8 МБ, выражение с `__bad__` — ошибка `bad_data`.
+  `query_range` шаблонов Glafira отдаёт снятые ряды на сетке запроса. Настоящую историю даёт Prometheus с конфигом
+  `scripts/prometheus/smoke.yml`, который опрашивает моки раз в 5 с (`brew install prometheus`).
 
 ## Инсталляции и серверы
 - Инсталляция — серверы инференса одной системы (`storage/profile.rs`): имя, окружение, только чтение, таймауты и

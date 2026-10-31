@@ -1,0 +1,18 @@
+# Prometheus для смоука истории метрик (docs/smoke/i1c.md): опрашивает мок-серверы раз в 5 с.
+#   pnpm mock-server --kind vllm --port 8000
+#   pnpm mock-server --kind vllm --engines 2 --port 8001
+#   pnpm mock-server --kind vllm --reset-after 20 --port 8003
+#   pnpm mock-server --kind sglang --port 30000
+#   prometheus --config.file=scripts/prometheus/smoke.yml --storage.tsdb.path=<каталог> --web.listen-address=127.0.0.1:9090
+# Настоящий vLLM на Apple Silicon (vllm-metal, порт 8100) — раскомментировать цель ниже.
+global:
+  scrape_interval: 5s
+  evaluation_interval: 5s
+scrape_configs:
+  - job_name: vllm
+    static_configs:
+      - targets: ["127.0.0.1:8000", "127.0.0.1:8001", "127.0.0.1:8003"]
+      # - targets: ["127.0.0.1:8100"]
+  - job_name: sglang
+    static_configs:
+      - targets: ["127.0.0.1:30000"]
