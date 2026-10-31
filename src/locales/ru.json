@@ -277,7 +277,9 @@
       "notConnected": "Не подключался",
       "live": "Сейчас",
       "liveHint": "Выполняются · ждут · KV-кэш, раз в 5 с, пока вкладка открыта",
-      "liveError": "нет ответа"
+      "liveError": "нет ответа",
+      "history": "История",
+      "historyNone": "не сопоставлена"
     },
     "history": {
       "title": "История метрик (Prometheus / VictoriaMetrics)",
@@ -470,7 +472,8 @@
       "sglangEnableMetrics": "SGLang отдаёт метрики, только если запущен с --enable-metrics",
       "openaiNoMetrics": "Glafira читает метрики только vLLM и SGLang",
       "belowFloor": "Версия ниже поддерживаемой: метрики читаются у vLLM с 0.10 и SGLang с 0.5",
-      "noAnswer": "Нет ответа сервера"
+      "noAnswer": "Нет ответа сервера",
+      "fromHistory": "по истории"
     },
     "units": {
       "ms": "{{value}} мс",

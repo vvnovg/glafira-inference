@@ -34,6 +34,12 @@ export function withAuthMode(auth: HistoryAuth, mode: HistoryAuth["mode"], lastU
 /** Подпись цели: `job · instance (vLLM)`. */
 const targetLabel = (t: HistoryTarget) => `${t.job} · ${t.instance} (${t.kind === "sglang" ? "SGLang" : "vLLM"})`;
 
+/** Селектор для показа: `{job="vllm", instance="h:8000"}` — `vllm · h:8000`, остальные — как есть. */
+export function selectorLabel(selector: string): string {
+  const m = /^\{\s*job="([^"\\]*)",\s*instance="([^"\\]*)"\s*\}$/.exec(selector.trim());
+  return m ? `${m[1]} · ${m[2]}` : selector;
+}
+
 /** Селектор цели — как его строит Rust (`Target::selector`). */
 export const targetSelector = (t: HistoryTarget) =>
   `{job="${t.job.replace(/\\/g, "\\\\").replace(/"/g, '\\"')}", instance="${t.instance.replace(/\\/g, "\\\\").replace(/"/g, '\\"')}"}`;

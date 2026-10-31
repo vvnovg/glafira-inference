@@ -9,6 +9,7 @@ import { ErrorBanner } from "../common/ErrorBanner";
 import { Hint } from "../common/Hint";
 import { fmtNumber, fmtPercent } from "../servers/format";
 import { noMetricsHintKey, readsMetrics, useServerMetrics } from "../servers/useServerMetrics";
+import { selectorLabel } from "./HistoryFields";
 
 /** Ключ запроса сведений о подключённой инсталляции. */
 export const installationQueryKey = (id: string) => ["installation", id] as const;
@@ -64,7 +65,7 @@ export function InstallationPanel({ installationId }: { installationId: string }
       {q.data && (
         <div className="cards">
           {profile.servers.map((s) => (
-            <ServerCard key={s.id} installationId={installationId} server={s} state={states.get(s.id)} />
+            <ServerCard key={s.id} installationId={installationId} server={s} state={states.get(s.id)} history={!!profile.history} />
           ))}
         </div>
       )}
@@ -72,7 +73,18 @@ export function InstallationPanel({ installationId }: { installationId: string }
   );
 }
 
-function ServerCard({ installationId, server, state }: { installationId: string; server: ServerConfig; state?: ServerState }) {
+function ServerCard({
+  installationId,
+  server,
+  state,
+  history,
+}: {
+  installationId: string;
+  server: ServerConfig;
+  state?: ServerState;
+  /** У инсталляции есть источник истории: на карточке — строка «История». */
+  history: boolean;
+}) {
   const { t } = useTranslation();
   const open = useWorkspace((s) => s.open);
   const facts = state?.facts;
@@ -89,6 +101,12 @@ function ServerCard({ installationId, server, state }: { installationId: string;
         <dd>{server.baseUrl}</dd>
         {facts && <ServerFactsRows facts={facts} />}
         {facts && <LiveRow installationId={installationId} serverId={server.id} facts={facts} />}
+        {history && (
+          <>
+            <dt>{t("installations.panel.history")}</dt>
+            <dd>{server.historySelector ? <code>{selectorLabel(server.historySelector)}</code> : <span className="muted">{t("installations.panel.historyNone")}</span>}</dd>
+          </>
+        )}
       </dl>
       {state?.error && <ErrorBanner error={state.error} />}
       {!state && <p className="muted">{t("installations.panel.notConnected")}</p>}

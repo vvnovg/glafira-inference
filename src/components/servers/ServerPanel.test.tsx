@@ -148,6 +148,26 @@ describe("ServerPanel", () => {
     await waitFor(() => expect(vi.mocked(api.readServerHistory).mock.calls.filter((c) => c[2] === "24h")).toHaveLength(2));
   });
 
+  it("«Обзор» до второго опроса: скорости и перцентили — из истории, с пометкой", async () => {
+    vi.mocked(api.listInstallations).mockResolvedValue([withHistory()]);
+    const now = Date.now();
+    vi.mocked(api.readServerHistory).mockResolvedValue({
+      window: "now",
+      stepSec: 15,
+      source: "prometheus",
+      points: [{ at: now - 15_000, m: metrics(now - 15_000) }],
+      partial: [],
+    });
+    vi.mocked(api.readServerMetrics).mockResolvedValue(
+      metrics(now, { intervalSec: null, rates: null, prefixCacheHitRatio: null, latency1m: { ttft: null, itl: null, e2e: null, queueTime: null }, preemptions1m: null }),
+    );
+    renderWithClient(<ServerPanel installationId="i1" serverId="s1" />);
+    const ttft = await screen.findByRole("region", { name: "TTFT p95 за минуту" });
+    await waitFor(() => expect(within(ttft).getByText("250 мс")).toBeInTheDocument());
+    expect(within(ttft).getByText("по истории")).toBeInTheDocument();
+    expect(within(screen.getByRole("region", { name: "KV-кэш" })).queryByText("по истории")).toBeNull();
+  });
+
   it("ошибка окна истории — вместо графиков", async () => {
     vi.mocked(api.listInstallations).mockResolvedValue([withHistory()]);
     vi.mocked(api.readServerHistory).mockImplementation(async (_i, _s, window) => {

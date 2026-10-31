@@ -157,6 +157,27 @@ describe("InstallationPanel", () => {
     expect(useWorkspace.getState().activeId).toBe("server:i1:s1");
   });
 
+  it("строка «История»: цель сервера или «не сопоставлена»; без источника строки нет", async () => {
+    vi.mocked(api.listInstallations).mockResolvedValue([
+      {
+        ...PROFILE,
+        history: { url: "http://prometheus:9090", auth: { mode: "none" }, ca: { mode: "system" }, proxy: { mode: "system" } },
+        servers: [{ ...PROFILE.servers[0], historySelector: '{job="vllm", instance="gpu-1:8000"}' }, PROFILE.servers[1]],
+      },
+    ]);
+    renderWithClient(<InstallationPanel installationId="i1" />);
+    const first = await screen.findByRole("region", { name: "gpu-1" });
+    expect(within(first).getByText("История")).toBeInTheDocument();
+    expect(within(first).getByText("vllm · gpu-1:8000")).toBeInTheDocument();
+    expect(within(screen.getByRole("region", { name: "gpu-2" })).getByText("не сопоставлена")).toBeInTheDocument();
+  });
+
+  it("без источника истории строки «История» нет", async () => {
+    renderWithClient(<InstallationPanel installationId="i1" />);
+    const first = await screen.findByRole("region", { name: "gpu-1" });
+    expect(within(first).queryByText("История")).toBeNull();
+  });
+
   it("строка «сейчас» на карточке подключённого сервера: выполняются · ждут · KV", async () => {
     renderWithClient(<InstallationPanel installationId="i1" />);
     const first = await screen.findByRole("region", { name: "gpu-1" });

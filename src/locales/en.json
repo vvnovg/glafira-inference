@@ -277,7 +277,9 @@
       "notConnected": "Not connected",
       "live": "Now",
       "liveHint": "Running · waiting · KV cache, refreshed every 5 s while the tab is shown",
-      "liveError": "no answer"
+      "liveError": "no answer",
+      "history": "History",
+      "historyNone": "not matched"
     },
     "history": {
       "title": "Metrics history (Prometheus / VictoriaMetrics)",
@@ -466,7 +468,8 @@
       "sglangEnableMetrics": "SGLang exposes metrics only when started with --enable-metrics",
       "openaiNoMetrics": "Glafira reads metrics of vLLM and SGLang only",
       "belowFloor": "Version below the supported floor: metrics are read for vLLM 0.10+ and SGLang 0.5+",
-      "noAnswer": "No answer from the server"
+      "noAnswer": "No answer from the server",
+      "fromHistory": "from history"
     },
     "units": {
       "ms": "{{value}} ms",
