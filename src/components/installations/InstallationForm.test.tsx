@@ -136,6 +136,25 @@ describe("InstallationForm: история метрик", () => {
     expect(secrets?.historySecret).toBeUndefined();
   });
 
+  it("смена адреса сервера сбрасывает автоподобранный селектор, но не выбранный вручную", async () => {
+    vi.mocked(api.checkHistorySource).mockResolvedValue(CHECK);
+    const initial = saved();
+    initial.history = { url: "http://prometheus:9090", auth: { mode: "none" }, ca: { mode: "system" }, proxy: { mode: "system" } };
+    const user = userEvent.setup();
+    renderWithClient(<InstallationForm initial={initial} tabId="form:i1" />);
+    const section = screen.getByRole("region", { name: "История метрик (Prometheus / VictoriaMetrics)" });
+    await user.click(within(section).getByRole("button", { name: "Проверить источник" }));
+    await within(section).findByRole("list", { name: "Проверка источника истории" });
+    expect(within(section).getByLabelText("gpu-1")).toHaveValue(AUTO);
+    await user.selectOptions(within(section).getByLabelText("gpu-2"), "sglang · gpu-3:30000 (SGLang)");
+    const manual = (within(section).getByLabelText("gpu-2") as HTMLSelectElement).value;
+    await user.type(within(screen.getByRole("group", { name: "Сервер 1" })).getByLabelText("Адрес"), "1");
+    expect(within(section).getByLabelText("gpu-1")).toHaveValue("");
+    expect(within(section).queryByText("автоподбор")).toBeNull();
+    await user.type(within(screen.getByRole("group", { name: "Сервер 2" })).getByLabelText("Адрес"), "1");
+    expect(within(section).getByLabelText("gpu-2")).toHaveValue(manual);
+  });
+
   it("«Убрать источник» — без него и секрета", async () => {
     vi.mocked(api.saveInstallation).mockImplementation(async (p) => p);
     const initial = saved();

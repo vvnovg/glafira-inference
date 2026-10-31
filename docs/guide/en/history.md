@@ -24,7 +24,7 @@ A server needs a series selector — the labels its metrics have in the source, 
 list of the found targets:
 
 - **auto-match** — the target whose `instance` equals the host and port of the server address (`localhost` and
-  `127.0.0.1` are one address); auto-match never overwrites a choice made by a person;
+  `127.0.0.1` are one address); auto-match never overwrites a choice made by a person; if you change the server address after auto-match, the selector is cleared: run the check again;
 - a target from the list — when the server address and `instance` differ: in Kubernetes the source scrapes the pod
   IP while the installation holds the service address;
 - [[ui:installations.history.custom]] — any labels in double quotes, without `__name__`: Glafira adds the series

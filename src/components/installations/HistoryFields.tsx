@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { toAppError } from "../../api/client";
 import type { AppError, HistoryAuth, HistoryCheck, HistorySource, HistoryTarget, InstallationProfile } from "../../api/types";
@@ -70,11 +70,20 @@ export function HistoryFields({ profile, idPrefix, savedSecret, secret, insecure
   const [result, setResult] = useState<HistoryCheck | null>(null);
   const [checking, setChecking] = useState(false);
   const [error, setError] = useState<AppError | null>(null);
-  const [auto, setAuto] = useState<Set<string>>(new Set());
+  // Серверы с автоподобранным селектором и адрес, под который он подобран.
+  const [auto, setAuto] = useState<Map<string, string>>(new Map());
   const [custom, setCustom] = useState<Set<string>>(new Set());
   const [lastPem, setLastPem] = useState("");
   const [lastProxy, setLastProxy] = useState("");
   const [lastUser, setLastUser] = useState("");
+
+  // Адрес сервера сменился — подобранный под старый адрес селектор сбрасывается (выбор человека не трогаем).
+  useEffect(() => {
+    const stale = profile.servers.filter((s) => auto.has(s.id) && auto.get(s.id) !== s.baseUrl);
+    if (stale.length === 0) return;
+    for (const s of stale) onSelector(s.id, undefined);
+    setAuto((a) => new Map([...a].filter(([id]) => !stale.some((s) => s.id === id))));
+  }, [profile.servers, auto, onSelector]);
 
   if (!h) {
     return (
@@ -98,15 +107,15 @@ export function HistoryFields({ profile, idPrefix, savedSecret, secret, insecure
     try {
       const r = await check();
       setResult(r);
-      const picked = new Set<string>();
+      const picked = new Map<string, string>();
       for (const s of r.suggestions) {
         const server = profile.servers.find((x) => x.id === s.serverId);
         if (s.selector && server && !server.historySelector) {
           onSelector(s.serverId, s.selector);
-          picked.add(s.serverId);
+          picked.set(s.serverId, server.baseUrl);
         }
       }
-      setAuto((a) => new Set([...a, ...picked]));
+      setAuto((a) => new Map([...a, ...picked]));
     } catch (e) {
       setError(toAppError(e));
     } finally {
@@ -115,7 +124,7 @@ export function HistoryFields({ profile, idPrefix, savedSecret, secret, insecure
   };
   const targets = result?.targets ?? [];
   const choose = (serverId: string, value: string) => {
-    setAuto((a) => new Set([...a].filter((x) => x !== serverId)));
+    setAuto((a) => new Map([...a].filter(([x]) => x !== serverId)));
     setCustom((c) => {
       const next = new Set(c);
       if (value === CUSTOM) next.add(serverId);
