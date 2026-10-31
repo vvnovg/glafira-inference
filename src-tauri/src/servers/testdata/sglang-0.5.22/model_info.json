@@ -1,0 +1,1 @@
+{"model_path":"/models/Qwen3-32B","tokenizer_path":"/models/Qwen3-32B","is_generation":true,"preferred_sampling_params":null,"weight_version":"default","load_format":"auto","reasoning_parser":null,"tool_call_parser":null,"disaggregation_mode":"null","has_image_understanding":false,"has_audio_understanding":false,"model_type":"qwen3","architectures":["Qwen3ForCausalLM"]}

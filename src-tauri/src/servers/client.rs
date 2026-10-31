@@ -87,6 +87,7 @@ pub struct ServerClient {
     http: reqwest::Client,
     base: url::Url,
     api_key: Option<String>,
+    metrics_path: String,
 }
 
 /// Ключ API не печатается: структура может попасть в лог или сообщение об ошибке.
@@ -155,7 +156,13 @@ impl ServerClient {
             http,
             base,
             api_key: api_key.filter(|k| !k.trim().is_empty()),
+            metrics_path: s.metrics_path.clone(),
         })
+    }
+
+    /// Путь метрик из профиля сервера.
+    pub fn metrics_path(&self) -> &str {
+        &self.metrics_path
     }
 
     pub fn has_api_key(&self) -> bool {

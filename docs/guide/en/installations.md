@@ -17,7 +17,7 @@ exposes them only when started with `--enable-metrics`.
 
 By default the type is detected from the answers: vLLM by `/version` and `vllm:` metrics, SGLang by `/model_info` and
 `/server_info`. Other servers with `/v1/models` (Ollama, llama.cpp, Triton, TGI) work as OpenAI-compatible. vLLM older
-than 0.8 and SGLang older than 0.4 work as OpenAI-compatible too, and Glafira warns about it.
+than 0.10 and SGLang older than 0.5 work as OpenAI-compatible too, and Glafira warns about it.
 
 Choose the type by hand only if detection is wrong: Glafira works with the chosen type and shows that the server
 looks different.

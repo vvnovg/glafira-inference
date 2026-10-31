@@ -42,6 +42,14 @@ describe("api client", () => {
     expect(invoke).toHaveBeenLastCalledWith("connect_installation", { installationId: "i1", fresh: true });
   });
 
+  it("метрики и аргументы сервера — по инсталляции и серверу", async () => {
+    invoke.mockResolvedValue({});
+    await api.readServerMetrics("i1", "s1");
+    expect(invoke).toHaveBeenCalledWith("read_server_metrics", { installationId: "i1", serverId: "s1" });
+    await api.readServerConfig("i1", "s2");
+    expect(invoke).toHaveBeenLastCalledWith("read_server_config", { installationId: "i1", serverId: "s2" });
+  });
+
   it("ошибка из Rust приходит как есть, прочие — как INTERNAL", async () => {
     const e: AppError = { code: "TIMEOUT", key: "errors.server.timeout", message: "late", retryable: true };
     invoke.mockRejectedValue(e);

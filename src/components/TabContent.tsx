@@ -4,6 +4,7 @@ import type { Tab } from "../state/workspace";
 import { AboutPanel } from "./about/AboutPanel";
 import { InstallationFormTab } from "./installations/InstallationFormTab";
 import { InstallationPanel } from "./installations/InstallationPanel";
+import { ServerPanel } from "./servers/ServerPanel";
 import { SettingsPanel } from "./settings/SettingsPanel";
 
 // Справка (react-markdown и главы) грузится отдельным чанком при первом открытии.
@@ -43,5 +44,7 @@ export function TabContent({ tab }: { tab: Tab }) {
       return <InstallationFormTab installationId={tab.installationId} folderId={tab.folderId ?? null} tabId={tab.id} />;
     case "installation":
       return <InstallationPanel installationId={tab.installationId} />;
+    case "server":
+      return <ServerPanel installationId={tab.installationId} serverId={tab.serverId} />;
   }
 }

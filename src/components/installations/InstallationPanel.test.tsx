@@ -1,17 +1,18 @@
-import { screen, waitFor, within } from "@testing-library/react";
+import { act, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { renderWithClient } from "../../test/render";
 
 vi.mock("../../api/client", async (importOriginal) => {
   const orig = await importOriginal<typeof import("../../api/client")>();
-  return { ...orig, api: { listInstallations: vi.fn(), connectInstallation: vi.fn() } };
+  return { ...orig, api: { listInstallations: vi.fn(), connectInstallation: vi.fn(), readServerMetrics: vi.fn() } };
 });
 
 import { api } from "../../api/client";
 import type { InstallationInfo, InstallationProfile } from "../../api/types";
 import { useWorkspace } from "../../state/workspace";
 import { InstallationPanel, modelLabel } from "./InstallationPanel";
+import { metrics } from "../servers/testMetrics";
 import { newInstallation } from "./profile";
 
 const msg = (key: string, text: string, params: Record<string, string> = {}) => ({ key, params, text });
@@ -56,6 +57,7 @@ beforeEach(() => {
   vi.clearAllMocks();
   vi.mocked(api.listInstallations).mockResolvedValue([PROFILE]);
   vi.mocked(api.connectInstallation).mockResolvedValue(INFO);
+  vi.mocked(api.readServerMetrics).mockResolvedValue(metrics(Date.now()));
   useWorkspace.setState({ tabs: [], activeId: null });
 });
 
@@ -85,7 +87,7 @@ describe("InstallationPanel", () => {
             version: null,
             models: [],
             metrics: false,
-            warnings: [msg("messages.servers.unsupportedVersion", "old", { kind: "vLLM", version: "0.7.3", min: "0.8" })],
+            warnings: [msg("messages.servers.unsupportedVersion", "old", { kind: "vLLM", version: "0.7.3", min: "0.10" })],
           },
         },
       ],
@@ -96,7 +98,7 @@ describe("InstallationPanel", () => {
     expect(within(first).getByText("OpenAI-совместимый")).toBeInTheDocument();
     expect(within(first).getByText("по признакам — vLLM")).toBeInTheDocument();
     expect(within(first).getByText("моделей нет")).toBeInTheDocument();
-    expect(within(first).getByText(/vLLM 0\.7\.3 старше 0\.8/)).toBeInTheDocument();
+    expect(within(first).getByText(/vLLM 0\.7\.3 старше 0\.10/)).toBeInTheDocument();
     expect(within(screen.getByRole("region", { name: "gpu-2" })).getByText("Не подключался")).toBeInTheDocument();
   });
 
@@ -145,6 +147,52 @@ describe("InstallationPanel", () => {
     // Баннер ошибки списка пропал (остался только баннер сервера gpu-2 из ответа подключения).
     expect(screen.queryByText("список недоступен")).not.toBeInTheDocument();
     expect(api.listInstallations).toHaveBeenCalledTimes(2);
+  });
+
+  it("«Открыть» на карточке открывает вкладку сервера", async () => {
+    const user = userEvent.setup();
+    renderWithClient(<InstallationPanel installationId="i1" />);
+    const first = await screen.findByRole("region", { name: "gpu-1" });
+    await user.click(within(first).getByRole("button", { name: "Открыть" }));
+    expect(useWorkspace.getState().activeId).toBe("server:i1:s1");
+  });
+
+  it("строка «сейчас» на карточке подключённого сервера: выполняются · ждут · KV", async () => {
+    renderWithClient(<InstallationPanel installationId="i1" />);
+    const first = await screen.findByRole("region", { name: "gpu-1" });
+    await waitFor(() => expect(within(first).getByText(/^3 · 1 · 42\s?%$/)).toBeInTheDocument());
+    expect(api.readServerMetrics).toHaveBeenCalledWith("i1", "s1");
+    expect(api.readServerMetrics).not.toHaveBeenCalledWith("i1", "s2");
+  });
+
+  it("после неудачного опроса строка «сейчас» говорит «нет ответа», а не показывает старые значения", async () => {
+    const { client } = renderWithClient(<InstallationPanel installationId="i1" />);
+    const first = await screen.findByRole("region", { name: "gpu-1" });
+    await waitFor(() => expect(within(first).getByText(/^3 · 1 · 42\s?%$/)).toBeInTheDocument());
+    vi.mocked(api.readServerMetrics).mockRejectedValue(new Error("down"));
+    await act(async () => {
+      await client.refetchQueries({ queryKey: ["server-metrics", "i1", "s1"] });
+    });
+    await waitFor(() => expect(within(first).getByText("нет ответа")).toBeInTheDocument());
+    expect(within(first).queryByText(/^3 · 1 · 42\s?%$/)).not.toBeInTheDocument();
+  });
+
+  it("сервер без метрик (Ollama, SGLang без --enable-metrics): опроса нет, в строке «—» с подсказкой", async () => {
+    vi.mocked(api.connectInstallation).mockResolvedValue({
+      installationId: "i1",
+      servers: [
+        { serverId: "s1", facts: { kind: "openai", detected: "openai", version: null, models: [{ id: "llama3" }], metrics: false, warnings: [] } },
+        { serverId: "s2", facts: { kind: "sglang", detected: "sglang", version: "0.5.4", models: [{ id: "m" }], metrics: false, warnings: [] } },
+      ],
+    });
+    renderWithClient(<InstallationPanel installationId="i1" />);
+    const first = await screen.findByRole("region", { name: "gpu-1" });
+    const live = await within(first).findByText("—");
+    expect(live).toHaveAttribute("title", "Glafira читает метрики только vLLM и SGLang");
+    const second = screen.getByRole("region", { name: "gpu-2" });
+    expect(within(second).getByText("—")).toHaveAttribute("title", "SGLang отдаёт метрики, только если запущен с --enable-metrics");
+    expect(api.readServerMetrics).not.toHaveBeenCalled();
+    expect(screen.queryByText("нет ответа")).toBeNull();
   });
 
   it("подпись модели", () => {

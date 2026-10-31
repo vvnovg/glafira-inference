@@ -7,6 +7,8 @@ import { useWorkspace } from "../../state/workspace";
 import { EnvBadge } from "../common/EnvBadge";
 import { ErrorBanner } from "../common/ErrorBanner";
 import { Hint } from "../common/Hint";
+import { fmtNumber, fmtPercent } from "../servers/format";
+import { noMetricsHintKey, readsMetrics, useServerMetrics } from "../servers/useServerMetrics";
 
 /** Ключ запроса сведений о подключённой инсталляции. */
 export const installationQueryKey = (id: string) => ["installation", id] as const;
@@ -62,7 +64,7 @@ export function InstallationPanel({ installationId }: { installationId: string }
       {q.data && (
         <div className="cards">
           {profile.servers.map((s) => (
-            <ServerCard key={s.id} server={s} state={states.get(s.id)} />
+            <ServerCard key={s.id} installationId={installationId} server={s} state={states.get(s.id)} />
           ))}
         </div>
       )}
@@ -70,18 +72,23 @@ export function InstallationPanel({ installationId }: { installationId: string }
   );
 }
 
-function ServerCard({ server, state }: { server: ServerConfig; state?: ServerState }) {
+function ServerCard({ installationId, server, state }: { installationId: string; server: ServerConfig; state?: ServerState }) {
   const { t } = useTranslation();
+  const open = useWorkspace((s) => s.open);
   const facts = state?.facts;
   return (
     <section className="card" aria-label={server.name}>
       <h4>
-        {facts ? "✅" : "❌"} {server.name}
+        {facts ? "✅" : "❌"} {server.name}{" "}
+        <button type="button" className="link" onClick={() => open({ kind: "server", installationId, serverId: server.id })}>
+          {t("servers.panel.open")}
+        </button>
       </h4>
       <dl className="facts">
         <dt>{t("installations.panel.address")}</dt>
         <dd>{server.baseUrl}</dd>
         {facts && <ServerFactsRows facts={facts} />}
+        {facts && <LiveRow installationId={installationId} serverId={server.id} facts={facts} />}
       </dl>
       {state?.error && <ErrorBanner error={state.error} />}
       {!state && <p className="muted">{t("installations.panel.notConnected")}</p>}
@@ -130,6 +137,30 @@ function ServerFactsRows({ facts }: { facts: ServerFacts }) {
       </dd>
       <dt>{t("installations.panel.metrics")}</dt>
       <dd>{facts.metrics ? t("installations.panel.metricsYes") : t("installations.panel.metricsNo")}</dd>
+    </>
+  );
+}
+
+/** Строка «выполняются · ждут · KV» — тот же опрос, что у вкладки сервера (раз в 5 с, пока вкладка видна). */
+function LiveRow({ installationId, serverId, facts }: { installationId: string; serverId: string; facts: ServerFacts }) {
+  const { t } = useTranslation();
+  const polled = readsMetrics(facts);
+  const { latest, error } = useServerMetrics(installationId, serverId, polled);
+  const g = latest?.gauges;
+  const part = (v: number | null | undefined, f: (v: number) => string) => (v == null ? "—" : f(v));
+  // react-query хранит последние успешные данные и после неудачного опроса: при ошибке показываем «нет ответа», а не устаревшие числа.
+  const text = error
+    ? null
+    : latest
+      ? `${part(g?.requestsRunning, fmtNumber)} · ${part(g?.requestsWaiting, fmtNumber)} · ${part(g?.kvUsage, fmtPercent)}`
+      : "…";
+  const noMetricsKey = polled ? undefined : noMetricsHintKey(facts);
+  return (
+    <>
+      <dt>{t("installations.panel.live")}</dt>
+      <dd className="live" title={noMetricsKey ? t(noMetricsKey) : t("installations.panel.liveHint")}>
+        {noMetricsKey ? "—" : (text ?? <span className="muted">{t("installations.panel.liveError")}</span>)}
+      </dd>
     </>
   );
 }

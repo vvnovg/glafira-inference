@@ -5,6 +5,7 @@ import { helpChapterFor } from "./helpChapterFor";
 const cases: [TabSpec | null, string][] = [
   [{ kind: "installation-form", installationId: null }, "installations"],
   [{ kind: "installation", installationId: "i" }, "installations"],
+  [{ kind: "server", installationId: "i", serverId: "s" }, "servers"],
   [{ kind: "about" }, "updates"],
   [{ kind: "settings" }, "getting-started"],
   [{ kind: "help", chapter: "installations" }, "getting-started"],

@@ -8,7 +8,7 @@ import { EnvBadge } from "../../common/EnvBadge";
 import { installationQueryKey } from "../InstallationPanel";
 
 /**
- * Узел инсталляции в дереве: точка цвета, имя, окружение, «Обзор» и серверы. Состояние серверов — из
+ * Узел инсталляции в дереве: точка цвета, имя, окружение, «Обзор» и серверы (клик — вкладка сервера). Состояние серверов — из
  * подключения вкладки инсталляции; само дерево не подключается. rowProps — атрибуты строки (перетаскивание).
  */
 export function InstallationNode({ installation: c, rowProps }: { installation: InstallationProfile; rowProps?: HTMLAttributes<HTMLDivElement> }) {
@@ -40,7 +40,7 @@ export function InstallationNode({ installation: c, rowProps }: { installation: 
           const status = !state ? t("sidebar.serverUnknown") : state.facts ? t("sidebar.serverOk") : t("sidebar.serverError");
           return (
             <li key={s.id}>
-              <button type="button" className="link" title={s.baseUrl} onClick={openTab}>
+              <button type="button" className="link" title={s.baseUrl} onClick={() => open({ kind: "server", installationId: c.id, serverId: s.id })}>
                 <span className={state ? (state.facts ? "srv-ok" : "srv-error") : "muted"} role="img" aria-label={status}>
                   {mark}
                 </span>{" "}

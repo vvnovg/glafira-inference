@@ -31,8 +31,8 @@ impl DetectedKind {
     /// Нижняя граница версии, с которой работают адаптеры (спец. §1); ниже — `openai`.
     pub fn min_version(self) -> Option<&'static str> {
         match self {
-            DetectedKind::Vllm => Some("0.8"),
-            DetectedKind::Sglang => Some("0.4"),
+            DetectedKind::Vllm => Some("0.10"),
+            DetectedKind::Sglang => Some("0.5"),
             DetectedKind::Openai => None,
         }
     }
@@ -409,42 +409,41 @@ mod tests {
 
     #[test]
     fn snapshots_of_real_servers() {
-        for (name, probe, kind, version, metrics) in [
-            (
-                "vllm 0.11",
-                vllm_0_11(),
-                DetectedKind::Vllm,
-                Some("0.11.0"),
-                true,
-            ),
+        // Версии ниже границы (vLLM 0.10, SGLang 0.5) определяются, но работают как openai.
+        use DetectedKind::{Openai, Sglang, Vllm};
+        for (name, probe, detected, kind, version, metrics) in [
+            ("vllm 0.11", vllm_0_11(), Vllm, Vllm, Some("0.11.0"), true),
             (
                 "vllm 0.8",
                 vllm_0_8(),
-                DetectedKind::Vllm,
+                Vllm,
+                Openai,
                 Some("0.8.5.post1"),
-                true,
+                false,
             ),
             (
                 "sglang 0.5",
                 sglang_0_5(),
-                DetectedKind::Sglang,
+                Sglang,
+                Sglang,
                 Some("0.5.4"),
                 true,
             ),
             (
                 "sglang 0.4",
                 sglang_0_4(),
-                DetectedKind::Sglang,
+                Sglang,
+                Openai,
                 Some("0.4.6.post1"),
                 false,
             ),
-            ("llama.cpp", llamacpp(), DetectedKind::Openai, None, false),
-            ("ollama", ollama(), DetectedKind::Openai, None, false),
+            ("llama.cpp", llamacpp(), Openai, Openai, None, false),
+            ("ollama", ollama(), Openai, Openai, None, false),
         ] {
             let f = analyze(ServerKind::Auto, &probe).unwrap();
             assert_eq!(
-                (f.kind, f.detected, f.version.as_deref(), f.metrics),
-                (kind, kind, version, metrics),
+                (f.detected, f.kind, f.version.as_deref(), f.metrics),
+                (detected, kind, version, metrics),
                 "{name}"
             );
         }
@@ -487,13 +486,15 @@ mod tests {
             (DetectedKind::Vllm, DetectedKind::Openai)
         );
         assert_eq!(keys(&f), ["messages.servers.unsupportedVersion"]);
-        assert_eq!(f.warnings[0].params["min"], "0.8");
+        assert_eq!(f.warnings[0].params["min"], "0.10");
         assert!(!f.metrics, "метрики openai не читаются");
     }
 
     #[test]
     fn sglang_without_metrics_is_told_how_to_enable_them() {
-        let f = analyze(ServerKind::Auto, &sglang_0_4()).unwrap();
+        let mut p = sglang_0_5();
+        p.metrics = None;
+        let f = analyze(ServerKind::Auto, &p).unwrap();
         assert_eq!(keys(&f), ["messages.servers.noMetricsSglang"]);
         let mut p = vllm_0_11();
         p.metrics = None;
@@ -594,13 +595,14 @@ mod tests {
         assert_eq!(version_numbers("v0.11.0+cu128"), [0, 11, 0]);
         assert!(version_numbers("main").is_empty());
         for (v, min, ok) in [
-            ("0.11.0", "0.8", true),
-            ("0.8.0", "0.8", true),
-            ("0.7.3", "0.8", false),
-            ("0.4.6.post1", "0.4", true),
-            ("0.3.6", "0.4", false),
-            ("1.0", "0.8", true),
-            ("dev", "0.8", true),
+            ("0.11.0", "0.10", true),
+            ("0.10.0", "0.10", true),
+            ("0.9.2", "0.10", false),
+            ("0.32.0", "0.10", true),
+            ("0.5.22", "0.5", true),
+            ("0.4.6.post1", "0.5", false),
+            ("1.0", "0.10", true),
+            ("dev", "0.10", true),
         ] {
             assert_eq!(version_at_least(v, min), ok, "{v} >= {min}");
         }

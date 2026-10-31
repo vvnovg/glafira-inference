@@ -3,6 +3,8 @@ import { create } from "zustand";
 export type TabSpec =
   /** Инсталляция: серверы, их тип, версия, модели и состояние. */
   | { kind: "installation"; installationId: string }
+  /** Сервер инсталляции: обзор, аргументы запуска, метрики «сейчас». */
+  | { kind: "server"; installationId: string; serverId: string }
   /** folderId — папка новой инсталляции («Новая инсталляция здесь»). */
   | { kind: "installation-form"; installationId: string | null; folderId?: string | null }
   | { kind: "about" }
@@ -18,6 +20,8 @@ export function tabId(spec: TabSpec): string {
       return `installation-form:${spec.installationId ?? "new"}`;
     case "installation":
       return `installation:${spec.installationId}`;
+    case "server":
+      return `server:${spec.installationId}:${spec.serverId}`;
     default:
       return spec.kind;
   }

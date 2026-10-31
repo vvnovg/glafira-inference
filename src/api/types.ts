@@ -165,6 +165,80 @@ export interface InstallationInfo {
   servers: ServerState[];
 }
 
+/** Каноническая метрика Glafira (спец. I1b §3). */
+export type Canonical =
+  | "requestsRunning"
+  | "requestsWaiting"
+  | "kvUsage"
+  | "preemptionsTotal"
+  | "promptTokensTotal"
+  | "generationTokensTotal"
+  | "prefixCacheQueriesTotal"
+  | "prefixCacheHitsTotal"
+  | "requestSuccessTotal"
+  | "requestAbortedTotal"
+  | "ttft"
+  | "itl"
+  | "e2e"
+  | "queueTime"
+  | "promptLen"
+  | "genLen";
+
+/** Перцентили задержки в миллисекундах; `null` — наблюдений не было. */
+export interface Latency {
+  p50: number | null;
+  p95: number | null;
+  p99: number | null;
+  count: number;
+}
+
+export interface LatencySet {
+  ttft: Latency | null;
+  itl: Latency | null;
+  e2e: Latency | null;
+  queueTime: Latency | null;
+}
+
+/** Метрики сервера «сейчас»: снимок и производные за интервал с предыдущего (спец. I1b §4). */
+export interface ServerMetrics {
+  /** Время снимка, мс Unix. */
+  at: number;
+  intervalSec: number | null;
+  /** Счётчики уменьшились — сервер перезапущен, производных за интервал нет. */
+  reset: boolean;
+  engines: number;
+  gauges: { requestsRunning: number | null; requestsWaiting: number | null; kvUsage: number | null; kvUsageAvg: number | null };
+  rates: {
+    promptTokens: number | null;
+    generationTokens: number | null;
+    requests: number | null;
+    preemptions: number | null;
+    aborted: number | null;
+    finishedByReason: Record<string, number>;
+  } | null;
+  prefixCacheHitRatio: number | null;
+  latency: LatencySet;
+  /** Перцентили за последнюю минуту — для плиток. */
+  latency1m: LatencySet;
+  /** Вытеснений за ту же минуту; `null` — счётчика нет или минуты ещё нет. */
+  preemptions1m: number | null;
+  totals: Partial<Record<Canonical, number>>;
+  missing: Canonical[];
+  series: Partial<Record<Canonical, string>>;
+}
+
+export type ConfigSource = "server_info" | "models" | "metrics";
+
+/** Аргумент запуска сервера с источником (спец. I1b §5). */
+export interface ConfigEntry {
+  name: string;
+  value: string;
+  source: ConfigSource;
+  alternatives?: { value: string; source: ConfigSource }[];
+  /** Секрет: значение не передаётся, видно только «задан». */
+  secret?: boolean;
+}
+
 export interface PolicyStatus {
   managed: boolean;
   source: string | null;

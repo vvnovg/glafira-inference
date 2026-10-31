@@ -38,6 +38,9 @@ importers:
       react-markdown:
         specifier: 9.1.0
         version: 9.1.0(@types/react@19.3.0)(react@19.3.1)
+      uplot:
+        specifier: 1.6.32
+        version: 1.6.32
       zustand:
         specifier: ^5.0.15
         version: 5.0.16(@types/react@19.3.0)(react@19.3.1)
@@ -1407,6 +1410,9 @@ packages:
 
   unist-util-visit@5.2.0:
     resolution: {integrity: sha512-fpsYs/VVoZxfGY9/j3FQpZmN8wdLJaV1Pt38AaJNZu9uKIHcFU3halCdBveEq1HGKO1OEfJY65w1zvoFV1b3qQ==}
+
+  uplot@1.6.32:
+    resolution: {integrity: sha512-KIMVnG68zvu5XXUbC4LQEPnhwOxBuLyW1AHtpm6IKTXImkbLgkMy+jabjLgSLMasNuGGzQm/ep3tOkyTxpiQIw==}
 
   vfile-message@4.0.3:
     resolution: {integrity: sha512-QTHzsGd1EhbZs4AsQ20JX1rC3cOlt/IWJruk893DfLRr57lcnOeMaWG4K0JrRta4mIJZKth2Au3mM3u03/JWKw==}
@@ -2848,6 +2854,8 @@ snapshots:
       '@types/unist': 3.0.3
       unist-util-is: 6.0.1
       unist-util-visit-parents: 6.1.0
+
+  uplot@1.6.32: {}
 
   vfile-message@4.0.3:
     dependencies:

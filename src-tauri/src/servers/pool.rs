@@ -2,12 +2,13 @@
 //! инсталляции — это подключение каждого её сервера; сервер с ошибкой не мешает остальным.
 //! Подключения одной инсталляции идут по очереди: кто ждал, получает готовый результат.
 
-use std::collections::HashMap;
+use std::collections::{HashMap, VecDeque};
 use std::sync::{Arc, Mutex};
 
 use serde::Serialize;
 
 use crate::error::{AppError, AppResult};
+use crate::metrics::derive::Timed;
 use crate::policy::PolicyStatus;
 use crate::secrets::{API_KEY, SecretStore, secret_key};
 use crate::servers::client::{ServerClient, Timeouts};
@@ -46,6 +47,9 @@ impl Connected {
     }
 }
 
+/// Снимки метрик одного сервера за последнюю минуту.
+pub type LiveHistory = Arc<tokio::sync::Mutex<VecDeque<Timed>>>;
+
 #[derive(Default)]
 pub struct ServerPool {
     connected: Mutex<HashMap<String, Arc<Connected>>>,
@@ -53,6 +57,8 @@ pub struct ServerPool {
     /// `generations`, затем `connected`, чтобы сверка поколения и вставка шли одним шагом.
     generations: Mutex<HashMap<String, u64>>,
     locks: Mutex<HashMap<String, Arc<tokio::sync::Mutex<()>>>>,
+    /// Снимки метрик серверов за последнюю минуту (спец. I1b §4), по (инсталляция, сервер).
+    live: Mutex<HashMap<(String, String), LiveHistory>>,
 }
 
 impl ServerPool {
@@ -70,6 +76,18 @@ impl ServerPool {
         let mut generations = self.generations.lock_safe();
         *generations.entry(id.to_string()).or_default() += 1;
         self.connected.lock_safe().remove(id);
+        self.live
+            .lock_safe()
+            .retain(|(installation, _), _| installation != id);
+    }
+
+    /// История снимков метрик сервера; `evict` инсталляции её сбрасывает.
+    pub fn live(&self, installation_id: &str, server_id: &str) -> LiveHistory {
+        self.live
+            .lock_safe()
+            .entry((installation_id.to_string(), server_id.to_string()))
+            .or_default()
+            .clone()
     }
 
     /// Текущее поколение инсталляции: запоминается до чтения профиля и ключей.
