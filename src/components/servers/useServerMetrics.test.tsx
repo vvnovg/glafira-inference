@@ -5,13 +5,13 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 
 vi.mock("../../api/client", async (importOriginal) => {
   const orig = await importOriginal<typeof import("../../api/client")>();
-  return { ...orig, api: { readServerMetrics: vi.fn() } };
+  return { ...orig, api: { readServerMetrics: vi.fn(), readServerHistory: vi.fn() } };
 });
 
 import { api } from "../../api/client";
 import { TabActiveContext } from "../../lib/tabActive";
 import { metrics } from "./testMetrics";
-import { appendPoint, type MetricPoint, useServerMetrics, WINDOW_MS } from "./useServerMetrics";
+import { appendPoint, type MetricPoint, prependHistory, useServerMetrics, WINDOW_MS, withHistory } from "./useServerMetrics";
 
 const point = (at: number): MetricPoint => ({ at, m: metrics(at) });
 
@@ -35,6 +35,28 @@ describe("appendPoint", () => {
   });
 });
 
+describe("история в буфере и плитках", () => {
+  it("точки истории — только раньше первой живой", () => {
+    const b = prependHistory([point(30_000), point(35_000)], [point(15_000), point(30_000)]);
+    expect(b.map((p) => p.at)).toEqual([15_000, 30_000, 35_000]);
+    expect(prependHistory([], [point(1)]).map((p) => p.at)).toEqual([1]);
+  });
+
+  it("первый живой снимок берёт скорости и перцентили за минуту из истории", () => {
+    const hist = metrics(10_000);
+    const first = metrics(20_000, { intervalSec: null, rates: null, latency1m: { ttft: null, itl: null, e2e: null, queueTime: null }, preemptions1m: null });
+    const { latest, fromHistory } = withHistory(first, hist);
+    expect(fromHistory).toBe(true);
+    expect(latest?.at).toBe(20_000);
+    expect(latest?.gauges).toEqual(first.gauges);
+    expect(latest?.rates).toEqual(hist.rates);
+    expect(latest?.latency1m).toEqual(hist.latency1m);
+    expect(withHistory(metrics(25_000), hist)).toEqual({ latest: metrics(25_000), fromHistory: false });
+    expect(withHistory(undefined, hist)).toEqual({ latest: hist, fromHistory: true });
+    expect(withHistory(first, undefined)).toEqual({ latest: first, fromHistory: false });
+  });
+});
+
 function wrapper(active: boolean) {
   const client = new QueryClient({ defaultOptions: { queries: { retry: false } } });
   return ({ children }: { children: ReactNode }) => (
@@ -45,7 +67,37 @@ function wrapper(active: boolean) {
 }
 
 describe("useServerMetrics", () => {
-  beforeEach(() => vi.mocked(api.readServerMetrics).mockReset());
+  beforeEach(() => {
+    vi.mocked(api.readServerMetrics).mockReset();
+    vi.mocked(api.readServerHistory).mockReset();
+  });
+
+  it("с историей буфер начинается последними 15 минутами из неё", async () => {
+    const t0 = Date.now();
+    vi.mocked(api.readServerHistory).mockResolvedValue({
+      window: "now",
+      stepSec: 15,
+      source: "prometheus",
+      points: [{ at: t0 - 30_000, m: metrics(t0 - 30_000) }, { at: t0 - 15_000, m: metrics(t0 - 15_000) }],
+      partial: [],
+    });
+    vi.mocked(api.readServerMetrics).mockResolvedValue(metrics(t0, { intervalSec: null, rates: null }));
+    const { result } = renderHook(() => useServerMetrics("i1", "s1", true, true), { wrapper: wrapper(true) });
+    await waitFor(() => expect(result.current.points).toHaveLength(3));
+    expect(api.readServerHistory).toHaveBeenCalledWith("i1", "s1", "now");
+    expect(result.current.points.map((p) => p.at)).toEqual([t0 - 30_000, t0 - 15_000, t0]);
+    expect(result.current.historyUntil).toBe(t0 - 15_000);
+    expect(result.current.fromHistory).toBe(true);
+    expect(result.current.latest?.rates?.promptTokens).toBe(120);
+  });
+
+  it("без истории она не запрашивается", async () => {
+    vi.mocked(api.readServerMetrics).mockResolvedValue(metrics(Date.now()));
+    const { result } = renderHook(() => useServerMetrics("i1", "s1"), { wrapper: wrapper(true) });
+    await waitFor(() => expect(result.current.points).toHaveLength(1));
+    expect(api.readServerHistory).not.toHaveBeenCalled();
+    expect(result.current.historyUntil).toBeNull();
+  });
 
   it("копит точки опросов, ошибка — точка-разрыв", async () => {
     // Время снимков — настоящее: точка ошибки ставится по часам окна, а окно отсчитывается от последней точки.
