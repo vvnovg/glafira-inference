@@ -187,7 +187,8 @@
       "ca": "System store — the CAs this computer trusts. Listed certificates — only them, the system ones are not used.",
       "proxy": "System — the <code>HTTP_PROXY</code>, <code>HTTPS_PROXY</code>, <code>ALL_PROXY</code> and <code>NO_PROXY</code> environment variables, then the OS proxy settings. Or an explicit address such as <code>http://proxy:3128</code>.",
       "test": "Checks this server step by step with the values of the form, without saving: address, TLS, /health, API key, type, version, models.",
-      "detectedKind": "The type Glafira works with. If it differs from what the server looks like, the type is chosen in the installation or the server version is too old."
+      "detectedKind": "The type Glafira works with. If it differs from what the server looks like, the type is chosen in the installation or the server version is too old.",
+      "historyUrl": "Address of the Prometheus or VictoriaMetrics HTTP API that scrapes the servers: http://prometheus.monitoring:9090. Glafira only reads it with PromQL queries and keeps nothing on disk."
     },
     "import": {
       "target": "Where new folders and installations go. Existing ones stay where they are.",
@@ -254,7 +255,10 @@
         "health": "Health",
         "auth": "Sign-in",
         "kind": "Type and version",
-        "models": "Models"
+        "models": "Models",
+        "up": "Query up",
+        "targets": "Targets",
+        "match": "Matching"
       }
     },
     "panel": {
@@ -274,6 +278,30 @@
       "live": "Now",
       "liveHint": "Running · waiting · KV cache, refreshed every 5 s while the tab is shown",
       "liveError": "no answer"
+    },
+    "history": {
+      "title": "Metrics history (Prometheus / VictoriaMetrics)",
+      "none": "Without a history source only the “Now” window is available.",
+      "add": "Add a history source",
+      "remove": "Remove the source",
+      "url": "Address",
+      "auth": "Sign-in",
+      "authMode": {
+        "none": "None",
+        "bearer": "Token",
+        "basic": "User name and password"
+      },
+      "username": "User name",
+      "token": "Token",
+      "password": "Password",
+      "secretClear": "Delete the saved token or password",
+      "check": "Check the source",
+      "report": "Check of the history source",
+      "series": "Series in the history",
+      "auto": "auto-match",
+      "noMatch": "Do not match",
+      "custom": "Own selector…",
+      "selector": "Series selector of “{{server}}”"
     }
   },
   "settings": {

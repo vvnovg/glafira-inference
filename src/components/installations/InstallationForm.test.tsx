@@ -9,6 +9,7 @@ vi.mock("../../api/client", async (importOriginal) => {
     ...orig,
     api: {
       testServer: vi.fn(),
+      checkHistorySource: vi.fn(),
       saveInstallation: vi.fn(),
       deleteInstallation: vi.fn(),
       listInstallations: vi.fn().mockResolvedValue([]),
@@ -55,6 +56,100 @@ beforeEach(() => {
   vi.mocked(api.listFolders).mockResolvedValue([]);
   vi.mocked(api.getPolicyStatus).mockResolvedValue(POLICY);
   useWorkspace.setState({ tabs: [], activeId: null });
+});
+
+const AUTO = '{job="vllm", instance="gpu-1:8000"}';
+
+const CHECK = {
+  report: {
+    ok: true,
+    steps: [
+      { name: "auth" as const, ok: true, message: msg("messages.historyTest.source", "Prometheus 3.15.1", { kind: "Prometheus", version: "3.15.1" }) },
+      { name: "targets" as const, ok: true, message: msg("messages.historyTest.targets", "Inference targets found: 2", { count: "2" }) },
+    ],
+    warnings: [msg("messages.historyTest.noTarget", "no target", { server: "gpu-2" })],
+  },
+  source: { kind: "prometheus" as const, version: "3.15.1" },
+  targets: [
+    { job: "sglang", instance: "gpu-3:30000", kind: "sglang" as const },
+    { job: "vllm", instance: "gpu-1:8000", kind: "vllm" as const },
+  ],
+  suggestions: [
+    { serverId: "s1", selector: AUTO, targets: [{ job: "vllm", instance: "gpu-1:8000", kind: "vllm" as const }] },
+    { serverId: "s2", selector: null, targets: [] },
+  ],
+};
+
+describe("InstallationForm: история метрик", () => {
+  it("источник, проверка с автоподбором, свой селектор — всё уходит в сохранение, токен — секретом", async () => {
+    vi.mocked(api.checkHistorySource).mockResolvedValue(CHECK);
+    vi.mocked(api.saveInstallation).mockImplementation(async (p) => p);
+    const user = userEvent.setup();
+    renderWithClient(<InstallationForm initial={saved()} tabId="form:i1" />);
+    const section = screen.getByRole("region", { name: "История метрик (Prometheus / VictoriaMetrics)" });
+    await user.click(within(section).getByRole("button", { name: "Добавить источник истории" }));
+    await user.type(within(section).getByLabelText("Адрес"), "http://prometheus:9090");
+    await user.selectOptions(within(section).getByLabelText("Вход"), "bearer");
+    await user.type(within(section).getByLabelText("Токен"), "prom-t0ken");
+    await user.click(within(section).getByRole("button", { name: "Проверить источник" }));
+    expect(api.checkHistorySource).toHaveBeenCalledWith(
+      expect.objectContaining({ history: { url: "http://prometheus:9090", auth: { mode: "bearer" }, ca: { mode: "system" }, proxy: { mode: "system" } } }),
+      { apiKeys: {}, historySecret: "prom-t0ken" },
+    );
+    const report = await within(section).findByRole("list", { name: "Проверка источника истории" });
+    expect(within(report).getByText("Цели:")).toBeInTheDocument();
+    expect(within(report).getByText(/«gpu-2»: цели с адресом сервера нет — выберите цель вручную/)).toBeInTheDocument();
+    const gpu1 = within(section).getByLabelText("gpu-1") as HTMLSelectElement;
+    expect(gpu1.value).toBe(AUTO);
+    expect(within(section).getByText("автоподбор")).toBeInTheDocument();
+    expect(within(gpu1).getByRole("option", { name: "sglang · gpu-3:30000 (SGLang)" })).toBeInTheDocument();
+    await user.selectOptions(within(section).getByLabelText("gpu-2"), "Свой селектор…");
+    await user.type(within(section).getByLabelText("Селектор серий «gpu-2»"), '{{job="x"}');
+    await user.click(screen.getByRole("button", { name: "Сохранить" }));
+    await waitFor(() => expect(api.saveInstallation).toHaveBeenCalled());
+    const [profile, secrets] = vi.mocked(api.saveInstallation).mock.calls[0];
+    expect(profile.servers.map((s) => s.historySelector)).toEqual([AUTO, '{job="x"}']);
+    expect(profile.history?.auth).toEqual({ mode: "bearer" });
+    expect(secrets).toEqual({ apiKeys: {}, historySecret: "prom-t0ken" });
+    expect(JSON.stringify(profile)).not.toContain("prom-t0ken");
+  });
+
+  it("выбор человека автоподбор не перезаписывает; «Не сопоставлять» убирает селектор", async () => {
+    vi.mocked(api.checkHistorySource).mockResolvedValue(CHECK);
+    vi.mocked(api.saveInstallation).mockImplementation(async (p) => p);
+    const initial = saved();
+    initial.history = { url: "http://prometheus:9090", auth: { mode: "basic", username: "reader" }, ca: { mode: "system" }, proxy: { mode: "system" } };
+    initial.servers[0].historySelector = '{job="mine"}';
+    const user = userEvent.setup();
+    renderWithClient(<InstallationForm initial={initial} tabId="form:i1" />);
+    const section = screen.getByRole("region", { name: "История метрик (Prometheus / VictoriaMetrics)" });
+    expect(within(section).getByLabelText("Пароль")).toHaveAttribute("placeholder", "оставьте пустым, чтобы не менять сохранённый");
+    await user.click(within(section).getByRole("button", { name: "Проверить источник" }));
+    await within(section).findByRole("list", { name: "Проверка источника истории" });
+    expect(within(section).getByLabelText("Селектор серий «gpu-1»")).toHaveValue('{job="mine"}');
+    expect(within(section).queryByText("автоподбор")).toBeNull();
+    await user.selectOptions(within(section).getByLabelText("gpu-1"), "Не сопоставлять");
+    await user.click(screen.getByRole("button", { name: "Сохранить" }));
+    await waitFor(() => expect(api.saveInstallation).toHaveBeenCalledTimes(1));
+    const [first, secrets] = vi.mocked(api.saveInstallation).mock.calls[0];
+    expect(first.servers[0].historySelector).toBeUndefined();
+    expect(secrets?.historySecret).toBeUndefined();
+  });
+
+  it("«Убрать источник» — без него и секрета", async () => {
+    vi.mocked(api.saveInstallation).mockImplementation(async (p) => p);
+    const initial = saved();
+    initial.history = { url: "http://prometheus:9090", auth: { mode: "bearer" }, ca: { mode: "system" }, proxy: { mode: "system" } };
+    const user = userEvent.setup();
+    renderWithClient(<InstallationForm initial={initial} tabId="form:i1" />);
+    await user.click(screen.getByRole("button", { name: "Убрать источник" }));
+    expect(screen.getByRole("button", { name: "Добавить источник истории" })).toBeInTheDocument();
+    await user.click(screen.getByRole("button", { name: "Сохранить" }));
+    await waitFor(() => expect(api.saveInstallation).toHaveBeenCalled());
+    const [profile, secrets] = vi.mocked(api.saveInstallation).mock.calls[0];
+    expect(profile.history).toBeUndefined();
+    expect(secrets).toEqual({ apiKeys: {} });
+  });
 });
 
 describe("InstallationForm", () => {
