@@ -3,5 +3,6 @@
 
 pub mod client;
 pub mod promql;
+pub mod series;
 pub mod targets;
 pub mod window;
