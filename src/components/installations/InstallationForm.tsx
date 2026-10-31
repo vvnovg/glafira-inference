@@ -64,6 +64,8 @@ export function InstallationForm({ initial, tabId }: { initial: InstallationProf
     setProfile((p) => ({ ...p, servers: p.servers.map((s) => (s.id === id ? { ...s, ...patch } : s)) }));
   const setKey = (id: string, patch: Partial<KeyInput>) =>
     setKeys((k) => ({ ...k, [id]: { value: k[id]?.value ?? "", clear: k[id]?.clear ?? false, ...patch } }));
+  // Сохранённый секрет источника есть, пока вид входа тот же; «удалить» действует только при нём.
+  const savedHistorySecret = !isNew && !!initial.history && initial.history.auth.mode !== "none" && initial.history.auth.mode === profile.history?.auth.mode;
   const current = (): InstallationProfile => ({ ...profile, folderId });
   const secrets = (): SecretsInput => {
     const apiKeys: Record<string, string> = {};
@@ -74,7 +76,7 @@ export function InstallationForm({ initial, tabId }: { initial: InstallationProf
     }
     const out: SecretsInput = { apiKeys };
     if (profile.history && profile.history.auth.mode !== "none") {
-      if (historySecret.clear) out.historySecret = "";
+      if (savedHistorySecret && historySecret.clear) out.historySecret = "";
       else if (historySecret.value.trim()) out.historySecret = historySecret.value;
     }
     return out;
@@ -270,7 +272,7 @@ export function InstallationForm({ initial, tabId }: { initial: InstallationProf
       <HistoryFields
         profile={profile}
         idPrefix={fid("history")}
-        savedSecret={!isNew && !!initial.history && initial.history.auth.mode !== "none" && initial.history.auth.mode === profile.history?.auth.mode}
+        savedSecret={savedHistorySecret}
         secret={historySecret}
         insecureForbidden={insecureForbidden}
         busy={busy}

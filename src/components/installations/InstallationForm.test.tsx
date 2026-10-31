@@ -167,6 +167,24 @@ describe("InstallationForm: история метрик", () => {
     expect(within(section).getByLabelText("Удалить сохранённый токен или пароль")).toBeInTheDocument();
   });
 
+  it("флажок «удалить сохранённый» не блокирует поле после смены вида входа и не уходит секретом", async () => {
+    vi.mocked(api.saveInstallation).mockImplementation(async (p) => p);
+    const initial = saved();
+    initial.history = { url: "http://prometheus:9090", auth: { mode: "bearer" }, ca: { mode: "system" }, proxy: { mode: "system" } };
+    const user = userEvent.setup();
+    renderWithClient(<InstallationForm initial={initial} tabId="form:i1" />);
+    const section = screen.getByRole("region", { name: "История метрик (Prometheus / VictoriaMetrics)" });
+    await user.click(within(section).getByLabelText("Удалить сохранённый токен или пароль"));
+    expect(within(section).getByLabelText("Токен")).toBeDisabled();
+    await user.selectOptions(within(section).getByLabelText("Вход"), "basic");
+    const password = within(section).getByLabelText("Пароль");
+    expect(password).toBeEnabled();
+    await user.type(password, "n3w-pass");
+    await user.click(screen.getByRole("button", { name: "Сохранить" }));
+    await waitFor(() => expect(api.saveInstallation).toHaveBeenCalled());
+    expect(vi.mocked(api.saveInstallation).mock.calls[0][1]).toEqual({ apiKeys: {}, historySecret: "n3w-pass" });
+  });
+
   it("«Убрать источник» сбрасывает введённый секрет и результат проверки", async () => {
     vi.mocked(api.checkHistorySource).mockResolvedValue(CHECK);
     vi.mocked(api.saveInstallation).mockImplementation(async (p) => p);

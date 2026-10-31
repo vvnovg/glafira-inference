@@ -164,7 +164,7 @@ export function HistoryFields({ profile, idPrefix, savedSecret, secret, insecure
               type="password"
               autoComplete="off"
               placeholder={savedSecret ? t("installations.form.apiKeyKeep") : ""}
-              disabled={secret.clear}
+              disabled={savedSecret && secret.clear}
               value={secret.value}
               onChange={(e) => onSecret({ value: e.target.value })}
             />
