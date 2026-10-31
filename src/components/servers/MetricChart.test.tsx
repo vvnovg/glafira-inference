@@ -22,7 +22,7 @@ globalThis.ResizeObserver ??= class {
   unobserve() {}
 } as unknown as typeof ResizeObserver;
 
-import { chartData, hasValues } from "./chart";
+import { axisIncrs, axisSize, chartData, hasValues } from "./chart";
 import { MetricChart } from "./MetricChart";
 import { ServerMetricsView } from "./ServerMetricsView";
 import { metrics } from "./testMetrics";
@@ -32,6 +32,24 @@ const picks = [
   { label: "running", pick: (m: ReturnType<typeof metrics>) => m.gauges.requestsRunning },
   { label: "waiting", pick: (m: ReturnType<typeof metrics>) => m.gauges.requestsWaiting },
 ];
+
+describe("ось Y", () => {
+  it("шаг делений не мельче точности формата", () => {
+    const incrs = axisIncrs(0.1);
+    expect(incrs[0]).toBe(0.1);
+    expect(incrs).toContain(0.25);
+    expect(incrs).toContain(1000);
+    expect(incrs.every((v) => v >= 0.1)).toBe(true);
+    expect(axisIncrs(1)[0]).toBe(1);
+  });
+
+  it("ширина оси — по самой длинной подписи", () => {
+    const measure = (s: string) => s.length * 7;
+    expect(axisSize(["0 мс", "10 000 мс"], measure)).toBe(9 * 7 + 16);
+    expect(axisSize(["0"], measure)).toBe(40);
+    expect(axisSize(null, measure)).toBe(40);
+  });
+});
 
 describe("chartData", () => {
   it("время в секундах, ошибка опроса и пропуск значения — null", () => {
@@ -52,11 +70,11 @@ describe("chartData", () => {
 describe("MetricChart", () => {
   it("ряды по подписям, новые точки — setData; при размонтировании график уничтожается", () => {
     const pts: MetricPoint[] = [{ at: 1_000, m: metrics(1_000) }];
-    const { rerender, unmount } = render(<MetricChart title="Запросы" points={pts} picks={picks} format={String} />);
+    const { rerender, unmount } = render(<MetricChart title="Запросы" points={pts} picks={picks} format={String} step={1} />);
     expect(plots).toHaveLength(1);
     expect(plots[0].opts.series.map((s) => s.label)).toEqual([undefined, "running", "waiting"]);
     expect(plots[0].data).toEqual([[1], [3], [1]]);
-    rerender(<MetricChart title="Запросы" points={[...pts, { at: 6_000, m: metrics(6_000) }]} picks={picks} format={String} />);
+    rerender(<MetricChart title="Запросы" points={[...pts, { at: 6_000, m: metrics(6_000) }]} picks={picks} format={String} step={1} />);
     expect(plots).toHaveLength(1);
     expect(plots[0].data).toEqual([
       [1, 6],
@@ -70,9 +88,9 @@ describe("MetricChart", () => {
   it("пересоздание при смене заголовка не теряет данные", () => {
     plots.length = 0;
     const pts: MetricPoint[] = [{ at: 1_000, m: metrics(1_000) }];
-    const { rerender } = render(<MetricChart title="Запросы" points={pts} picks={picks} format={String} />);
+    const { rerender } = render(<MetricChart title="Запросы" points={pts} picks={picks} format={String} step={1} />);
     expect(plots).toHaveLength(1);
-    rerender(<MetricChart title="Requests" points={pts} picks={picks} format={String} />);
+    rerender(<MetricChart title="Requests" points={pts} picks={picks} format={String} step={1} />);
     expect(plots).toHaveLength(2);
     expect(plots[1].data).toEqual([[1], [3], [1]]);
   });
@@ -80,14 +98,14 @@ describe("MetricChart", () => {
   it("новая функция format график не пересоздаёт", () => {
     plots.length = 0;
     const pts: MetricPoint[] = [{ at: 1_000, m: metrics(1_000) }];
-    const { rerender } = render(<MetricChart title="Запросы" points={pts} picks={picks} format={String} />);
-    rerender(<MetricChart title="Запросы" points={pts} picks={picks} format={(v) => `${v}`} />);
+    const { rerender } = render(<MetricChart title="Запросы" points={pts} picks={picks} format={String} step={1} />);
+    rerender(<MetricChart title="Запросы" points={pts} picks={picks} format={(v) => `${v}`} step={1} />);
     expect(plots).toHaveLength(1);
   });
 
   it("без значений — «нет данных», график не строится", () => {
     plots.length = 0;
-    render(<MetricChart title="KV" points={[{ at: 1, m: null }]} picks={picks} format={String} />);
+    render(<MetricChart title="KV" points={[{ at: 1, m: null }]} picks={picks} format={String} step={1} />);
     expect(screen.getByText("KV")).toBeTruthy();
     expect(screen.getByText(/no data|нет данных/i)).toBeTruthy();
     expect(plots).toHaveLength(0);

@@ -26,3 +26,21 @@ export function themeColor(name: string, fallback: string): string {
   const v = typeof document === "undefined" ? "" : getComputedStyle(document.documentElement).getPropertyValue(name).trim();
   return v || fallback;
 }
+
+/** Шаги делений оси Y — 1, 2, 2,5, 5 × 10ⁿ, не мельче `minStep`: формат графика не склеивает соседние подписи. */
+export function axisIncrs(minStep: number): number[] {
+  const out: number[] = [];
+  for (let e = -3; e <= 12; e++) {
+    for (const m of [1, 2, 2.5, 5]) {
+      const v = Number((m * 10 ** e).toPrecision(2));
+      if (v >= minStep) out.push(v);
+    }
+  }
+  return out;
+}
+
+/** Ширина оси Y в пикселях — по самой длинной подписи (`measure` — ширина текста), не меньше 40. */
+export function axisSize(labels: string[] | null, measure: (s: string) => number): number {
+  const widest = Math.max(0, ...(labels ?? []).map(measure));
+  return Math.max(40, Math.ceil(widest) + 16);
+}

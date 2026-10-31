@@ -2,7 +2,7 @@ import { useEffect, useMemo, useRef } from "react";
 import { useTranslation } from "react-i18next";
 import uPlot from "uplot";
 import "uplot/dist/uPlot.min.css";
-import { type ChartPick, chartData, hasValues, themeColor } from "./chart";
+import { type ChartPick, axisIncrs, axisSize, chartData, hasValues, themeColor } from "./chart";
 import type { MetricPoint } from "./useServerMetrics";
 
 const PALETTE: [string, string][] = [
@@ -15,19 +15,23 @@ const PALETTE: [string, string][] = [
 ];
 
 const HEIGHT = 200;
+/** Шрифт подписей осей uPlot по умолчанию — по нему считается ширина оси Y. */
+const AXIS_FONT = '12px system-ui, -apple-system, "Segoe UI", Roboto, "Helvetica Neue", Arial, "Noto Sans", sans-serif';
 
 interface Props {
   title: string;
   points: MetricPoint[];
   picks: ChartPick[];
   format: (v: number) => string;
+  /** Наименьший шаг делений оси Y — точность `format` (0,1 у десятых, 1 у целых). */
+  step: number;
 }
 
 /**
  * График метрики сервера за окно «сейчас» (спец. I1b §6): ряды по `picks`, разрывы на ошибках опроса, «нет данных»,
  * если значений нет. По образцу `UsageChart` Kubernetes-версии: цвета из CSS-переменных темы, ширина — по контейнеру.
  */
-export function MetricChart({ title, points, picks, format }: Props) {
+export function MetricChart({ title, points, picks, format, step }: Props) {
   const { t } = useTranslation();
   const ref = useRef<HTMLDivElement>(null);
   const data = useMemo(() => chartData(points, picks), [points, picks]);
@@ -52,7 +56,15 @@ export function MetricChart({ title, points, picks, format }: Props) {
         width: el.clientWidth || 600,
         height: HEIGHT,
         title,
-        axes: [axis, { ...axis, size: 60, values: (_u: uPlot, vals: number[]) => vals.map((v) => formatRef.current(v)) }],
+        axes: [
+          axis,
+          {
+            ...axis,
+            incrs: axisIncrs(step),
+            size: (_u: uPlot, labels: string[] | null) => axisSize(labels, measureText),
+            values: (_u: uPlot, vals: number[]) => vals.map((v) => formatRef.current(v)),
+          },
+        ],
         series: [
           {},
           ...labels.split("\n").map((label, i) => ({
@@ -75,7 +87,7 @@ export function MetricChart({ title, points, picks, format }: Props) {
       plot.destroy();
       plotRef.current = null;
     };
-  }, [title, labels, empty]);
+  }, [title, labels, empty, step]);
 
   // Новые точки — без пересоздания графика: setData сохраняет выделение и легенду.
   useEffect(() => {
@@ -94,4 +106,18 @@ export function MetricChart({ title, points, picks, format }: Props) {
       )}
     </section>
   );
+}
+
+let measureCtx: CanvasRenderingContext2D | null | undefined;
+/** Ширина подписи шрифтом осей; без canvas (тесты) — по числу знаков. */
+function measureText(s: string): number {
+  if (measureCtx === undefined) {
+    try {
+      measureCtx = document.createElement("canvas").getContext("2d");
+    } catch {
+      measureCtx = null;
+    }
+    if (measureCtx) measureCtx.font = AXIS_FONT;
+  }
+  return measureCtx ? measureCtx.measureText(s).width : s.length * 7;
 }
