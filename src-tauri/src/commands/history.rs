@@ -63,7 +63,7 @@ async fn history_source(st: &AppState, installation_id: &str) -> AppResult<Arc<S
         .buildinfo()
         .await?
         .map_or(SourceKind::Prometheus, |b| b.kind);
-    let source = Arc::new(Source { client, kind });
+    let source = Arc::new(Source::new(client, kind));
     st.pool
         .insert_history_if_current(installation_id, generation, source.clone());
     Ok(source)
@@ -91,15 +91,7 @@ pub async fn read_server_history_inner(
         })?;
     let (_, kind) = super::servers::connected_server(st, installation_id, server_id).await?;
     let source = history_source(st, installation_id).await?;
-    read_history(
-        &source.client,
-        source.kind,
-        kind,
-        &selector,
-        window,
-        now_ms() / 1000,
-    )
-    .await
+    read_history(&source, kind, &selector, window, now_ms() / 1000).await
 }
 
 #[cfg(test)]

@@ -1,8 +1,11 @@
 //! Окно истории сервера (спека I1c §4): шаблоны по карте адаптера, не больше 4 запросов к
 //! источнику одновременно, сборка точек; сбой одного запроса — `partial`, всех — ошибка.
 
+use std::sync::Arc;
+
 use futures::StreamExt;
 use serde::Serialize;
+use tokio::sync::Semaphore;
 
 use crate::error::{AppError, AppResult, ErrorCode};
 use crate::history::client::{HistoryClient, SourceKind};
@@ -28,11 +31,23 @@ pub struct HistoryAnswer {
 }
 
 /// Открытый источник истории инсталляции: клиент и тип по `buildinfo`. Живёт в пуле подключений
-/// до `evict` инсталляции.
+/// до `evict` инсталляции. Предел одновременных запросов (`CONCURRENCY`) общий для всех окон
+/// инсталляции, поэтому хранится здесь, а не в вызове.
 #[derive(Debug)]
 pub struct Source {
     pub client: HistoryClient,
     pub kind: SourceKind,
+    limit: Arc<Semaphore>,
+}
+
+impl Source {
+    pub fn new(client: HistoryClient, kind: SourceKind) -> Self {
+        Self {
+            client,
+            kind,
+            limit: Arc::new(Semaphore::new(CONCURRENCY)),
+        }
+    }
 }
 
 /// Значение метки селектора с условием `=`: по `job` и `instance` ищется интервал опроса цели.
@@ -43,10 +58,19 @@ fn exact(matchers: &[crate::history::targets::Matcher], label: &str) -> Option<S
         .map(|m| m.value.clone())
 }
 
+/// Разрешение на один запрос к источнику; держится, пока запрос идёт.
+async fn permit(source: &Source) -> tokio::sync::OwnedSemaphorePermit {
+    source
+        .limit
+        .clone()
+        .acquire_owned()
+        .await
+        .expect("the semaphore is never closed")
+}
+
 /// Окно `window` сервера типа `kind` с селектором `selector`, которое кончается в `now_sec`.
 pub async fn read_history(
-    client: &HistoryClient,
-    source: SourceKind,
+    source: &Source,
     kind: DetectedKind,
     selector: &str,
     window: Window,
@@ -62,14 +86,18 @@ pub async fn read_history(
     }
     let matchers = parse_selector(selector)?;
     let scrape = match (exact(&matchers, "job"), exact(&matchers, "instance")) {
-        (Some(job), Some(instance)) => client.scrape_interval(&job, &instance).await,
+        (Some(job), Some(instance)) => {
+            let _permit = permit(source).await;
+            source.client.scrape_interval(&job, &instance).await
+        }
         _ => None,
     };
     let r = range(window, now_sec, scrape);
     let qs = queries(map, &render(&matchers), &duration(r.rate));
     let results: Vec<_> = futures::stream::iter(qs)
         .map(|q| async move {
-            let result = client.query_range(&q.expr, &r).await;
+            let _permit = permit(source).await;
+            let result = source.client.query_range(&q.expr, &r).await;
             (q, result)
         })
         .buffered(CONCURRENCY)
@@ -83,7 +111,7 @@ pub async fn read_history(
     Ok(HistoryAnswer {
         window,
         step_sec: r.step,
-        source,
+        source: source.kind,
         points,
         partial,
     })
@@ -118,6 +146,14 @@ mod tests {
 
     /// Тестовый источник, который отвечает снятыми ответами на запросы окна `now` цели.
     async fn captured_source(name: &str, broken: Option<&str>) -> (TestServer, u64) {
+        captured_source_delayed(name, broken, None).await
+    }
+
+    async fn captured_source_delayed(
+        name: &str,
+        broken: Option<&str>,
+        delay: Option<std::time::Duration>,
+    ) -> (TestServer, u64) {
         let doc: serde_json::Value =
             serde_json::from_str(&snapshot(&format!("range-{name}.json"))).unwrap();
         let (start, end) = (doc["start"].as_u64().unwrap(), doc["end"].as_u64().unwrap());
@@ -137,6 +173,7 @@ mod tests {
                 } else {
                     Reply::json(&q["response"].to_string())
                 };
+                let reply = Reply { delay, ..reply };
                 (range_path(expr, start, end, 15), reply)
             })
             .collect();
@@ -147,14 +184,15 @@ mod tests {
         (TestServer::start(routes).await, end)
     }
 
-    fn client(server: &TestServer) -> HistoryClient {
-        HistoryClient::new(
+    fn client(server: &TestServer) -> Source {
+        let c = HistoryClient::new(
             &source(&server.url(), HistoryAuth::None),
             TIMEOUTS,
             None,
             &PolicyStatus::default(),
         )
-        .unwrap()
+        .unwrap();
+        Source::new(c, SourceKind::Prometheus)
     }
 
     #[tokio::test]
@@ -162,7 +200,6 @@ mod tests {
         let (server, end) = captured_source("vllm-8000", None).await;
         let a = read_history(
             &client(&server),
-            SourceKind::Prometheus,
             DetectedKind::Vllm,
             r#"{job="vllm", instance="127.0.0.1:8000"}"#,
             Window::Now,
@@ -189,11 +226,40 @@ mod tests {
     }
 
     #[tokio::test]
+    async fn concurrent_windows_of_one_source_share_the_limit() {
+        let (server, end) = captured_source_delayed(
+            "vllm-8000",
+            None,
+            Some(std::time::Duration::from_millis(40)),
+        )
+        .await;
+        let source = client(&server);
+        let one = || {
+            read_history(
+                &source,
+                DetectedKind::Vllm,
+                r#"{job="vllm", instance="127.0.0.1:8000"}"#,
+                Window::Now,
+                end,
+            )
+        };
+        let (a, b, c) = tokio::join!(one(), one(), one());
+        for r in [a, b, c] {
+            assert!(r.unwrap().partial.is_empty());
+        }
+        let paths = server.paths();
+        assert_eq!(
+            paths.iter().filter(|p| p.contains("query_range")).count(),
+            60
+        );
+        assert_eq!(server.peak_concurrency(), CONCURRENCY);
+    }
+
+    #[tokio::test]
     async fn failed_query_is_partial_and_all_failed_is_an_error() {
         let (server, end) = captured_source("vllm-8000", Some("time_to_first_token")).await;
         let a = read_history(
             &client(&server),
-            SourceKind::Prometheus,
             DetectedKind::Vllm,
             r#"{job="vllm", instance="127.0.0.1:8000"}"#,
             Window::Now,
@@ -208,7 +274,6 @@ mod tests {
         // Другой селектор — у теста нет ни одного ответа: все запросы — 404, окно — ошибка.
         let e = read_history(
             &client(&server),
-            SourceKind::Prometheus,
             DetectedKind::Vllm,
             r#"{job="other"}"#,
             Window::Now,
@@ -224,7 +289,7 @@ mod tests {
         let server = TestServer::start(vec![]).await;
         let read = |kind, sel: &'static str| {
             let c = client(&server);
-            async move { read_history(&c, SourceKind::Prometheus, kind, sel, Window::Hour, 0).await }
+            async move { read_history(&c, kind, sel, Window::Hour, 0).await }
         };
         assert_eq!(
             read(DetectedKind::Openai, r#"{job="x"}"#)

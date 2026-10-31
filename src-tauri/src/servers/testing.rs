@@ -3,6 +3,7 @@
 
 use std::collections::HashMap;
 use std::net::SocketAddr;
+use std::sync::atomic::{AtomicUsize, Ordering};
 use std::sync::{Arc, Mutex};
 use std::time::Duration;
 
@@ -65,10 +66,18 @@ pub struct Seen {
     pub user_agent: Option<String>,
 }
 
+/// Сколько запросов обрабатывается одновременно и сколько было не больше всего.
+#[derive(Debug, Default)]
+pub struct Load {
+    now: AtomicUsize,
+    peak: AtomicUsize,
+}
+
 pub struct TestServer {
     pub addr: SocketAddr,
     pub tls: bool,
     pub seen: Arc<Mutex<Vec<Seen>>>,
+    load: Arc<Load>,
     task: tokio::task::JoinHandle<()>,
 }
 
@@ -93,6 +102,12 @@ impl TestServer {
         format!("{scheme}://{}", self.addr)
     }
 
+    /// Наибольшее число запросов, которые сервер держал одновременно (от чтения заголовка до
+    /// конца ответа; с `Reply::delayed` запросы успевают накопиться).
+    pub fn peak_concurrency(&self) -> usize {
+        self.load.peak.load(Ordering::SeqCst)
+    }
+
     pub fn paths(&self) -> Vec<String> {
         self.seen
             .lock()
@@ -113,23 +128,25 @@ impl TestServer {
                 .collect(),
         );
         let seen = Arc::new(Mutex::new(Vec::new()));
+        let load = Arc::new(Load::default());
         let acceptor = tls.then(acceptor);
         let task = {
-            let seen = seen.clone();
+            let (seen, load) = (seen.clone(), load.clone());
             tokio::spawn(async move {
                 loop {
                     let Ok((stream, _)) = listener.accept().await else {
                         return;
                     };
                     let (routes, seen, acceptor) = (routes.clone(), seen.clone(), acceptor.clone());
+                    let load = load.clone();
                     tokio::spawn(async move {
                         match acceptor {
                             Some(a) => {
                                 if let Ok(s) = a.accept(stream).await {
-                                    serve(s, &routes, &seen).await;
+                                    serve(s, &routes, &seen, &load).await;
                                 }
                             }
-                            None => serve(stream, &routes, &seen).await,
+                            None => serve(stream, &routes, &seen, &load).await,
                         }
                     });
                 }
@@ -139,6 +156,7 @@ impl TestServer {
             addr,
             tls,
             seen,
+            load,
             task,
         }
     }
@@ -162,6 +180,7 @@ async fn serve<S: AsyncRead + AsyncWrite + Unpin>(
     mut stream: S,
     routes: &HashMap<String, Reply>,
     seen: &Mutex<Vec<Seen>>,
+    load: &Load,
 ) {
     let mut head = Vec::new();
     let mut buf = [0u8; 4096];
@@ -186,6 +205,15 @@ async fn serve<S: AsyncRead + AsyncWrite + Unpin>(
             return;
         }
     }
+    struct InFlight<'a>(&'a Load);
+    impl Drop for InFlight<'_> {
+        fn drop(&mut self) {
+            self.0.now.fetch_sub(1, Ordering::SeqCst);
+        }
+    }
+    let now = load.now.fetch_add(1, Ordering::SeqCst) + 1;
+    load.peak.fetch_max(now, Ordering::SeqCst);
+    let _in_flight = InFlight(load);
     let text = String::from_utf8_lossy(&head);
     let mut lines = text.lines();
     let path = lines
