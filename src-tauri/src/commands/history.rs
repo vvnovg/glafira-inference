@@ -5,7 +5,7 @@ use std::sync::Arc;
 use tauri::State;
 
 use super::blocking;
-use super::installations::InstallationInput;
+use super::installations::{InstallationInput, SecretOp, history_op};
 use crate::error::{AppResult, ErrorCode};
 use crate::history::check::{HistoryCheck, check_source, no_source};
 use crate::history::client::{HistoryClient, SourceKind};
@@ -16,22 +16,31 @@ use crate::servers::client::Timeouts;
 use crate::servers::live::now_ms;
 use crate::state::AppState;
 
-/// Проверяет источник истории несохранённого профиля: секрет из формы накладывается поверх
-/// keychain (с той же семантикой, что и при сохранении).
+/// Проверяет источник истории несохранённого профиля. Секрет определяется так же, как при
+/// сохранении (`history_op`): значение из формы обрезается, пустое — без секрета; без значения
+/// берётся сохранённый в keychain, только если вид входа не изменился относительно сохранённого
+/// профиля инсталляции.
 #[tauri::command]
 pub async fn check_history_source(
     state: State<'_, AppState>,
     input: InstallationInput,
 ) -> AppResult<HistoryCheck> {
-    let st = state.inner().clone();
-    let secret = match input.secrets.history_secret.clone() {
-        Some(v) => Some(v),
-        None => {
-            let key = history_secret_key(&input.profile.id);
-            blocking(move || st.secrets.get(&key)).await?
-        }
-    };
+    let secret = form_secret(state.inner(), &input).await?;
     Ok(check_source(&input.profile, secret, &state.policy.status).await)
+}
+
+/// Секрет источника для проверки: `history_op` над сохранённым профилем инсталляции (новой
+/// инсталляции в хранилище ещё нет — прежнего профиля нет, и сохранённый секрет не берётся).
+async fn form_secret(st: &AppState, input: &InstallationInput) -> AppResult<Option<String>> {
+    let previous = st.installations.get(&input.profile.id).ok();
+    match history_op(&input.profile, previous.as_ref(), &input.secrets) {
+        SecretOp::Set(v) => Ok(Some(v)),
+        SecretOp::Keep => {
+            let (st, key) = (st.clone(), history_secret_key(&input.profile.id));
+            blocking(move || st.secrets.get(&key)).await
+        }
+        SecretOp::Delete => Ok(None),
+    }
 }
 
 /// Окно истории сервера: `now` (15 минут для «Сейчас»), `1h`, `24h`, `7d`, `30d`.
@@ -102,6 +111,74 @@ mod tests {
 
     fn state(dir: &std::path::Path) -> AppState {
         AppState::new(dir, Arc::new(MemoryStore::default())).unwrap()
+    }
+
+    fn input(
+        history: crate::storage::profile::HistoryAuth,
+        secret: Option<&str>,
+    ) -> InstallationInput {
+        let mut p = sample_profile("a");
+        let mut h = sample_history();
+        h.auth = history;
+        p.history = Some(h);
+        InstallationInput {
+            profile: p,
+            secrets: crate::commands::installations::SecretsInput {
+                history_secret: secret.map(str::to_string),
+                ..Default::default()
+            },
+        }
+    }
+
+    #[tokio::test]
+    async fn check_trims_the_form_secret_and_drops_a_blank_one() {
+        use crate::storage::profile::HistoryAuth::Bearer;
+        let dir = tempfile::tempdir().unwrap();
+        let st = state(dir.path());
+        st.secrets.set(&history_secret_key("a"), "saved").unwrap();
+        assert_eq!(
+            form_secret(
+                &st,
+                &input(
+                    Bearer,
+                    Some(
+                        "  tok 
+"
+                    )
+                )
+            )
+            .await
+            .unwrap(),
+            Some("tok".to_string())
+        );
+        assert_eq!(
+            form_secret(&st, &input(Bearer, Some("   "))).await.unwrap(),
+            None
+        );
+    }
+
+    #[tokio::test]
+    async fn check_uses_the_saved_secret_only_for_the_same_auth_mode() {
+        use crate::storage::profile::HistoryAuth::{Basic, Bearer};
+        let dir = tempfile::tempdir().unwrap();
+        let st = state(dir.path());
+        st.secrets.set(&history_secret_key("a"), "saved").unwrap();
+        // Инсталляции в хранилище нет: прежнего профиля нет.
+        assert_eq!(form_secret(&st, &input(Bearer, None)).await.unwrap(), None);
+        let mut p = sample_profile("a");
+        let mut h = sample_history();
+        h.auth = Bearer;
+        p.history = Some(h);
+        st.installations.upsert(p).unwrap();
+        assert_eq!(
+            form_secret(&st, &input(Bearer, None)).await.unwrap(),
+            Some("saved".to_string())
+        );
+        // Вид входа сменился: токен не уходит паролем Basic.
+        let basic = Basic {
+            username: "u".into(),
+        };
+        assert_eq!(form_secret(&st, &input(basic, None)).await.unwrap(), None);
     }
 
     #[tokio::test]

@@ -48,7 +48,7 @@ pub struct InstallationInput {
 
 /// Что сделать с ключом при сохранении.
 #[derive(PartialEq, Eq)]
-enum SecretOp {
+pub(crate) enum SecretOp {
     Keep,
     Set(String),
     Delete,
@@ -90,7 +90,7 @@ fn secret_ops(
 
 /// Секрет источника истории — по данным формы. Без источника или без входа секрет не нужен.
 /// Сохранённый остаётся, только если вид входа не изменился: токен не становится паролем.
-fn history_op(
+pub(crate) fn history_op(
     saved: &InstallationProfile,
     previous: Option<&InstallationProfile>,
     s: &SecretsInput,
