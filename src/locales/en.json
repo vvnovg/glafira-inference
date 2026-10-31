@@ -104,7 +104,9 @@
     },
     "history": {
       "badUrl": "Invalid address “{{url}}” of the metrics history source: use http://host:9090 or https://host",
-      "badUsername": "Enter the user name of the metrics history source (without “:”)"
+      "badUsername": "Enter the user name of the metrics history source (without “:”)",
+      "selector": "The series selector is invalid at character {{pos}}: use {job=\"vllm\", instance=\"host:port\"}",
+      "selectorName": "The series selector must not set __name__: Glafira adds the series names itself"
     }
   },
   "messages": {

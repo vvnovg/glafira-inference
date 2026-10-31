@@ -365,6 +365,9 @@ pub fn validate_server(s: &ServerConfig) -> AppResult<()> {
             server = s.name
         )));
     }
+    if let Some(selector) = &s.history_selector {
+        crate::history::targets::parse_selector(selector)?;
+    }
     validate_ca(&s.ca, &s.name)?;
     validate_proxy(&s.proxy)
 }
@@ -907,6 +910,11 @@ mod tests {
         );
         assert_eq!(p.servers[0].history_selector, None);
         assert!(validate_profile(&p).is_ok());
+        p.servers[0].history_selector = Some(r#"{job="vllm"}"#.into());
+        assert!(validate_profile(&p).is_ok());
+        p.servers[0].history_selector = Some("job=vllm".into());
+        assert_invalid(&p, "errors.history.selector");
+        p.servers[0].history_selector = None;
 
         let with = |h: HistorySource| {
             let mut p = sample_profile("a");
