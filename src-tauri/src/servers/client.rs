@@ -92,6 +92,8 @@ pub struct ServerClient {
     http: reqwest::Client,
     base: url::Url,
     api_key: Option<String>,
+    /// Вход по имени и паролю (`Authorization: Basic`) — у источника истории (спека I1c §2).
+    basic: Option<(String, String)>,
     metrics_path: String,
 }
 
@@ -101,6 +103,7 @@ impl std::fmt::Debug for ServerClient {
         f.debug_struct("ServerClient")
             .field("base", &self.base.as_str())
             .field("api_key", &self.api_key.as_ref().map(|_| "***"))
+            .field("basic", &self.basic.as_ref().map(|(u, _)| (u, "***")))
             .finish()
     }
 }
@@ -161,8 +164,16 @@ impl ServerClient {
             http,
             base,
             api_key: api_key.filter(|k| !k.trim().is_empty()),
+            basic: None,
             metrics_path: s.metrics_path.clone(),
         })
+    }
+
+    /// Вход по имени и паролю вместо ключа API; пароль не печатается и не попадает в ошибки.
+    pub fn with_basic_auth(mut self, username: &str, password: String) -> Self {
+        self.api_key = None;
+        self.basic = Some((username.to_string(), password));
+        self
     }
 
     /// Путь метрик из профиля сервера.
@@ -188,7 +199,26 @@ impl ServerClient {
 
     /// GET `path`: ответ с любым кодом, тело — не больше `limit` байт.
     pub async fn get(&self, path: &str, limit: usize) -> AppResult<HttpReply> {
-        let mut req = self.http.get(self.url(path));
+        self.fetch(self.url(path), limit).await
+    }
+
+    /// GET `path` с параметрами запроса (`query=…&start=…`); остальное — как у `get`.
+    pub async fn get_query(
+        &self,
+        path: &str,
+        query: &[(&str, &str)],
+        limit: usize,
+    ) -> AppResult<HttpReply> {
+        let mut url = self.url(path);
+        url.query_pairs_mut().extend_pairs(query);
+        self.fetch(url, limit).await
+    }
+
+    async fn fetch(&self, url: url::Url, limit: usize) -> AppResult<HttpReply> {
+        let mut req = self.http.get(url);
+        if let Some((user, password)) = &self.basic {
+            req = req.basic_auth(user, Some(password));
+        }
         if let Some(key) = &self.api_key {
             let mut value =
                 reqwest::header::HeaderValue::from_str(&format!("Bearer {}", key.trim())).map_err(

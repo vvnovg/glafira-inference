@@ -1,0 +1,1 @@
+{"status":"success","data":{"resultType":"vector","result":[{"metric":{"instance":"127.0.0.1:30000","job":"sglang"},"value":[1793468540.558,"175"]}]}}

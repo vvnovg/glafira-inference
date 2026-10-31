@@ -106,7 +106,16 @@
       "badUrl": "Invalid address “{{url}}” of the metrics history source: use http://host:9090 or https://host",
       "badUsername": "Enter the user name of the metrics history source (without “:”)",
       "selector": "The series selector is invalid at character {{pos}}: use {job=\"vllm\", instance=\"host:port\"}",
-      "selectorName": "The series selector must not set __name__: Glafira adds the series names itself"
+      "selectorName": "The series selector must not set __name__: Glafira adds the series names itself",
+      "unexpected": "Unexpected answer of the metrics history source to {{path}}: not the Prometheus HTTP API",
+      "tooLarge": "The answer of the metrics history source is larger than 8 MB: choose a shorter window",
+      "unauthorized": "The metrics history source rejected the sign-in (401): check the token or the user name and password",
+      "forbidden": "The metrics history source denied access (403): the account may not read metrics",
+      "timeout": "The metrics history source did not finish the query in time: choose a shorter window",
+      "tooManyPoints": "The metrics history source refused the query: too many points per series",
+      "badData": "The metrics history source rejected the query: {{message}}",
+      "failed": "The metrics history source failed the query: {{message}}",
+      "status": "The metrics history source answered {{path}} with {{status}}"
     }
   },
   "messages": {

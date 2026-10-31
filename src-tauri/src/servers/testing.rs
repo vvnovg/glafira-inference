@@ -206,8 +206,11 @@ async fn serve<S: AsyncRead + AsyncWrite + Unpin>(
         authorization: header("authorization"),
         user_agent: header("user-agent"),
     });
+    // Сначала путь с параметрами запроса, затем без них: у API истории параметры разные.
+    let bare = path.split('?').next().unwrap_or_default();
     let reply = routes
         .get(&path)
+        .or_else(|| routes.get(bare))
         .cloned()
         .unwrap_or_else(|| Reply::status(404));
     if let Some(d) = reply.delay {
