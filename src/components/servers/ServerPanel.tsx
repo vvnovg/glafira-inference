@@ -34,7 +34,14 @@ export function ServerPanel({ installationId, serverId }: { installationId: stri
     enabled: !!server,
   });
   const state = info.data?.servers.find((s) => s.serverId === serverId);
-  const live = useServerMetrics(installationId, serverId, readsMetrics(state?.facts));
+  // История — если у инсталляции есть источник, а серии сервера сопоставлены (спека I1c §5).
+  const historyUnavailable = !profile?.history
+    ? "servers.metrics.noSource"
+    : !server?.historySelector
+      ? "servers.metrics.notMatched"
+      : null;
+  const reads = readsMetrics(state?.facts);
+  const live = useServerMetrics(installationId, serverId, reads, reads && !historyUnavailable);
   // Предупреждение о перезапуске живёт минуту с момента сброса, а не один опрос (ответ после сброса уже `reset: false`).
   const [resetAt, setResetAt] = useState<number | null>(null);
   const [, redraw] = useState(0);
@@ -84,7 +91,16 @@ export function ServerPanel({ installationId, serverId }: { installationId: stri
           </div>
           {sub === "overview" && <ServerOverview facts={state.facts} latest={live.error ? undefined : live.latest} restarted={restarted} error={!!live.error} />}
           {sub === "config" && <ServerConfigView installationId={installationId} serverId={serverId} />}
-          {sub === "metrics" && <ServerMetricsView points={live.points} />}
+          {sub === "metrics" && (
+            <ServerMetricsView
+              installationId={installationId}
+              serverId={serverId}
+              points={live.points}
+              historyUntil={live.historyUntil}
+              historyError={live.historyError}
+              historyUnavailable={historyUnavailable}
+            />
+          )}
         </>
       )}
     </div>

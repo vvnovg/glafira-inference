@@ -172,7 +172,8 @@
     "close": "Close",
     "loading": "Loading…",
     "details": "Details",
-    "readOnly": "Read-only"
+    "readOnly": "Read-only",
+    "refresh": "Refresh"
   },
   "hints": {
     "label": "Hint: {{name}}",
@@ -398,7 +399,16 @@
         "7d": "7 d",
         "30d": "30 d"
       },
-      "historyLater": "History comes with stage I1c"
+      "noSource": "Add a metrics history source to the installation",
+      "notMatched": "The series of the server are not matched with the history",
+      "historyUntil": "History until {{time}}",
+      "prefillFailed": "History is not loaded: {{error}}",
+      "step": "Step {{step}} · {{source}}",
+      "sources": {
+        "prometheus": "Prometheus",
+        "victoriametrics": "VictoriaMetrics"
+      },
+      "partial": "Some series are not read: {{charts}}"
     },
     "panel": {
       "deleted": "The server or its installation has been deleted",
@@ -433,7 +443,9 @@
     "units": {
       "ms": "{{value}} ms",
       "perSec": "{{value}}/s",
-      "perMin": "{{value}}/min"
+      "perMin": "{{value}}/min",
+      "sec": "{{value}} s",
+      "min": "{{value}} min"
     },
     "config": {
       "partial": "Over HTTP a server reports only part of its arguments; the rest come from the pod or the process (from stage I3).",

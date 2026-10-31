@@ -1,4 +1,4 @@
-import { useQuery } from "@tanstack/react-query";
+import { keepPreviousData, useQuery } from "@tanstack/react-query";
 import { useEffect, useState } from "react";
 import { api, toAppError } from "../../api/client";
 import type { AppError, HistoryWindow, ServerFacts, ServerMetrics } from "../../api/types";
@@ -56,6 +56,8 @@ export function useServerHistory(installationId: string, serverId: string, windo
     queryFn: () => api.readServerHistory(installationId, serverId, window),
     enabled,
     staleTime: 60_000,
+    // Пока грузится другое окно, видны прежние графики (под слоем загрузки).
+    placeholderData: keepPreviousData,
     retry: false,
     refetchOnWindowFocus: false,
   });

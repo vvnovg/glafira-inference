@@ -2,7 +2,7 @@ import { useEffect, useMemo, useRef } from "react";
 import { useTranslation } from "react-i18next";
 import uPlot from "uplot";
 import "uplot/dist/uPlot.min.css";
-import { type ChartPick, axisIncrs, axisSize, chartData, hasValues, themeColor } from "./chart";
+import { type ChartPick, axisIncrs, axisSize, chartData, drawMarker, hasValues, themeColor } from "./chart";
 import type { MetricPoint } from "./useServerMetrics";
 
 const PALETTE: [string, string][] = [
@@ -25,13 +25,15 @@ interface Props {
   format: (v: number) => string;
   /** Наименьший шаг делений оси Y — точность `format` (0,1 у десятых, 1 у целых). */
   step: number;
+  /** Вертикальная пунктирная линия на этом времени (мс): граница истории в окне «Сейчас». */
+  marker?: number | null;
 }
 
 /**
  * График метрики сервера за окно «сейчас» (спец. I1b §6): ряды по `picks`, разрывы на ошибках опроса, «нет данных»,
  * если значений нет. По образцу `UsageChart` Kubernetes-версии: цвета из CSS-переменных темы, ширина — по контейнеру.
  */
-export function MetricChart({ title, points, picks, format, step }: Props) {
+export function MetricChart({ title, points, picks, format, step, marker = null }: Props) {
   const { t } = useTranslation();
   const ref = useRef<HTMLDivElement>(null);
   const data = useMemo(() => chartData(points, picks), [points, picks]);
@@ -44,6 +46,8 @@ export function MetricChart({ title, points, picks, format, step }: Props) {
   dataRef.current = data;
   const formatRef = useRef(format);
   formatRef.current = format;
+  const markerRef = useRef(marker);
+  markerRef.current = marker;
 
   useEffect(() => {
     const el = ref.current;
@@ -56,6 +60,7 @@ export function MetricChart({ title, points, picks, format, step }: Props) {
         width: el.clientWidth || 600,
         height: HEIGHT,
         title,
+        hooks: { draw: [(u: uPlot) => drawMarker(u, markerRef.current, muted)] },
         axes: [
           axis,
           {
@@ -93,6 +98,9 @@ export function MetricChart({ title, points, picks, format, step }: Props) {
   useEffect(() => {
     plotRef.current?.setData(data as uPlot.AlignedData);
   }, [data]);
+  useEffect(() => {
+    plotRef.current?.redraw?.();
+  }, [marker]);
 
   return (
     <section className="metric-chart" aria-label={title}>

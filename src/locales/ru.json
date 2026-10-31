@@ -172,7 +172,8 @@
     "close": "Закрыть",
     "loading": "Загрузка…",
     "details": "Подробности",
-    "readOnly": "Только чтение"
+    "readOnly": "Только чтение",
+    "refresh": "Обновить"
   },
   "hints": {
     "label": "Подсказка: {{name}}",
@@ -402,7 +403,16 @@
         "7d": "7 д",
         "30d": "30 д"
       },
-      "historyLater": "История — с этапа I1c"
+      "noSource": "Добавьте источник истории в инсталляцию",
+      "notMatched": "Серии сервера не сопоставлены с историей",
+      "historyUntil": "История до {{time}}",
+      "prefillFailed": "История не загружена: {{error}}",
+      "step": "Шаг {{step}} · {{source}}",
+      "sources": {
+        "prometheus": "Prometheus",
+        "victoriametrics": "VictoriaMetrics"
+      },
+      "partial": "Часть рядов не прочитана: {{charts}}"
     },
     "panel": {
       "deleted": "Сервер или его инсталляция удалены",
@@ -437,7 +447,9 @@
     "units": {
       "ms": "{{value}} мс",
       "perSec": "{{value}}/с",
-      "perMin": "{{value}}/мин"
+      "perMin": "{{value}}/мин",
+      "sec": "{{value}} с",
+      "min": "{{value}} мин"
     },
     "config": {
       "partial": "По HTTP сервер отдаёт только часть аргументов; остальные — из пода или процесса (с этапа I3).",

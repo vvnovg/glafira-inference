@@ -6,6 +6,8 @@
     "installations.form.step.tcp",
     "installations.form.step.tls",
     "messages.connectionTest.kind",
-    "messages.connectionTest.kindVersion"
+    "messages.connectionTest.kindVersion",
+    "servers.metrics.sources.prometheus",
+    "servers.metrics.sources.victoriametrics"
   ]
 }
