@@ -385,6 +385,7 @@ impl InstallationStore {
     /// игнорируется всегда: неизвестные поля пишет только сама Glafira (существующий профиль
     /// сохраняет свои, новый получает пустые), поэтому через них нельзя записать секрет в файл.
     /// То же у серверов: сервер с прежним id сохраняет свои неизвестные поля, новый — пустые.
+    /// И у источника истории: он сохраняет неизвестные поля прежнего источника, новый — пустые.
     pub fn upsert(&self, mut profile: InstallationProfile) -> AppResult<InstallationProfile> {
         crate::storage::profile::normalize_profile(&mut profile);
         validate_profile(&profile)?;
@@ -397,6 +398,13 @@ impl InstallationStore {
                             .map(|old| old.extra.clone())
                             .unwrap_or_default();
                     }
+                    if let Some(history) = &mut profile.history {
+                        history.extra = slot
+                            .history
+                            .as_ref()
+                            .map(|old| old.extra.clone())
+                            .unwrap_or_default();
+                    }
                     profile.extra = std::mem::take(&mut slot.extra);
                     profile.folder_id = slot.folder_id.take();
                     profile.order = slot.order;
@@ -406,6 +414,9 @@ impl InstallationStore {
                     profile.extra = Default::default();
                     for server in &mut profile.servers {
                         server.extra = Default::default();
+                    }
+                    if let Some(history) = &mut profile.history {
+                        history.extra = Default::default();
                     }
                     profile.order = data
                         .installations
@@ -792,6 +803,49 @@ mod tests {
         );
         let raw = std::fs::read_to_string(dir.path().join("installations.json")).unwrap();
         assert!(!raw.contains("clientSecret"));
+    }
+
+    #[test]
+    fn history_source_keeps_its_unknown_fields_and_ignores_incoming_ones() {
+        let dir = tempfile::tempdir().unwrap();
+        let store = InstallationStore::open(dir.path()).unwrap();
+        let mut p = sample_profile("a");
+        let mut history = crate::storage::profile::sample_history();
+        history
+            .extra
+            .insert("apiKey".into(), serde_json::json!("x"));
+        p.history = Some(history);
+        let saved = store.upsert(p).unwrap();
+        assert!(saved.history.unwrap().extra.is_empty());
+        let raw = std::fs::read_to_string(dir.path().join("installations.json")).unwrap();
+        assert!(!raw.contains("apiKey"));
+        // Сохранённые неизвестные поля источника переживают повторное сохранение формы.
+        store
+            .update(|d| {
+                d.installations[0]
+                    .history
+                    .as_mut()
+                    .unwrap()
+                    .extra
+                    .insert("futureOption".into(), serde_json::json!(7));
+                Ok(())
+            })
+            .unwrap();
+        let mut edited = store.get("a").unwrap();
+        edited.history.as_mut().unwrap().extra.clear();
+        edited
+            .history
+            .as_mut()
+            .unwrap()
+            .extra
+            .insert("clientSecret".into(), serde_json::json!("x"));
+        let saved = store.upsert(edited).unwrap();
+        assert_eq!(
+            serde_json::Value::Object(saved.history.unwrap().extra),
+            serde_json::json!({"futureOption": 7})
+        );
+        let raw = std::fs::read_to_string(dir.path().join("installations.json")).unwrap();
+        assert!(!raw.contains("clientSecret") && raw.contains("futureOption"));
     }
 
     #[test]
