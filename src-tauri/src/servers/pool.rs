@@ -59,6 +59,8 @@ pub struct ServerPool {
     locks: Mutex<HashMap<String, Arc<tokio::sync::Mutex<()>>>>,
     /// Снимки метрик серверов за последнюю минуту (спец. I1b §4), по (инсталляция, сервер).
     live: Mutex<HashMap<(String, String), LiveHistory>>,
+    /// Открытые источники истории метрик (спека I1c §4), по инсталляции.
+    history: Mutex<HashMap<String, Arc<crate::history::read::Source>>>,
 }
 
 impl ServerPool {
@@ -79,6 +81,28 @@ impl ServerPool {
         self.live
             .lock_safe()
             .retain(|(installation, _), _| installation != id);
+        self.history.lock_safe().remove(id);
+    }
+
+    /// Открытый источник истории инсталляции; `evict` его забывает.
+    pub fn history(&self, id: &str) -> Option<Arc<crate::history::read::Source>> {
+        self.history.lock_safe().get(id).cloned()
+    }
+
+    /// Кладёт источник истории, только если с момента `generation` инсталляцию не сбрасывали:
+    /// иначе он открыт по устаревшим профилю и секрету.
+    pub fn insert_history_if_current(
+        &self,
+        id: &str,
+        generation: u64,
+        source: Arc<crate::history::read::Source>,
+    ) -> bool {
+        let generations = self.generations.lock_safe();
+        if generations.get(id).copied().unwrap_or(0) != generation {
+            return false;
+        }
+        self.history.lock_safe().insert(id.to_string(), source);
+        true
     }
 
     /// История снимков метрик сервера; `evict` инсталляции её сбрасывает.

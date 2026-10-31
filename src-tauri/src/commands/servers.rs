@@ -37,7 +37,7 @@ pub async fn read_server_config(
 }
 
 /// Клиент и тип подключённого сервера; не подключился — его ошибка подключения.
-async fn connected_server(
+pub(crate) async fn connected_server(
     state: &AppState,
     installation_id: &str,
     server_id: &str,

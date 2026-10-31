@@ -115,7 +115,10 @@
       "tooManyPoints": "The metrics history source refused the query: too many points per series",
       "badData": "The metrics history source rejected the query: {{message}}",
       "failed": "The metrics history source failed the query: {{message}}",
-      "status": "The metrics history source answered {{path}} with {{status}}"
+      "status": "The metrics history source answered {{path}} with {{status}}",
+      "noMetrics": "Glafira reads the metrics history only of vLLM and SGLang",
+      "noSource": "The installation has no metrics history source",
+      "notMatched": "The series of the server are not matched with the metrics history: choose a target in the installation"
     }
   },
   "messages": {
@@ -148,6 +151,17 @@
       "serverRemoved": "“{{name}}”: server “{{server}}” is not in the file and will be removed together with its saved API key",
       "historyChanged": "“{{name}}”: the address, proxy or certificate verification of the metrics history source changes. The saved token or password will be sent with the new settings.",
       "historyRemoved": "“{{name}}”: the metrics history source is not in the file and will be removed together with its saved token or password"
+    },
+    "historyTest": {
+      "source": "{{kind}} {{version}}",
+      "noBuildinfo": "The source has no buildinfo — sign-in is checked by the next step",
+      "up": "Targets up: {{alive}} of {{total}}",
+      "targets": "Inference targets found: {{count}}",
+      "noTargets": "The source does not collect vLLM or SGLang metrics",
+      "matchAuto": "“{{server}}”: {{job}} · {{instance}} (auto-match)",
+      "matchSelector": "“{{server}}”: {{selector}}",
+      "noSeries": "“{{server}}”: there are no vLLM or SGLang series under the selector {{selector}}",
+      "noTarget": "“{{server}}”: no target with the address of the server — choose the target manually"
     }
   },
   "common": {

@@ -275,6 +275,22 @@ pub fn scrape_interval_of(data: &Value, job: &str, instance: &str) -> Option<u64
         .and_then(parse_duration)
 }
 
+/// Источник истории как адрес с настройками соединения: так его открывают общий HTTP-клиент и
+/// шаг «DNS/TCP» проверки.
+pub fn as_server(h: &HistorySource) -> ServerConfig {
+    ServerConfig {
+        id: crate::secrets::HISTORY.into(),
+        name: HISTORY_NAME.into(),
+        base_url: h.url.clone(),
+        kind: ServerKind::Auto,
+        metrics_path: "/metrics".into(),
+        ca: h.ca.clone(),
+        proxy: h.proxy.clone(),
+        history_selector: None,
+        extra: Default::default(),
+    }
+}
+
 impl HistoryClient {
     /// Клиент источника `h`; `secret` — токен или пароль из формы или keychain.
     pub fn new(
@@ -284,17 +300,7 @@ impl HistoryClient {
         policy: &PolicyStatus,
     ) -> AppResult<Self> {
         parse_history_url(h)?;
-        let server = ServerConfig {
-            id: crate::secrets::HISTORY.into(),
-            name: HISTORY_NAME.into(),
-            base_url: h.url.clone(),
-            kind: ServerKind::Auto,
-            metrics_path: "/metrics".into(),
-            ca: h.ca.clone(),
-            proxy: h.proxy.clone(),
-            history_selector: None,
-            extra: Default::default(),
-        };
+        let server = as_server(h);
         let secret = secret.filter(|s| !s.is_empty());
         let http = match (&h.auth, secret) {
             (HistoryAuth::Bearer, token) => ServerClient::new(&server, timeouts, token, policy)?,
@@ -315,7 +321,7 @@ impl HistoryClient {
     /// Тип и версия источника; `None` — у источника нет `buildinfo` (404).
     pub async fn buildinfo(&self) -> AppResult<Option<BuildInfo>> {
         let path = "/api/v1/status/buildinfo";
-        let reply = self.http.get_query(path, &[], METRICS_LIMIT).await?;
+        let reply = self.http.get(path, METRICS_LIMIT).await?;
         if reply.status == 404 {
             return Ok(None);
         }

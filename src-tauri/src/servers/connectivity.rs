@@ -36,7 +36,7 @@ pub struct TestReport {
     pub warnings: Vec<LocalizedText>,
 }
 
-fn passed(name: &'static str, message: LocalizedText) -> TestStep {
+pub(crate) fn passed(name: &'static str, message: LocalizedText) -> TestStep {
     TestStep {
         name,
         ok: true,
@@ -45,7 +45,7 @@ fn passed(name: &'static str, message: LocalizedText) -> TestStep {
     }
 }
 
-fn failed_step(name: &'static str, e: AppError) -> TestStep {
+pub(crate) fn failed_step(name: &'static str, e: AppError) -> TestStep {
     TestStep {
         name,
         ok: false,
@@ -54,7 +54,7 @@ fn failed_step(name: &'static str, e: AppError) -> TestStep {
     }
 }
 
-fn report(steps: Vec<TestStep>, warnings: Vec<LocalizedText>) -> TestReport {
+pub(crate) fn report(steps: Vec<TestStep>, warnings: Vec<LocalizedText>) -> TestReport {
     TestReport {
         ok: steps.iter().all(|s| s.ok),
         steps,
@@ -139,7 +139,7 @@ pub async fn tcp_probe(host: &str, port: u16, limit: Duration) -> AppResult<Stri
 /// Ошибка шага «DNS/TCP» для `host:port`, к которому подключались. При явном прокси это
 /// адрес прокси, а не сервера: ошибка называет прокси, а не винит имя или порт сервера.
 /// Адрес дописывается в `details` и в этом случае, и без прокси.
-fn tcp_failure(e: AppError, host: &str, port: u16, via_proxy: bool) -> AppError {
+pub(crate) fn tcp_failure(e: AppError, host: &str, port: u16, via_proxy: bool) -> AppError {
     let address = format!("{host}:{port}");
     let details = match &e.details {
         Some(d) => format!("{d}\n{address}"),

@@ -115,7 +115,10 @@
       "tooManyPoints": "Источник истории метрик отказал в запросе: слишком много точек на ряд",
       "badData": "Источник истории метрик отклонил запрос: {{message}}",
       "failed": "Источник истории метрик не выполнил запрос: {{message}}",
-      "status": "Источник истории метрик ответил на {{path}} кодом {{status}}"
+      "status": "Источник истории метрик ответил на {{path}} кодом {{status}}",
+      "noMetrics": "Историю метрик Glafira читает только у vLLM и SGLang",
+      "noSource": "У инсталляции нет источника истории метрик",
+      "notMatched": "Серии сервера не сопоставлены с историей метрик: выберите цель в инсталляции"
     }
   },
   "messages": {
@@ -148,6 +151,17 @@
       "noMetrics": "Сервер не отдаёт метрики по пути метрик инсталляции",
       "noMetricsSglang": "SGLang не отдаёт метрики: запустите его с --enable-metrics",
       "unsupportedVersion": "{{kind}} {{version}} старше {{min}}: Glafira работает с ним как с OpenAI-совместимым сервером"
+    },
+    "historyTest": {
+      "source": "{{kind}} {{version}}",
+      "noBuildinfo": "У источника нет buildinfo — вход проверит следующий шаг",
+      "up": "Целей в работе: {{alive}} из {{total}}",
+      "targets": "Найдены цели инференса: {{count}}",
+      "noTargets": "Источник не собирает метрики vLLM и SGLang",
+      "matchAuto": "«{{server}}»: {{job}} · {{instance}} (автоподбор)",
+      "matchSelector": "«{{server}}»: {{selector}}",
+      "noSeries": "«{{server}}»: под селектором {{selector}} нет серий vLLM и SGLang",
+      "noTarget": "«{{server}}»: цели с адресом сервера нет — выберите цель вручную"
     }
   },
   "common": {
