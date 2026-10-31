@@ -5,27 +5,35 @@ use tauri::State;
 
 use super::blocking;
 use crate::error::AppResult;
-use crate::secrets::{API_KEY, secret_key};
-use crate::servers::client::{Timeouts, ensure_allowed};
+use crate::secrets::{API_KEY, history_secret_key, secret_key};
+use crate::servers::client::{Timeouts, ensure_allowed, ensure_ca_allowed};
 use crate::servers::connectivity::{TestReport, test_server};
 use crate::servers::pool::InstallationInfo;
 use crate::state::AppState;
-use crate::storage::profile::InstallationProfile;
+use crate::storage::profile::{HistoryAuth, InstallationProfile};
 
-/// Ключи API из формы: id сервера → значение. Сервера нет в списке — оставить сохранённый,
-/// `""` — удалить, иное — сохранить. `Debug` печатает вместо значений `***`.
+/// Секреты из формы. Ключи API: id сервера → значение; сервера нет в списке — оставить
+/// сохранённый, `""` — удалить, иное — сохранить. Секрет источника истории (токен или пароль) —
+/// по тем же правилам: `None` — оставить, `""` — удалить. `Debug` печатает вместо значений `***`.
 #[derive(Default, Clone, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct SecretsInput {
     #[serde(default)]
     pub api_keys: BTreeMap<String, String>,
+    #[serde(default)]
+    pub history_secret: Option<String>,
 }
 
 /// Ключи не печатаются: структура может попасть в лог или сообщение об ошибке.
 impl std::fmt::Debug for SecretsInput {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         f.debug_map()
-            .entries(self.api_keys.keys().map(|k| (k, "***")))
+            .entries(self.api_keys.keys().map(|k| (k.as_str(), "***")))
+            .entries(
+                self.history_secret
+                    .as_ref()
+                    .map(|_| ("historySecret", "***")),
+            )
             .finish()
     }
 }
@@ -80,6 +88,34 @@ fn secret_ops(
         .collect()
 }
 
+/// Секрет источника истории — по данным формы. Без источника или без входа секрет не нужен.
+/// Сохранённый остаётся, только если вид входа не изменился: токен не становится паролем.
+fn history_op(
+    saved: &InstallationProfile,
+    previous: Option<&InstallationProfile>,
+    s: &SecretsInput,
+) -> SecretOp {
+    let mode = |p: &InstallationProfile| {
+        p.history
+            .as_ref()
+            .map(|h| std::mem::discriminant(&h.auth))
+            .filter(|_| {
+                p.history
+                    .as_ref()
+                    .is_some_and(|h| h.auth != HistoryAuth::None)
+            })
+    };
+    let Some(now) = mode(saved) else {
+        return SecretOp::Delete;
+    };
+    match s.history_secret.as_deref().map(str::trim) {
+        Some("") => SecretOp::Delete,
+        Some(v) => SecretOp::Set(v.to_string()),
+        None if previous.and_then(mode) == Some(now) => SecretOp::Keep,
+        None => SecretOp::Delete,
+    }
+}
+
 /// Серверы прежнего профиля, которых нет в сохранённом: их ключи больше не нужны.
 fn removed_servers(
     saved: &InstallationProfile,
@@ -94,20 +130,16 @@ fn removed_servers(
         .collect()
 }
 
-/// Применяет операции над ключами серверов профиля. Перед каждым `Set` и `Delete` читается
-/// прежнее значение: если любая операция откажет, уже изменённые ключи возвращаются к нему
-/// (`Some` — `set`, `None` — `delete`), и keychain остаётся таким, каким был. Сбой самого
-/// восстановления пишется в журнал (без значения), вызвавший получает исходную ошибку.
-fn apply_secret_ops(
-    st: &AppState,
-    installation_id: &str,
-    ops: Vec<(String, SecretOp)>,
-) -> AppResult<()> {
+/// Применяет операции над записями keychain (полный ключ записи → операция). Перед каждым
+/// `Set` и `Delete` читается прежнее значение: если любая операция откажет, уже изменённые
+/// записи возвращаются к нему (`Some` — `set`, `None` — `delete`), и keychain остаётся таким,
+/// каким был. Сбой самого восстановления пишется в журнал (без значения), вызвавший получает
+/// исходную ошибку.
+fn apply_secret_ops(st: &AppState, ops: Vec<(String, SecretOp)>) -> AppResult<()> {
     // Изменённые ключи вместе с прежним значением (`None` — ключа не было).
     let mut done: Vec<(String, Option<String>)> = Vec::new();
     // `Keep` ключ не трогает — keychain для него не читается.
-    for (server, op) in ops.into_iter().filter(|(_, op)| *op != SecretOp::Keep) {
-        let key = secret_key(installation_id, &server, API_KEY);
+    for (key, op) in ops.into_iter().filter(|(_, op)| *op != SecretOp::Keep) {
         let step = st.secrets.get(&key).and_then(|before| {
             match &op {
                 SecretOp::Set(v) => st.secrets.set(&key, v),
@@ -168,6 +200,9 @@ pub fn save_installation_blocking(
     for s in &profile.servers {
         ensure_allowed(s, &st.policy.status)?;
     }
+    if let Some(h) = &profile.history {
+        ensure_ca_allowed(&h.ca, &st.policy.status)?;
+    }
     if profile.id.is_empty() {
         profile.id = uuid::Uuid::new_v4().to_string();
     }
@@ -176,8 +211,15 @@ pub fn save_installation_blocking(
     let saved = st.installations.upsert(profile)?;
     // Ключи меняются по одному, прежние значения запоминаются: если keychain откажет посреди
     // изменений, `apply_secret_ops` вернёт уже изменённые ключи, а профиль откатится ниже.
-    let ops = secret_ops(&saved, previous.as_ref(), &secrets);
-    let result = apply_secret_ops(st, &saved.id, ops);
+    let mut ops: Vec<(String, SecretOp)> = secret_ops(&saved, previous.as_ref(), &secrets)
+        .into_iter()
+        .map(|(server, op)| (secret_key(&saved.id, &server, API_KEY), op))
+        .collect();
+    ops.push((
+        history_secret_key(&saved.id),
+        history_op(&saved, previous.as_ref(), &secrets),
+    ));
+    let result = apply_secret_ops(st, ops);
     if result.is_err() {
         let rollback = match previous {
             Some(p) => st.installations.upsert(p).map(|_| ()),
@@ -264,7 +306,9 @@ mod tests {
     use super::*;
     use crate::error::{AppError, ErrorCode};
     use crate::secrets::{MemoryStore, SecretStore};
-    use crate::storage::profile::{CaConfig, sample_profile, sample_server};
+    use crate::storage::profile::{
+        CaConfig, HistoryAuth, HistorySource, sample_history, sample_profile, sample_server,
+    };
 
     fn state(dir: &std::path::Path) -> AppState {
         AppState::new(dir, Arc::new(MemoryStore::default())).unwrap()
@@ -278,6 +322,7 @@ mod tests {
                     .iter()
                     .map(|(k, v)| (k.to_string(), v.to_string()))
                     .collect(),
+                history_secret: None,
             },
         }
     }
@@ -299,6 +344,7 @@ mod tests {
                 .iter()
                 .map(|(k, v)| (k.to_string(), v.to_string()))
                 .collect(),
+            history_secret: None,
         };
         // Убранный сервер (`gone`) в операции не входит: его ключ чистится после фиксации.
         // Новый сервер без ключа в форме (`s4`) получает `Delete`, а не `Keep`: осиротевший
@@ -318,6 +364,89 @@ mod tests {
             [("s1".to_string(), SecretOp::Delete)]
         );
         assert_eq!(format!("{s:?}"), r#"{"s2": "***", "s3": "***"}"#);
+    }
+
+    fn with_history(auth: HistoryAuth) -> InstallationProfile {
+        let mut p = sample_profile("a");
+        p.history = Some(HistorySource {
+            auth,
+            ..sample_history()
+        });
+        p
+    }
+
+    #[test]
+    fn history_secret_ops() {
+        let bearer = with_history(HistoryAuth::Bearer);
+        let basic = with_history(HistoryAuth::Basic {
+            username: "u".into(),
+        });
+        let none = with_history(HistoryAuth::None);
+        let typed = |v: Option<&str>| SecretsInput {
+            history_secret: v.map(String::from),
+            ..SecretsInput::default()
+        };
+        assert_eq!(
+            history_op(&bearer, Some(&bearer), &typed(None)),
+            SecretOp::Keep
+        );
+        assert_eq!(
+            history_op(&bearer, None, &typed(Some(" t "))),
+            SecretOp::Set("t".into())
+        );
+        assert_eq!(
+            history_op(&bearer, Some(&bearer), &typed(Some(""))),
+            SecretOp::Delete
+        );
+        // Токен не становится паролем: смена вида входа без нового секрета его удаляет.
+        assert_eq!(
+            history_op(&basic, Some(&bearer), &typed(None)),
+            SecretOp::Delete
+        );
+        // Без источника или без входа секрет не нужен, даже если его прислали.
+        assert_eq!(
+            history_op(&none, Some(&bearer), &typed(Some("t"))),
+            SecretOp::Delete
+        );
+        assert_eq!(
+            history_op(&sample_profile("a"), Some(&bearer), &typed(None)),
+            SecretOp::Delete
+        );
+        let s = typed(Some("t"));
+        assert_eq!(format!("{s:?}"), r#"{"historySecret": "***"}"#);
+    }
+
+    #[test]
+    fn history_secret_is_saved_and_deleted_with_the_installation() {
+        let dir = tempfile::tempdir().unwrap();
+        let st = state(dir.path());
+        let mut i = input(with_history(HistoryAuth::Bearer), &[]);
+        i.secrets.history_secret = Some("prom-t0ken".into());
+        let saved = save_installation_blocking(&st, i).unwrap();
+        let read = || st.secrets.get(&history_secret_key(&saved.id)).unwrap();
+        assert_eq!(read().as_deref(), Some("prom-t0ken"));
+        let profile = std::fs::read_to_string(dir.path().join("installations.json")).unwrap();
+        assert!(!profile.contains("prom-t0ken"), "{profile}");
+        // Сохранение без секрета в форме его не трогает.
+        save_installation_blocking(&st, input(saved.clone(), &[])).unwrap();
+        assert_eq!(read().as_deref(), Some("prom-t0ken"));
+        st.delete_installation_full(&saved.id).unwrap();
+        assert_eq!(read(), None);
+    }
+
+    #[test]
+    fn policy_forbids_an_insecure_history_source() {
+        let dir = tempfile::tempdir().unwrap();
+        let mut policy = crate::policy::Policy::default();
+        policy.status.allow_insecure_tls = false;
+        let st = state(dir.path()).with_policy(policy);
+        let mut p = sample_profile("a");
+        p.history = Some(HistorySource {
+            ca: CaConfig::Insecure,
+            ..sample_history()
+        });
+        let e = save_installation_blocking(&st, input(p, &[])).unwrap_err();
+        assert_eq!(e.key, "errors.installations.insecureForbidden");
     }
 
     #[test]

@@ -7,12 +7,14 @@ use serde::{Deserialize, Serialize};
 
 use crate::error::{AppResult, ErrorCode};
 use crate::i18n::LocalizedText;
-use crate::secrets::{API_KEY, SecretStore, secret_key};
+use crate::secrets::{API_KEY, SecretStore, history_secret_key, secret_key};
 use crate::storage::installations::{
     InstallationFolder, InstallationProfile, InstallationStore, StoreData, check_tree,
     folder_not_found, unique_name, validate_profile,
 };
-use crate::storage::profile::{CaConfig, ServerConfig, normalize_profile, strip_private_keys};
+use crate::storage::profile::{
+    CaConfig, HistoryAuth, HistorySource, ServerConfig, normalize_profile, strip_private_keys,
+};
 use crate::storage::tree::TreeItemKind;
 
 pub const EXCHANGE_FORMAT: &str = "glafira-inference-installations";
@@ -25,6 +27,9 @@ pub struct NeedsSecret {
     /// Серверы (id), у которых был сохранён ключ API.
     #[serde(default)]
     pub api_keys: Vec<String>,
+    /// Был сохранён секрет источника истории (токен или пароль, спека I1c §2).
+    #[serde(default, skip_serializing_if = "std::ops::Not::not")]
+    pub history: bool,
 }
 
 #[derive(Serialize)]
@@ -62,8 +67,21 @@ fn has_api_key(secrets: &dyn SecretStore, id: &str, server: &str) -> AppResult<b
         .is_some_and(|v| !v.is_empty()))
 }
 
-/// Серверы профиля, у которых сохранён ключ API: устаревшие записи keychain (сервер удалён)
-/// не требуют ввода у получателя.
+/// Сохранён ли непустой секрет источника истории инсталляции `id`.
+fn has_history_secret(secrets: &dyn SecretStore, id: &str) -> AppResult<bool> {
+    Ok(secrets
+        .get(&history_secret_key(id))?
+        .is_some_and(|v| !v.is_empty()))
+}
+
+/// Источник истории с входом по токену или паролю: только ему нужен секрет.
+fn history_with_secret(p: &InstallationProfile) -> Option<&HistorySource> {
+    p.history.as_ref().filter(|h| h.auth != HistoryAuth::None)
+}
+
+/// Серверы профиля, у которых сохранён ключ API, и сохранён ли секрет источника истории:
+/// устаревшие записи keychain (сервер удалён, вход в источник выключен) не требуют ввода у
+/// получателя.
 fn needs_secret(secrets: &dyn SecretStore, p: &InstallationProfile) -> AppResult<NeedsSecret> {
     let mut api_keys = Vec::new();
     for s in &p.servers {
@@ -71,14 +89,19 @@ fn needs_secret(secrets: &dyn SecretStore, p: &InstallationProfile) -> AppResult
             api_keys.push(s.id.clone());
         }
     }
-    Ok(NeedsSecret { api_keys })
+    let history = history_with_secret(p).is_some() && has_history_secret(secrets, &p.id)?;
+    Ok(NeedsSecret { api_keys, history })
 }
 
-/// Неизвестные поля профиля и серверов — локальные: в файл обмена и из него не переносятся.
+/// Неизвестные поля профиля, серверов и источника истории — локальные: в файл обмена и из него
+/// не переносятся.
 fn clear_extra(p: &mut InstallationProfile) {
     p.extra.clear();
     for s in &mut p.servers {
         s.extra.clear();
+    }
+    if let Some(h) = &mut p.history {
+        h.extra.clear();
     }
 }
 
@@ -86,8 +109,9 @@ fn clear_extra(p: &mut InstallationProfile) {
 /// секреты — только в keychain). Профили читаются с диска без повторной проверки (файл могли
 /// править руками), поэтому ключ вырезается и здесь.
 fn strip_pem_keys_for_export(p: &mut InstallationProfile) {
-    for s in &mut p.servers {
-        if let CaConfig::Pem { pem } = &mut s.ca {
+    let history = p.history.as_mut().map(|h| &mut h.ca);
+    for ca in p.servers.iter_mut().map(|s| &mut s.ca).chain(history) {
+        if let CaConfig::Pem { pem } = ca {
             *pem = strip_private_keys(pem);
         }
     }
@@ -336,6 +360,9 @@ pub(crate) struct ImportPlan {
     /// Серверы обновлённых инсталляций, которых нет в файле: `(инсталляция, сервер)`. Их ключи
     /// API удаляются из keychain после записи.
     pub removed_servers: Vec<(String, String)>,
+    /// Обновлённые инсталляции, у которых источник истории убран или сменил вид входа: их
+    /// секрет источника удаляется из keychain после записи.
+    pub removed_history: Vec<String>,
 }
 
 /// Имена папок от корня до `folder` включительно.
@@ -411,6 +438,24 @@ fn destination_changes(local: &ServerConfig, new: &ServerConfig) -> bool {
     local.base_url != new.base_url || local.proxy != new.proxy || local.ca != new.ca
 }
 
+/// Меняется ли то, куда уходит секрет источника истории; `None`, если источника нет в одном из
+/// профилей.
+fn history_moves(local: &InstallationProfile, new: &InstallationProfile) -> bool {
+    match (history_with_secret(local), history_with_secret(new)) {
+        (Some(l), Some(n)) => l.url != n.url || l.proxy != n.proxy || l.ca != n.ca,
+        _ => false,
+    }
+}
+
+/// Остаётся ли сохранённый секрет источника истории после обновления: только при том же виде
+/// входа (токен не становится паролем), как при сохранении формы.
+fn history_secret_survives(local: &InstallationProfile, new: &InstallationProfile) -> bool {
+    match (history_with_secret(local), history_with_secret(new)) {
+        (Some(l), Some(n)) => std::mem::discriminant(&l.auth) == std::mem::discriminant(&n.auth),
+        _ => false,
+    }
+}
+
 /// Пары «сервер до импорта — сервер из файла» с тем же id, у которых меняется направление.
 fn moved_servers<'a>(
     local: &'a InstallationProfile,
@@ -432,6 +477,8 @@ fn moved_servers<'a>(
 pub(crate) struct StoredSecrets {
     /// (id инсталляции, id сервера) → есть ли сохранённый ключ API.
     by_server: HashMap<(String, String), bool>,
+    /// id инсталляции → есть ли сохранённый секрет источника истории.
+    by_history: HashMap<String, bool>,
 }
 
 impl StoredSecrets {
@@ -444,6 +491,7 @@ impl StoredSecrets {
         parsed: &ParsedExchange,
     ) -> Self {
         let mut by_server = HashMap::new();
+        let mut by_history = HashMap::new();
         for (incoming, _) in &parsed.installations {
             let Some(local) = data.installations.iter().find(|l| l.id == incoming.id) else {
                 continue;
@@ -452,8 +500,15 @@ impl StoredSecrets {
                 let stored = has_api_key(secrets, &incoming.id, &server.id).unwrap_or(true);
                 by_server.insert((incoming.id.clone(), server.id.clone()), stored);
             }
+            if history_moves(local, incoming) {
+                let stored = has_history_secret(secrets, &incoming.id).unwrap_or(true);
+                by_history.insert(incoming.id.clone(), stored);
+            }
         }
-        Self { by_server }
+        Self {
+            by_server,
+            by_history,
+        }
     }
 
     /// Сохранён ли ключ сервера `server` инсталляции `id`. Не прочитанное заранее (хранилище
@@ -463,6 +518,11 @@ impl StoredSecrets {
             .get(&(id.to_string(), server.to_string()))
             .copied()
             .unwrap_or(true)
+    }
+
+    /// Сохранён ли секрет источника истории инсталляции `id` (не прочитанное — сохранён).
+    fn has_history(&self, id: &str) -> bool {
+        self.by_history.get(id).copied().unwrap_or(true)
     }
 }
 
@@ -506,6 +566,16 @@ fn destination_warnings(
             ));
         }
     }
+    if history_moves(local, new)
+        && history_secret_survives(local, new)
+        && stored.has_history(&new.id)
+    {
+        out.push(ltext!(
+            "messages.import.historyChanged",
+            "“{{name}}”: the address, proxy or certificate verification of the metrics history source changes. The saved token or password will be sent with the new settings.",
+            name = new.name
+        ));
+    }
     out
 }
 
@@ -530,6 +600,7 @@ pub(crate) fn plan_import(
         ..Default::default()
     };
     let mut removed_servers = Vec::new();
+    let mut removed_history = Vec::new();
     // id папок файла совпадают с id в хранилище: существующие берутся как есть, новые создаются с тем же id.
     let file_folders: HashSet<&str> = parsed.folders.iter().map(|f| f.id.as_str()).collect();
     let local_folders: HashSet<&str> = data.folders.iter().map(|f| f.id.as_str()).collect();
@@ -576,7 +647,13 @@ pub(crate) fn plan_import(
         parsed.installations.iter().collect();
     installations.sort_by_key(|(p, _)| p.order);
     for (incoming, needs) in installations {
-        if !opts.allow_insecure_tls && incoming.servers.iter().any(|s| s.ca == CaConfig::Insecure) {
+        let insecure_history = incoming
+            .history
+            .as_ref()
+            .is_some_and(|h| h.ca == CaConfig::Insecure);
+        if !opts.allow_insecure_tls
+            && (insecure_history || incoming.servers.iter().any(|s| s.ca == CaConfig::Insecure))
+        {
             preview.skipped.push(Skipped {
                 name: incoming.name.clone(),
                 reason: ltext!(
@@ -599,6 +676,21 @@ pub(crate) fn plan_import(
             for server in &mut profile.servers {
                 if let Some(old) = slot.server(&server.id) {
                     server.extra = old.extra.clone();
+                }
+            }
+            if let (Some(h), Some(old)) = (&mut profile.history, &slot.history) {
+                h.extra = old.extra.clone();
+            }
+            // Секрет источника истории, который больше не нужен, удаляется: источника нет в
+            // файле или у него другой вид входа.
+            if history_with_secret(slot).is_some() && !history_secret_survives(slot, &profile) {
+                removed_history.push(profile.id.clone());
+                if profile.history.is_none() {
+                    preview.warnings.push(ltext!(
+                        "messages.import.historyRemoved",
+                        "“{{name}}”: the metrics history source is not in the file and will be removed together with its saved token or password",
+                        name = profile.name
+                    ));
                 }
             }
             // Сервера, которого нет в файле, не станет, а с ним и его ключа API. Человек должен
@@ -656,7 +748,7 @@ pub(crate) fn plan_import(
         profile.folder_id = folder;
         profile.name = name;
         clear_extra(&mut profile);
-        if !needs.api_keys.is_empty() {
+        if !needs.api_keys.is_empty() || needs.history {
             preview.needs_secrets += 1;
         }
         added.push((TreeItemKind::Installation, profile.id.clone()));
@@ -696,6 +788,7 @@ pub(crate) fn plan_import(
         next,
         preview,
         removed_servers,
+        removed_history,
     })
 }
 
@@ -1050,6 +1143,99 @@ mod tests {
         let p = plan_with(&data, &parsed, &opts(None), secrets).unwrap();
         assert_eq!(preview_ids(&p.preview.updated), ["a"]);
         p.preview
+    }
+
+    fn with_history(auth: HistoryAuth) -> InstallationProfile {
+        let mut p = sample_profile("a");
+        p.history = Some(HistorySource {
+            auth,
+            ..crate::storage::profile::sample_history()
+        });
+        p
+    }
+
+    fn history_json(auth: serde_json::Value) -> serde_json::Value {
+        serde_json::json!({ "url": "http://prometheus.dev.example.com:9090", "auth": auth })
+    }
+
+    #[test]
+    fn history_secret_is_flagged_but_never_exported() {
+        let (_d, s) = store();
+        s.upsert(with_history(HistoryAuth::Bearer)).unwrap();
+        let mut off = with_history(HistoryAuth::None);
+        off.id = "off".into();
+        s.upsert(off).unwrap();
+        let secrets = MemoryStore::default();
+        secrets.set(&history_secret_key("a"), "prom-t0ken").unwrap();
+        // Секрет без входа в источник — устаревшая запись: флага нет.
+        secrets.set(&history_secret_key("off"), "old").unwrap();
+        let out = build_export(&s, &secrets, None, "1", "now").unwrap();
+        let json = serde_json::to_string(&out).unwrap();
+        assert!(!json.contains("prom-t0ken"), "{json}");
+        let flags = |id: &str| {
+            out.installations
+                .iter()
+                .find(|c| c.profile.id == id)
+                .unwrap()
+                .needs_secret
+                .clone()
+        };
+        assert!(flags("a").history);
+        assert!(!flags("off").history);
+        assert!(!json.contains(r#""history":false"#), "{json}");
+    }
+
+    #[test]
+    fn history_source_change_with_a_saved_secret_warns() {
+        let secrets = MemoryStore::default();
+        secrets.set(&history_secret_key("a"), "t").unwrap();
+        let p = plan_update(with_history(HistoryAuth::Bearer), &secrets, |c| {
+            c["history"] = history_json(serde_json::json!({ "mode": "bearer" }));
+            c["history"]["url"] = "http://other:9090".into();
+        });
+        assert_eq!(warning_keys(&p), ["messages.import.historyChanged"]);
+        // Без сохранённого секрета предупреждать не о чем.
+        let p = plan_update(
+            with_history(HistoryAuth::Bearer),
+            &MemoryStore::default(),
+            |c| {
+                c["history"] = history_json(serde_json::json!({ "mode": "bearer" }));
+                c["history"]["url"] = "http://other:9090".into();
+            },
+        );
+        assert!(warning_keys(&p).is_empty());
+    }
+
+    #[test]
+    fn removed_history_source_drops_its_secret() {
+        let data = StoreData {
+            installations: vec![with_history(HistoryAuth::Bearer)],
+            ..Default::default()
+        };
+        let parsed = parse_exchange(&file(vec![], vec![inst_json("a", "inst-a", None)])).unwrap();
+        let p = plan_with(&data, &parsed, &opts(None), &MemoryStore::default()).unwrap();
+        assert_eq!(p.removed_history, ["a"]);
+        assert_eq!(warning_keys(&p.preview), ["messages.import.historyRemoved"]);
+        // Другой вид входа — секрет тоже не нужен, но источник остаётся: без предупреждения.
+        let mut basic = inst_json("a", "inst-a", None);
+        basic["history"] = history_json(serde_json::json!({ "mode": "basic", "username": "u" }));
+        let parsed = parse_exchange(&file(vec![], vec![basic])).unwrap();
+        let p = plan_with(&data, &parsed, &opts(None), &MemoryStore::default()).unwrap();
+        assert_eq!(p.removed_history, ["a"]);
+        assert!(warning_keys(&p.preview).is_empty());
+    }
+
+    #[test]
+    fn insecure_history_source_is_skipped_when_forbidden() {
+        let mut v = inst_json("i", "Insecure history", None);
+        v["history"] = history_json(serde_json::json!({ "mode": "none" }));
+        v["history"]["ca"] = serde_json::json!({ "mode": "insecure" });
+        let o = ImportOptions {
+            allow_insecure_tls: false,
+            ..opts(None)
+        };
+        let p = plan(&StoreData::default(), &file(vec![], vec![v]), &o);
+        assert_eq!(p.preview.skipped[0].name, "Insecure history");
     }
 
     fn with_key() -> MemoryStore {

@@ -73,7 +73,12 @@ impl HttpReply {
 
 /// Сервер без проверки сертификата нельзя открыть, если политика это запрещает (спец. §13).
 pub fn ensure_allowed(s: &ServerConfig, policy: &PolicyStatus) -> AppResult<()> {
-    if s.ca == CaConfig::Insecure && !policy.allow_insecure_tls {
+    ensure_ca_allowed(&s.ca, policy)
+}
+
+/// То же для любого адреса с настройкой CA: сервера или источника истории.
+pub fn ensure_ca_allowed(ca: &CaConfig, policy: &PolicyStatus) -> AppResult<()> {
+    if *ca == CaConfig::Insecure && !policy.allow_insecure_tls {
         return Err(app_err!(
             ErrorCode::InvalidInput,
             "errors.installations.insecureForbidden",

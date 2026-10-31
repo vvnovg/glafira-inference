@@ -1,6 +1,7 @@
-//! Профиль инсталляции инференса (спец. §5.1, §5.2): окружение, серверы и их настройки. Ключи API
-//! серверов в профиле не хранятся, они лежат в keychain (`secrets::API_KEY`). Проверки PEM, адресов
-//! и прокси — те же, что у профиля подключения Glafira for Kubernetes.
+//! Профиль инсталляции инференса (спец. §5.1, §5.2, §5.3): окружение, серверы, источник истории
+//! метрик и их настройки. Ключи API серверов и секрет источника истории в профиле не хранятся, они
+//! лежат в keychain (`secrets::API_KEY`, `secrets::HISTORY_SECRET`). Проверки PEM, адресов и
+//! прокси — те же, что у профиля подключения Glafira for Kubernetes.
 
 use serde::{Deserialize, Serialize};
 
@@ -92,6 +93,41 @@ pub struct ServerConfig {
     pub ca: CaConfig,
     #[serde(default = "default_proxy")]
     pub proxy: ProxyConfig,
+    /// Селектор серий сервера в источнике истории (`{job="vllm", instance="10.0.0.5:8000"}`, спека
+    /// I1c §3). `None` — история сервера недоступна.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub history_selector: Option<String>,
+    /// Поля из более новой версии Glafira: сохраняются при записи как есть.
+    #[serde(flatten)]
+    pub extra: serde_json::Map<String, serde_json::Value>,
+}
+
+/// Вход в источник истории (спека I1c §2). Токен и пароль — только в keychain
+/// (`secrets::HISTORY_SECRET`), в профиле — только вид входа и имя пользователя.
+#[derive(Debug, Clone, PartialEq, Default, Serialize, Deserialize)]
+#[serde(tag = "mode", rename_all = "camelCase")]
+pub enum HistoryAuth {
+    #[default]
+    None,
+    Bearer,
+    Basic {
+        username: String,
+    },
+}
+
+/// Источник истории метрик — Prometheus или VictoriaMetrics (спека I1c §2); не больше одного на
+/// инсталляцию. Тип источника определяет проверка, в профиле его нет.
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct HistorySource {
+    /// Адрес API: `http(s)://host:port`, допускается путь (`https://gw/prometheus`).
+    pub url: String,
+    #[serde(default)]
+    pub auth: HistoryAuth,
+    #[serde(default = "default_ca")]
+    pub ca: CaConfig,
+    #[serde(default = "default_proxy")]
+    pub proxy: ProxyConfig,
     /// Поля из более новой версии Glafira: сохраняются при записи как есть.
     #[serde(flatten)]
     pub extra: serde_json::Map<String, serde_json::Value>,
@@ -107,6 +143,9 @@ pub struct InstallationProfile {
     pub read_only: bool,
     #[serde(default)]
     pub servers: Vec<ServerConfig>,
+    /// Источник истории метрик (спека I1c §2); `None` — окна истории недоступны.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub history: Option<HistorySource>,
     #[serde(default = "default_request_timeout")]
     pub request_timeout_ms: u64,
     #[serde(default = "default_connect_timeout")]
@@ -129,12 +168,23 @@ impl InstallationProfile {
 }
 
 /// Приводит поля к каноническому виду до проверки: имена и адреса без пробелов по краям, адрес
-/// без `/` на конце, путь метрик — с `/` в начале.
+/// без `/` на конце, путь метрик — с `/` в начале, пустой селектор истории — его отсутствие.
 pub fn normalize_profile(p: &mut InstallationProfile) {
     p.name = p.name.trim().to_string();
+    if let Some(h) = &mut p.history {
+        h.url = h.url.trim().trim_end_matches('/').to_string();
+        if let HistoryAuth::Basic { username } = &mut h.auth {
+            *username = username.trim().to_string();
+        }
+    }
     for s in &mut p.servers {
         s.name = s.name.trim().to_string();
         s.base_url = s.base_url.trim().trim_end_matches('/').to_string();
+        s.history_selector = s
+            .history_selector
+            .take()
+            .map(|v| v.trim().to_string())
+            .filter(|v| !v.is_empty());
         let path = s.metrics_path.trim();
         s.metrics_path = if path.is_empty() {
             default_metrics_path()
@@ -315,7 +365,13 @@ pub fn validate_server(s: &ServerConfig) -> AppResult<()> {
             server = s.name
         )));
     }
-    if let CaConfig::Pem { pem } = &s.ca {
+    validate_ca(&s.ca, &s.name)?;
+    validate_proxy(&s.proxy)
+}
+
+/// CA из PEM: только сертификаты, без приватного ключа. `owner` — имя в тексте ошибки.
+fn validate_ca(ca: &CaConfig, owner: &str) -> AppResult<()> {
+    if let CaConfig::Pem { pem } = ca {
         if pem_has_private_key(pem) {
             return Err(invalid(ltext!(
                 "errors.installations.pemContainsKey",
@@ -326,11 +382,16 @@ pub fn validate_server(s: &ServerConfig) -> AppResult<()> {
             return Err(invalid(ltext!(
                 "errors.installations.caPemInvalid",
                 "The CA certificate of server “{{server}}” must be in PEM format (-----BEGIN CERTIFICATE-----)",
-                server = s.name
+                server = owner
             )));
         }
     }
-    if let ProxyConfig::Url { url } = &s.proxy {
+    Ok(())
+}
+
+/// Свой прокси — `http(s)://host:port` без имени и пароля.
+fn validate_proxy(proxy: &ProxyConfig) -> AppResult<()> {
+    if let ProxyConfig::Url { url } = proxy {
         let proxy = url::Url::parse(url.trim())
             .ok()
             .filter(|u| matches!(u.scheme(), "http" | "https") && u.host_str().is_some());
@@ -346,6 +407,47 @@ pub fn validate_server(s: &ServerConfig) -> AppResult<()> {
         }
     }
     Ok(())
+}
+
+/// Имя источника истории в текстах ошибок CA (`errors.installations.caPemInvalid`).
+pub const HISTORY_NAME: &str = "Prometheus / VictoriaMetrics";
+
+/// Разобранный адрес источника истории: `http(s)://`, хост, без имени и пароля, запроса и якоря.
+pub fn parse_history_url(h: &HistorySource) -> AppResult<url::Url> {
+    let bad = || {
+        invalid(ltext!(
+            "errors.history.badUrl",
+            "Invalid address “{{url}}” of the metrics history source: use http://host:9090 or https://host",
+            url = redact_url(&h.url)
+        ))
+    };
+    let url = url::Url::parse(h.url.trim()).map_err(|_| bad())?;
+    if !matches!(url.scheme(), "http" | "https")
+        || url.host_str().is_none_or(str::is_empty)
+        || url.query().is_some()
+        || url.fragment().is_some()
+    {
+        return Err(bad());
+    }
+    if has_userinfo(&url) {
+        return Err(credentials_in_url(&url));
+    }
+    Ok(url)
+}
+
+/// Проверка источника истории: и при сохранении профиля, и при проверке из формы.
+pub fn validate_history(h: &HistorySource) -> AppResult<()> {
+    parse_history_url(h)?;
+    if let HistoryAuth::Basic { username } = &h.auth
+        && (username.trim().is_empty() || username.contains(':'))
+    {
+        return Err(invalid(ltext!(
+            "errors.history.badUsername",
+            "Enter the user name of the metrics history source (without “:”)"
+        )));
+    }
+    validate_ca(&h.ca, HISTORY_NAME)?;
+    validate_proxy(&h.proxy)
 }
 
 pub fn validate_profile(p: &InstallationProfile) -> AppResult<()> {
@@ -393,6 +495,9 @@ pub fn validate_profile(p: &InstallationProfile) -> AppResult<()> {
             )));
         }
     }
+    if let Some(h) = &p.history {
+        validate_history(h)?;
+    }
     if p.request_timeout_ms < 1_000 || p.connect_timeout_ms < 1_000 {
         return Err(invalid(ltext!(
             "errors.installations.timeoutTooSmall",
@@ -412,6 +517,18 @@ pub fn sample_server(id: &str) -> ServerConfig {
         metrics_path: "/metrics".into(),
         ca: CaConfig::System,
         proxy: ProxyConfig::System,
+        history_selector: None,
+        extra: Default::default(),
+    }
+}
+
+#[cfg(test)]
+pub fn sample_history() -> HistorySource {
+    HistorySource {
+        url: "http://prometheus.dev.example.com:9090".into(),
+        auth: HistoryAuth::None,
+        ca: CaConfig::System,
+        proxy: ProxyConfig::System,
         extra: Default::default(),
     }
 }
@@ -425,6 +542,7 @@ pub fn sample_profile(id: &str) -> InstallationProfile {
         environment: Environment::Dev,
         read_only: false,
         servers: vec![sample_server("s1")],
+        history: None,
         request_timeout_ms: 30_000,
         connect_timeout_ms: 10_000,
         folder_id: None,
@@ -730,5 +848,111 @@ mod tests {
     fn profile_json_never_contains_secrets() {
         let v = serde_json::to_string(&sample_profile("a")).unwrap();
         assert!(!v.contains("apiKey") && !v.contains("token"), "{v}");
+    }
+
+    #[test]
+    fn history_json_shape_and_defaults() {
+        let mut p = sample_profile("a");
+        p.history = Some(HistorySource {
+            auth: HistoryAuth::Basic {
+                username: "reader".into(),
+            },
+            ..sample_history()
+        });
+        p.servers[0].history_selector = Some(r#"{job="vllm", instance="10.0.0.5:8000"}"#.into());
+        let v = serde_json::to_value(&p).unwrap();
+        assert_eq!(
+            v["history"],
+            serde_json::json!({
+                "url": "http://prometheus.dev.example.com:9090",
+                "auth": { "mode": "basic", "username": "reader" },
+                "ca": { "mode": "system" },
+                "proxy": { "mode": "system" }
+            })
+        );
+        assert_eq!(
+            v["servers"][0]["historySelector"],
+            r#"{job="vllm", instance="10.0.0.5:8000"}"#
+        );
+        let minimal: HistorySource =
+            serde_json::from_value(serde_json::json!({ "url": "http://h:9090" })).unwrap();
+        assert_eq!(minimal.auth, HistoryAuth::None);
+        assert_eq!(
+            (&minimal.ca, &minimal.proxy),
+            (&CaConfig::System, &ProxyConfig::System)
+        );
+        let s = serde_json::to_string(&p).unwrap();
+        assert!(!s.contains("password") && !s.contains("token"), "{s}");
+    }
+
+    #[test]
+    fn history_is_normalized_and_validated() {
+        let mut p = sample_profile("a");
+        p.history = Some(HistorySource {
+            url: " http://prom:9090/ ".into(),
+            auth: HistoryAuth::Basic {
+                username: " reader ".into(),
+            },
+            ..sample_history()
+        });
+        p.servers[0].history_selector = Some("   ".into());
+        normalize_profile(&mut p);
+        let h = p.history.as_ref().unwrap();
+        assert_eq!(h.url, "http://prom:9090");
+        assert_eq!(
+            h.auth,
+            HistoryAuth::Basic {
+                username: "reader".into()
+            }
+        );
+        assert_eq!(p.servers[0].history_selector, None);
+        assert!(validate_profile(&p).is_ok());
+
+        let with = |h: HistorySource| {
+            let mut p = sample_profile("a");
+            p.history = Some(h);
+            p
+        };
+        for url in [
+            "prom:9090",
+            "ftp://prom",
+            "http://prom:9090/?x=1",
+            "http://",
+        ] {
+            let h = HistorySource {
+                url: url.into(),
+                ..sample_history()
+            };
+            assert_invalid(&with(h), "errors.history.badUrl");
+        }
+        let h = HistorySource {
+            url: "http://u:p@prom:9090".into(),
+            ..sample_history()
+        };
+        let e = assert_invalid(&with(h), "errors.installations.credentialsInUrl");
+        assert!(!e.message.contains("u:p"), "{}", e.message);
+        for username in ["", " ", "a:b"] {
+            let h = HistorySource {
+                auth: HistoryAuth::Basic {
+                    username: username.into(),
+                },
+                ..sample_history()
+            };
+            assert_invalid(&with(h), "errors.history.badUsername");
+        }
+        let h = HistorySource {
+            ca: CaConfig::Pem {
+                pem: cert_with_key(),
+            },
+            ..sample_history()
+        };
+        assert_invalid(&with(h), "errors.installations.pemContainsKey");
+        let h = HistorySource {
+            proxy: ProxyConfig::Url {
+                url: "socks://x".into(),
+            },
+            ..sample_history()
+        };
+        assert_invalid(&with(h), "errors.installations.badProxyUrl");
     }
 }

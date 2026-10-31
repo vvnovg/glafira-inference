@@ -101,6 +101,10 @@
     },
     "metrics": {
       "tooLarge": "The metrics response is too large or is not in the Prometheus format"
+    },
+    "history": {
+      "badUrl": "Invalid address “{{url}}” of the metrics history source: use http://host:9090 or https://host",
+      "badUsername": "Enter the user name of the metrics history source (without “:”)"
     }
   },
   "messages": {
@@ -130,7 +134,9 @@
       "addressChanged": "“{{name}}”, server “{{server}}”: the address changes from {{from}} to {{to}}. The saved API key will be sent to the new address.",
       "proxyChanged": "“{{name}}”, server “{{server}}”: the proxy settings change. The saved API key will go through the new proxy.",
       "tlsChanged": "“{{name}}”, server “{{server}}”: the certificate verification settings change. The saved API key will be used with the new settings.",
-      "serverRemoved": "“{{name}}”: server “{{server}}” is not in the file and will be removed together with its saved API key"
+      "serverRemoved": "“{{name}}”: server “{{server}}” is not in the file and will be removed together with its saved API key",
+      "historyChanged": "“{{name}}”: the address, proxy or certificate verification of the metrics history source changes. The saved token or password will be sent with the new settings.",
+      "historyRemoved": "“{{name}}”: the metrics history source is not in the file and will be removed together with its saved token or password"
     }
   },
   "common": {
