@@ -115,12 +115,15 @@ export function useServerMetrics(installationId: string, serverId: string, enabl
   useEffect(() => {
     if (q.error && q.errorUpdatedAt) push({ at: q.errorUpdatedAt, m: null, error: toAppError(q.error) });
   }, [key, q.error, q.errorUpdatedAt]);
-  // История запрашивается один раз (staleTime — бесконечность): дальше буфер пополняет опрос.
+  // История за 15 минут запрашивается при открытии вкладки, дальше буфер пополняет опрос. Ответ живёт не дольше
+  // минуты, как у useServerHistory: при возврате на вкладку старая история из кеша не берётся, между её концом
+  // и первой живой точкой не остаётся провала.
   const history = useQuery({
     queryKey: historyQueryKey(installationId, serverId, "now"),
     queryFn: () => api.readServerHistory(installationId, serverId, "now"),
     enabled: enabled && prefill,
-    staleTime: Number.POSITIVE_INFINITY,
+    staleTime: 60_000,
+    gcTime: 60_000,
     retry: false,
     refetchOnWindowFocus: false,
   });
@@ -136,7 +139,7 @@ export function useServerMetrics(installationId: string, serverId: string, enabl
     latest,
     fromHistory,
     historyUntil: last?.at ?? null,
-    historyError: prefill && history.error ? toAppError(history.error) : null,
+    historyError: enabled && prefill && history.error ? toAppError(history.error) : null,
     points,
     error: q.error ? toAppError(q.error) : null,
     isPending: q.isPending,

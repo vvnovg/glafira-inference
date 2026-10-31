@@ -11,7 +11,7 @@ vi.mock("../../api/client", async (importOriginal) => {
 import { api } from "../../api/client";
 import { TabActiveContext } from "../../lib/tabActive";
 import { metrics } from "./testMetrics";
-import { appendPoint, type MetricPoint, prependHistory, useServerMetrics, WINDOW_MS, withHistory } from "./useServerMetrics";
+import { appendPoint, historyQueryKey, type MetricPoint, prependHistory, useServerMetrics, WINDOW_MS, withHistory } from "./useServerMetrics";
 
 const point = (at: number): MetricPoint => ({ at, m: metrics(at) });
 
@@ -89,6 +89,35 @@ describe("useServerMetrics", () => {
     expect(result.current.historyUntil).toBe(t0 - 15_000);
     expect(result.current.fromHistory).toBe(true);
     expect(result.current.latest?.rates?.promptTokens).toBe(120);
+  });
+
+  it("ответ истории старше минуты из кеша не берётся: при новом монтировании запрос уходит снова", async () => {
+    const t0 = Date.now();
+    const client = new QueryClient({ defaultOptions: { queries: { retry: false } } });
+    const stale = { window: "now" as const, stepSec: 15, source: "prometheus" as const, points: [{ at: t0 - 400_000, m: metrics(t0 - 400_000) }], partial: [] };
+    client.setQueryData(historyQueryKey("i1", "s1", "now"), stale, { updatedAt: t0 - 120_000 });
+    vi.mocked(api.readServerHistory).mockResolvedValue({ ...stale, points: [{ at: t0 - 15_000, m: metrics(t0 - 15_000) }] });
+    vi.mocked(api.readServerMetrics).mockResolvedValue(metrics(t0));
+    const w = ({ children }: { children: ReactNode }) => (
+      <QueryClientProvider client={client}>
+        <TabActiveContext.Provider value={true}>{children}</TabActiveContext.Provider>
+      </QueryClientProvider>
+    );
+    const { result } = renderHook(() => useServerMetrics("i1", "s1", true, true), { wrapper: w });
+    await waitFor(() => expect(api.readServerHistory).toHaveBeenCalledTimes(1));
+    await waitFor(() => expect(result.current.historyUntil).toBe(t0 - 15_000));
+  });
+
+  it("при disabled ошибка истории не показывается", async () => {
+    vi.mocked(api.readServerHistory).mockRejectedValue({ code: "TIMEOUT", key: "errors.server.timeout", message: "late", retryable: true });
+    vi.mocked(api.readServerMetrics).mockResolvedValue(metrics(Date.now()));
+    const { result, rerender } = renderHook(({ e }) => useServerMetrics("i1", "s1", e, true), {
+      wrapper: wrapper(true),
+      initialProps: { e: true },
+    });
+    await waitFor(() => expect(result.current.historyError?.code).toBe("TIMEOUT"));
+    rerender({ e: false });
+    expect(result.current.historyError).toBeNull();
   });
 
   it("без истории она не запрашивается", async () => {
