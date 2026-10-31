@@ -270,11 +270,14 @@ export function InstallationForm({ initial, tabId }: { initial: InstallationProf
       <HistoryFields
         profile={profile}
         idPrefix={fid("history")}
-        savedSecret={!isNew && !!initial.history && initial.history.auth.mode !== "none"}
+        savedSecret={!isNew && !!initial.history && initial.history.auth.mode !== "none" && initial.history.auth.mode === profile.history?.auth.mode}
         secret={historySecret}
         insecureForbidden={insecureForbidden}
         busy={busy}
-        onHistory={(history) => update({ history })}
+        onHistory={(history) => {
+          if (!history) setHistorySecret({ value: "", clear: false });
+          update({ history });
+        }}
         onSecret={(patch) => setHistorySecret((s) => ({ ...s, ...patch }))}
         onSelector={(serverId, historySelector) => updateServer(serverId, { historySelector })}
         check={() => api.checkHistorySource(current(), secrets())}

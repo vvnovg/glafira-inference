@@ -236,7 +236,15 @@ export function HistoryFields({ profile, idPrefix, savedSecret, secret, insecure
         <button type="button" disabled={busy || checking} onClick={() => void onCheck()}>
           {t("installations.history.check")}
         </button>
-        <button type="button" disabled={busy} onClick={() => onHistory(undefined)}>
+        <button
+          type="button"
+          disabled={busy}
+          onClick={() => {
+            setResult(null);
+            setError(null);
+            onHistory(undefined);
+          }}
+        >
           {t("installations.history.remove")}
         </button>
         {checking && <span className="muted">{t("installations.form.testing")}</span>}

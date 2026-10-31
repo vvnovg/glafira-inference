@@ -150,6 +150,43 @@ describe("InstallationForm: история метрик", () => {
     expect(profile.history).toBeUndefined();
     expect(secrets).toEqual({ apiKeys: {} });
   });
+
+  it("сохранённый секрет: подсказка и флажок только пока вид входа тот же", async () => {
+    const initial = saved();
+    initial.history = { url: "http://prometheus:9090", auth: { mode: "bearer" }, ca: { mode: "system" }, proxy: { mode: "system" } };
+    const user = userEvent.setup();
+    renderWithClient(<InstallationForm initial={initial} tabId="form:i1" />);
+    const section = screen.getByRole("region", { name: "История метрик (Prometheus / VictoriaMetrics)" });
+    expect(within(section).getByLabelText("Токен")).toHaveAttribute("placeholder", "оставьте пустым, чтобы не менять сохранённый");
+    expect(within(section).getByLabelText("Удалить сохранённый токен или пароль")).toBeInTheDocument();
+    await user.selectOptions(within(section).getByLabelText("Вход"), "basic");
+    expect(within(section).getByLabelText("Пароль")).not.toHaveAttribute("placeholder", "оставьте пустым, чтобы не менять сохранённый");
+    expect(within(section).queryByLabelText("Удалить сохранённый токен или пароль")).toBeNull();
+    await user.selectOptions(within(section).getByLabelText("Вход"), "bearer");
+    expect(within(section).getByLabelText("Токен")).toHaveAttribute("placeholder", "оставьте пустым, чтобы не менять сохранённый");
+    expect(within(section).getByLabelText("Удалить сохранённый токен или пароль")).toBeInTheDocument();
+  });
+
+  it("«Убрать источник» сбрасывает введённый секрет и результат проверки", async () => {
+    vi.mocked(api.checkHistorySource).mockResolvedValue(CHECK);
+    vi.mocked(api.saveInstallation).mockImplementation(async (p) => p);
+    const user = userEvent.setup();
+    renderWithClient(<InstallationForm initial={saved()} tabId="form:i1" />);
+    const section = () => screen.getByRole("region", { name: "История метрик (Prometheus / VictoriaMetrics)" });
+    await user.click(within(section()).getByRole("button", { name: "Добавить источник истории" }));
+    await user.selectOptions(within(section()).getByLabelText("Вход"), "bearer");
+    await user.type(within(section()).getByLabelText("Токен"), "old-t0ken");
+    await user.click(within(section()).getByRole("button", { name: "Проверить источник" }));
+    await within(section()).findByRole("list", { name: "Проверка источника истории" });
+    await user.click(within(section()).getByRole("button", { name: "Убрать источник" }));
+    await user.click(within(section()).getByRole("button", { name: "Добавить источник истории" }));
+    await user.selectOptions(within(section()).getByLabelText("Вход"), "bearer");
+    expect(within(section()).getByLabelText("Токен")).toHaveValue("");
+    expect(within(section()).queryByRole("list", { name: "Проверка источника истории" })).toBeNull();
+    await user.click(screen.getByRole("button", { name: "Сохранить" }));
+    await waitFor(() => expect(api.saveInstallation).toHaveBeenCalled());
+    expect(vi.mocked(api.saveInstallation).mock.calls[0][1]).toEqual({ apiKeys: {} });
+  });
 });
 
 describe("InstallationForm", () => {
