@@ -2,6 +2,7 @@ import { useQuery } from "@tanstack/react-query";
 import { useEffect, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { api, toAppError } from "../../api/client";
+import { tr } from "../../i18n/text";
 import { useWorkspace } from "../../state/workspace";
 import { EnvBadge } from "../common/EnvBadge";
 import { ErrorBanner } from "../common/ErrorBanner";
@@ -73,7 +74,7 @@ export function ServerPanel({ installationId, serverId }: { installationId: stri
         </button>
         {live.error && state?.facts && (
           <span className="srv-error" role="status">
-            {t("servers.panel.noAnswer", { error: live.error.message })}
+            {t("servers.panel.noAnswer", { error: tr(live.error) })}
           </span>
         )}
       </div>

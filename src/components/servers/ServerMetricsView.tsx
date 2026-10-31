@@ -3,6 +3,7 @@ import { useTranslation } from "react-i18next";
 import { toAppError } from "../../api/client";
 import type { AppError, HistoryWindow, ServerMetrics } from "../../api/types";
 import { currentLocale } from "../../i18n";
+import { tr } from "../../i18n/text";
 import { ErrorBanner } from "../common/ErrorBanner";
 import type { ChartPick } from "./chart";
 import { fmtAdaptive, fmtNumber, fmtPercent } from "./format";
@@ -69,7 +70,7 @@ export function ServerMetricsView({ installationId, serverId, points, historyUnt
     ];
   }, [reasonsKey, t]);
   const title = (w: HistoryWindow) => {
-    if (w === "now") return historyError ? t("servers.metrics.prefillFailed", { error: historyError.message }) : undefined;
+    if (w === "now") return historyError ? t("servers.metrics.prefillFailed", { error: tr(historyError) }) : undefined;
     return historyUnavailable ? t(historyUnavailable) : undefined;
   };
   const step = (sec: number) => (sec % 60 === 0 ? t("servers.units.min", { value: sec / 60 }) : t("servers.units.sec", { value: sec }));
@@ -103,7 +104,7 @@ export function ServerMetricsView({ installationId, serverId, points, historyUnt
       {fromHistory && hist.data && hist.data.partial.length > 0 && (
         <p className="warn" role="status">
           {t("servers.metrics.partial", {
-            charts: hist.data.partial.map((x) => `${t(`servers.charts.${x.chart}`)} — ${x.error.message}`).join("; "),
+            charts: hist.data.partial.map((x) => `${t(`servers.charts.${x.chart}`)} — ${tr(x.error)}`).join("; "),
           })}
         </p>
       )}
