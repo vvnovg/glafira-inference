@@ -32,6 +32,17 @@ pub fn history_secret_key(installation_id: &str) -> String {
     secret_key(installation_id, HISTORY, HISTORY_SECRET)
 }
 
+/// Компонент GPU в ключе keychain (спека I1d §2); как у источника истории, поле `secret` у серверов
+/// не бывает.
+pub const GPU: &str = "gpu";
+/// Пароль basic экспортёров DCGM — общий для всех экспортёров компонента.
+pub const GPU_SECRET: &str = "secret";
+
+/// Ключ keychain пароля экспортёров DCGM инсталляции.
+pub fn gpu_secret_key(installation_id: &str) -> String {
+    secret_key(installation_id, GPU, GPU_SECRET)
+}
+
 /// OS keychain: macOS Keychain, Windows Credential Manager, Secret Service.
 /// `service` — имя сервиса записей; прежние имена нужны только для миграции.
 pub struct KeyringStore {
@@ -155,6 +166,7 @@ mod tests {
     fn key_format() {
         assert_eq!(secret_key("i1", "s1", API_KEY), "i1/s1/apiKey");
         assert_eq!(history_secret_key("i1"), "i1/history/secret");
+        assert_eq!(gpu_secret_key("i1"), "i1/gpu/secret");
     }
 
     #[test]

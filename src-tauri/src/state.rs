@@ -96,6 +96,9 @@ impl AppState {
         if let Err(e) = self.secrets.delete(&crate::secrets::history_secret_key(id)) {
             tracing::warn!("history secret of the deleted installation {id} was not deleted: {e}");
         }
+        if let Err(e) = self.secrets.delete(&crate::secrets::gpu_secret_key(id)) {
+            tracing::warn!("GPU secret of the deleted installation {id} was not deleted: {e}");
+        }
         Ok(())
     }
 }

@@ -54,6 +54,11 @@ impl Source {
             deadline,
         }
     }
+
+    /// Срок чтения одного окна.
+    pub fn deadline(&self) -> Duration {
+        self.deadline
+    }
 }
 
 /// Значение метки селектора с условием `=`: по `job` и `instance` ищется интервал опроса цели.
@@ -65,7 +70,7 @@ fn exact(matchers: &[crate::history::targets::Matcher], label: &str) -> Option<S
 }
 
 /// Разрешение на один запрос к источнику; держится, пока запрос идёт.
-async fn permit(source: &Source) -> tokio::sync::OwnedSemaphorePermit {
+pub(crate) async fn permit(source: &Source) -> tokio::sync::OwnedSemaphorePermit {
     source
         .limit
         .clone()

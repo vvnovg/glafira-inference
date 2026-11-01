@@ -3,11 +3,12 @@
 Desktop-приложение (Tauri 2 + Rust + React) для подключения к корпоративному инференсу open-source LLM, его
 мониторинга, диагностики и аудита; в фокусе — vLLM и SGLang на GPU NVIDIA.
 
-Состояние: готовы этапы I1a, I1b и I1c — подключение, проверка, метрики сервера и их история. Это инсталляции из
-серверов, определение типа, версии и моделей сервера, пошаговая проверка сервера, папки, экспорт и импорт, вкладка
-сервера: плитки и графики метрик «сейчас» (опрос `/metrics` раз в 5 с) и аргументы запуска с источниками, — и история
-метрик из Prometheus или VictoriaMetrics: окна 1 ч / 24 ч / 7 д / 30 д и «Сейчас» с последних 15 минут. GPU,
-диагностика и аудит появятся в следующих этапах, I1d–I7 (спецификация, §20).
+Состояние: готовы этапы I1a, I1b, I1c и I1d — подключение, проверка, метрики сервера, их история и GPU. Это инсталляции
+из серверов, определение типа, версии и моделей сервера, пошаговая проверка сервера, папки, экспорт и импорт, вкладка
+сервера: плитки и графики метрик «сейчас» (опрос `/metrics` раз в 5 с) и аргументы запуска с источниками, — история
+метрик из Prometheus или VictoriaMetrics: окна 1 ч / 24 ч / 7 д / 30 д и «Сейчас» с последних 15 минут, — и карты NVIDIA
+по метрикам DCGM: экспортёры или источник истории, привязка серверов к картам, вкладка GPU и блоки GPU в обзорах.
+Диагностика и аудит появятся в следующих этапах, I2–I7 (спецификация, §20).
 
 vLLM, SGLang, LiteLLM, NVIDIA and other product names are trademarks of their respective owners. This project is not
 affiliated with them.
@@ -54,12 +55,13 @@ cargo test --manifest-path src-tauri/Cargo.toml --lib     # Rust: unit-тест�
 
 ## Мок-сервер
 `pnpm mock-server --kind <вид> [--port 8000] [--host 127.0.0.1] [--api-key sk-dev] [--health 200..599] [--models full|empty]
-[--engines 1..8] [--reset-after N] [--slow N] [--huge]` отвечает как сервер инференса снимками ответов из `src-tauri/src/servers/testdata` —
+[--engines 1..8] [--reset-after N] [--slow N] [--huge] [--gpus 1..72] [--hostname <имя>] [--model <модель>] [--pod <namespace>/<pod>]
+[--throttle] [--xid <код>] [--ecc]` отвечает как сервер инференса снимками ответов из `src-tauri/src/servers/testdata` —
 теми же, что проверяют тесты Rust. Виды: `vllm` (0.32, настоящий снимок), `vllm-0.11`, `vllm-0.10` (старые и новые имена
 метрик рядом, два движка), `vllm-0.8` (модель с адаптером LoRA; ниже границы поддержки), `vllm-old` (0.7), `sglang`
 (0.5.22), `sglang-no-metrics` (0.5.22 без `/metrics`, как без `--enable-metrics`), `sglang-0.5.4`, `sglang-0.4` (устаревшие пути `/get_*`, без метрик; ниже границы), `llamacpp`, `ollama`
 (без `/health`), `prometheus` (источник истории метрик, ответами настоящего Prometheus 3.15.1 из
-`src-tauri/src/history/testdata`).
+`src-tauri/src/history/testdata`), `dcgm`, `dcgm-full`, `dcgm-4.1`, `dcgm-mig` (экспортёры DCGM).
 - `/metrics` видов `vllm`, `vllm-0.10` и `sglang` «живой»: счётчики и гистограммы растут с каждым опросом, KV-кэш
   колеблется. `--engines N` — N движков data parallel, `--reset-after N` — после N опросов счётчики начинаются заново,
   как при перезапуске сервера.
@@ -72,6 +74,14 @@ cargo test --manifest-path src-tauri/Cargo.toml --lib     # Rust: unit-тест�
   через N секунд (таймаут), `--huge` отдаёт `query_range` больше 8 МБ, выражение с `__bad__` — ошибка `bad_data`.
   `query_range` шаблонов Glafira отдаёт снятые ряды на сетке запроса. Настоящую историю даёт Prometheus с конфигом
   `scripts/prometheus/smoke.yml`, который опрашивает моки раз в 5 с (`brew install prometheus`).
+- Виды `dcgm*` отвечают как dcgm-exporter: `/metrics` собирается на лету в формате dcgm-exporter 4.8.4 (собран по
+  его исходникам, а не снят с карты). `dcgm` — набор счётчиков по умолчанию (без активности SM, ECC и причин
+  троттлинга), `dcgm-full` — с ними и с ошибками NVLink, `dcgm-4.1` — метка `Hostname` вместо `hostname` и A100,
+  `dcgm-mig` — карта 0 с двумя экземплярами MIG. `--gpus` — число карт (по умолчанию 2), `--hostname` — хост в метках
+  (`localhost`), `--model` — модель, `--pod ns/имя` — метки Kubernetes; `--throttle`, `--xid <код>` и `--ecc` включают
+  троттлинг (с ошибками NVLink и PCIe), XID и ECC у карты 0. Датчики колеблются, счётчики растут с каждым опросом.
+  `--api-key` — пароль basic с логином `glafira` (как `web-config.yml` экспортёра). Prometheus смоука опрашивает моки
+  DCGM на 9400–9402 (job `dcgm`).
 
 ## Инсталляции и серверы
 - Инсталляция — серверы инференса одной системы (`storage/profile.rs`): имя, окружение, только чтение, таймауты и

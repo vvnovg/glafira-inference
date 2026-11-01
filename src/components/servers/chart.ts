@@ -1,17 +1,22 @@
 import type { ServerMetrics } from "../../api/types";
-import type { MetricPoint } from "./useServerMetrics";
 
-/** Ряд графика: подпись и значение из метрик точки (`null` — нет данных). */
-export interface ChartPick {
+/** Точка графика: время (мс) и данные; `null` — опрос не удался. У сервера данные — его метрики, у GPU — значения карт. */
+export interface ChartPoint<T> {
+  at: number;
+  m: T | null;
+}
+
+/** Ряд графика: подпись и значение из данных точки (`null` — нет данных). */
+export interface ChartPick<T = ServerMetrics> {
   label: string;
-  pick: (m: ServerMetrics) => number | null | undefined;
+  pick: (m: T) => number | null | undefined;
 }
 
 /**
  * Данные uPlot из буфера точек: ось времени в секундах и ряды по `picks`. Точка с ошибкой опроса или без значения —
  * `null`: на графике разрыв, а не ноль.
  */
-export function chartData(points: MetricPoint[], picks: ChartPick[]): (number | null)[][] {
+export function chartData<T>(points: ChartPoint<T>[], picks: ChartPick<T>[]): (number | null)[][] {
   const xs = points.map((p) => p.at / 1000);
   return [xs, ...picks.map((c) => points.map((p) => (p.m ? (c.pick(p.m) ?? null) : null)))];
 }

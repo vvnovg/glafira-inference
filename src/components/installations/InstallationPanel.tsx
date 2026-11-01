@@ -7,6 +7,7 @@ import { useWorkspace } from "../../state/workspace";
 import { EnvBadge } from "../common/EnvBadge";
 import { ErrorBanner } from "../common/ErrorBanner";
 import { Hint } from "../common/Hint";
+import { GpuHostsBlock } from "../gpu/GpuSummary";
 import { fmtNumber, fmtPercent } from "../servers/format";
 import { noMetricsHintKey, readsMetrics, useServerMetrics } from "../servers/useServerMetrics";
 import { selectorLabel } from "./HistoryFields";
@@ -69,6 +70,7 @@ export function InstallationPanel({ installationId }: { installationId: string }
           ))}
         </div>
       )}
+      {profile.gpu && <GpuHostsBlock profile={profile} />}
     </div>
   );
 }

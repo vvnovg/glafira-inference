@@ -5,7 +5,7 @@ import { renderWithClient } from "../../test/render";
 
 vi.mock("../../api/client", async (importOriginal) => {
   const orig = await importOriginal<typeof import("../../api/client")>();
-  return { ...orig, api: { listInstallations: vi.fn(), connectInstallation: vi.fn(), readServerMetrics: vi.fn() } };
+  return { ...orig, api: { listInstallations: vi.fn(), connectInstallation: vi.fn(), readServerMetrics: vi.fn(), readGpuStatus: vi.fn() } };
 });
 
 import { api } from "../../api/client";
@@ -73,6 +73,22 @@ describe("InstallationPanel", () => {
     expect(within(second).getByText("Сервер отклонил запрос (401) — проверьте ключ API")).toBeInTheDocument();
     expect(screen.getByRole("status")).toHaveTextContent("Подключено серверов: 1 из 2");
     expect(api.connectInstallation).toHaveBeenCalledWith("i1", false);
+  });
+
+  it("с компонентом GPU — блок «GPU по хостам», без него — нет", async () => {
+    vi.mocked(api.listInstallations).mockResolvedValue([{ ...PROFILE, gpu: { mode: "prometheus" } }]);
+    vi.mocked(api.readGpuStatus).mockResolvedValue({ at: 1, hosts: [{ host: "gpu-node-1", cards: [{ index: 0, values: { util: 10 } }] }], errors: [], missing: [], deltaSec: null });
+    const { unmount } = renderWithClient(<InstallationPanel installationId="i1" />);
+    const block = await screen.findByRole("region", { name: "GPU по хостам" });
+    expect(await within(block).findByRole("button", { name: "gpu-node-1" })).toBeInTheDocument();
+    unmount();
+
+    vi.mocked(api.listInstallations).mockResolvedValue([PROFILE]);
+    vi.mocked(api.readGpuStatus).mockClear();
+    renderWithClient(<InstallationPanel installationId="i1" />);
+    await screen.findByRole("region", { name: "gpu-1" });
+    expect(screen.queryByRole("region", { name: "GPU по хостам" })).toBeNull();
+    expect(api.readGpuStatus).not.toHaveBeenCalled();
   });
 
   it("предупреждения и тип, выбранный вручную", async () => {

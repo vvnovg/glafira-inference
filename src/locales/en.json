@@ -129,6 +129,22 @@
       "noMetrics": "Glafira reads the metrics history only of vLLM and SGLang",
       "noSource": "The installation has no metrics history source",
       "notMatched": "The series of the server are not matched with the metrics history: choose a target in the installation"
+    },
+    "gpu": {
+      "badBinding": "Choose the GPU host of server “{{server}}”",
+      "badUrl": "Invalid DCGM exporter address “{{url}}”: use http://host:9400/metrics",
+      "badUsername": "Enter the user name of the DCGM exporters (without “:”)",
+      "duplicateExporter": "The DCGM exporter “{{url}}” is listed twice",
+      "noExporters": "Add at least one DCGM exporter address",
+      "noHistorySource": "GPU metrics from the history source need a metrics history source: add it to the installation",
+      "tooManyExporters": "The GPU component can have at most {{max}} DCGM exporters",
+      "tooManyGpus": "Found {{found}} GPUs, an installation can have at most {{max}}: narrow the card selector or remove exporters",
+      "unauthorized": "The DCGM exporter rejected the request ({{status}}) — check the user name and password",
+      "hostNotInHistory": "The metrics history has no GPU series of host {{host}}",
+      "noDcgm": "{{url}} answers, but there are no DCGM metrics (DCGM_FI_DEV_FB_USED): check the exporter address",
+      "notConfigured": "The installation has no GPU component",
+      "notMatched": "The DCGM exporters are not matched with the metrics history: choose their targets in the installation",
+      "tooManySeries": "The host has more than {{max}} GPUs: the first {{max}} are shown"
     }
   },
   "messages": {
@@ -160,7 +176,9 @@
       "tlsChanged": "“{{name}}”, server “{{server}}”: the certificate verification settings change. The saved API key will be used with the new settings.",
       "serverRemoved": "“{{name}}”: server “{{server}}” is not in the file and will be removed together with its saved API key",
       "historyChanged": "“{{name}}”: the address, proxy or certificate verification of the metrics history source changes. The saved token or password will be sent with the new settings.",
-      "historyRemoved": "“{{name}}”: the metrics history source is not in the file and will be removed together with its saved token or password"
+      "historyRemoved": "“{{name}}”: the metrics history source is not in the file and will be removed together with its saved token or password",
+      "gpuChanged": "“{{name}}”: the addresses, proxy or certificate verification of the DCGM exporters change. The saved password will be sent with the new settings.",
+      "gpuRemoved": "“{{name}}”: the GPU component is not in the file and will be removed together with the saved password of the DCGM exporters"
     },
     "historyTest": {
       "source": "{{kind}} {{version}}",
@@ -173,6 +191,28 @@
       "matchSelector": "“{{server}}”: {{selector}}",
       "noSeries": "“{{server}}”: there are no vLLM or SGLang series under the selector {{selector}}",
       "noTarget": "“{{server}}”: no target with the address of the server — choose the target manually"
+    },
+    "gpuTest": {
+      "bound": "“{{server}}”: {{host}}, {{cards}}",
+      "boundAuto": "“{{server}}”: {{host}}, all GPUs (auto-match)",
+      "boundCardsMissing": "“{{server}}”: host {{host}} has no GPUs {{cards}}",
+      "boundHostMissing": "“{{server}}”: the bound host {{host}} is not among the GPU hosts",
+      "duplicateCards": "Host {{host}}: {{count}} GPUs are reported by several exporters ({{exporters}}) — is one exporter listed twice? Both cards are shown",
+      "exporterCards": "{{url}}: {{count}} GPUs on {{hosts}}, driver {{driver}}",
+      "historyAuto": "{{url}}: {{job}} · {{instance}} (auto-match)",
+      "historyCards": "{{count}} GPUs on {{hosts}}",
+      "historyNoSeries": "{{url}}: there are no DCGM series under the selector {{selector}}",
+      "historyNoTarget": "{{url}}: no history target with the address of the exporter — GPU history windows are unavailable",
+      "historySelector": "{{url}}: {{selector}}",
+      "missingEcc": "The exporter does not collect ECC errors (DCGM_FI_DEV_ECC_DBE_VOL_TOTAL, DCGM_FI_DEV_ECC_SBE_VOL_TOTAL)",
+      "missingNvlink": "The exporter does not collect NVLink errors (DCGM_FI_DEV_NVLINK_*_ERROR_TOTAL)",
+      "missingSm": "The exporter does not collect SM activity (DCGM_FI_PROF_SM_ACTIVE): graphics engine activity is shown instead",
+      "missingThrottle": "The exporter does not collect throttle reasons (DCGM_FI_DEV_CLOCKS_EVENT_REASONS)",
+      "noCardsUnderSelector": "There are no GPUs under the card selector",
+      "noDcgmInHistory": "The history source does not collect DCGM metrics",
+      "noServerHosts": "The hosts of the servers are not among the GPU hosts — choose the hosts: {{hosts}}",
+      "selectorAuto": "Card selector {{selector}} (auto-match)",
+      "unbound": "“{{server}}”: the host of the server is not among the GPU hosts — choose the GPU host manually"
     }
   },
   "common": {
@@ -199,7 +239,11 @@
       "proxy": "System — the <code>HTTP_PROXY</code>, <code>HTTPS_PROXY</code>, <code>ALL_PROXY</code> and <code>NO_PROXY</code> environment variables, then the OS proxy settings. Or an explicit address such as <code>http://proxy:3128</code>.",
       "test": "Checks this server step by step with the values of the form, without saving: address, TLS, /health, API key, type, version, models.",
       "detectedKind": "The type Glafira works with. If it differs from what the server looks like, the type is chosen in the installation or the server version is too old.",
-      "historyUrl": "Address of the Prometheus or VictoriaMetrics HTTP API that scrapes the servers: http://prometheus.monitoring:9090. Glafira only reads it with PromQL queries and keeps nothing on disk."
+      "historyUrl": "Address of the Prometheus or VictoriaMetrics HTTP API that scrapes the servers: http://prometheus.monitoring:9090. Glafira only reads it with PromQL queries and keeps nothing on disk.",
+      "gpuMode": "DCGM exporters: Glafira reads /metrics of dcgm-exporter itself. From the history source: the same DCGM series from Prometheus or VictoriaMetrics.",
+      "gpuSelector": "Label matchers that pick the GPUs of the installation, such as {hostname=~\"gpu-1|gpu-2\"}. Empty — the check picks the hosts of the servers. At most 64 GPUs.",
+      "gpuCheck": "Checks the exporters or the history source, finds the GPU hosts, binds servers whose address matches a host and matches the exporters with history targets.",
+      "gpuBinding": "The GPUs of the server: a host and all or some cards. The check binds a server whose address matches a GPU host; behind a load balancer choose the host manually."
     },
     "import": {
       "target": "Where new folders and installations go. Existing ones stay where they are.",
@@ -269,7 +313,12 @@
         "models": "Models",
         "up": "Query up",
         "targets": "Targets",
-        "match": "Matching"
+        "match": "Matching",
+        "metrics": "Metrics",
+        "cards": "GPUs",
+        "bind": "Binding",
+        "history": "History",
+        "counters": "Counters"
       }
     },
     "panel": {
@@ -316,6 +365,38 @@
       "noMatch": "Do not match",
       "custom": "Custom selector…",
       "selector": "Series selector of “{{server}}”"
+    },
+    "gpu": {
+      "title": "GPU (DCGM)",
+      "mode": "Source",
+      "modes": {
+        "none": "None",
+        "direct": "DCGM exporters",
+        "prometheus": "From the history source"
+      },
+      "prometheusNeedsHistory": "GPU metrics from the history source need a metrics history source",
+      "historyRemoved": "Without the metrics history source this GPU component will not be saved: choose DCGM exporters or add the source back",
+      "selector": "Card selector",
+      "auto": "auto-match",
+      "hosts": "Hosts",
+      "moreHosts": "and {{count}} more",
+      "hostsByHand": "The selector is written by hand: clear it to choose hosts with checkboxes",
+      "check": "Check GPU",
+      "report": "GPU check",
+      "exporters": "DCGM exporters",
+      "exporter": "Exporter {{n}}",
+      "removeExporter": "Remove",
+      "exporterSeries": "Series in history",
+      "exporterSelector": "Series selector of exporter {{n}}",
+      "addExporter": "Add exporter",
+      "auth": "Sign-in",
+      "secretClear": "Delete the saved password",
+      "binding": "GPU",
+      "noBinding": "None",
+      "hostMissing": "{{host}} (not found)",
+      "checkForHosts": "The found hosts appear after “Check GPU”",
+      "cards": "GPUs",
+      "allCards": "All GPUs"
     }
   },
   "settings": {
@@ -329,7 +410,7 @@
     }
   },
   "about": {
-    "summary": "Glafira is a desktop app for connecting to corporate LLM inference, monitoring, diagnosing and auditing it, with vLLM and SGLang in focus. This version (stage I1c) covers connecting and checking: installations of several servers, API keys in the system secret store, step-by-step server checks, folders, export and import, live server metrics with launch arguments, and metric history from Prometheus or VictoriaMetrics. GPUs, diagnostics and audit come in the next stages.",
+    "summary": "Glafira is a desktop app for connecting to corporate LLM inference, monitoring, diagnosing and auditing it, with vLLM and SGLang in focus. This version (stage I1d) covers connecting and checking: installations of several servers, API keys in the system secret store, step-by-step server checks, folders, export and import, live server metrics with launch arguments, metric history from Prometheus or VictoriaMetrics and NVIDIA GPUs from DCGM. Diagnostics and audit come in the next stages.",
     "version": "Version",
     "build": "Build",
     "system": "System",
@@ -393,14 +474,17 @@
       "namePlaceholder": "Folder name",
       "export": "Export folder…",
       "importHere": "Import here…"
-    }
+    },
+    "gpu": "GPU",
+    "gpuCount": "GPU · {{count}}"
   },
   "tabs": {
     "settings": "Settings",
     "about": "About",
     "help": "Help",
     "installationForm": "Installation: {{name}}",
-    "newInstallation": "New installation"
+    "newInstallation": "New installation",
+    "gpu": "GPU · {{name}}"
   },
   "layout": {
     "closeTab": "Close tab",
@@ -530,6 +614,103 @@
       "queue": "Queue time",
       "finished": "Finished requests per second",
       "aborted": "aborted"
+    }
+  },
+  "gpu": {
+    "noSource": "Add a metrics history source to the installation",
+    "notMatched": "The DCGM exporters are not matched with the metrics history",
+    "partial": "Some series were not read: {{charts}}",
+    "panel": {
+      "title": "GPU",
+      "noComponent": "The installation has no GPU component — add it in the installation form",
+      "exporterError": "Exporter {{exporter}}: {{error}}",
+      "missing": "The exporter does not collect: {{groups}}.",
+      "noCards": "No GPUs found",
+      "cards": "GPUs: {{count}}",
+      "driver": "driver {{driver}}",
+      "servers": "Servers: {{servers}}",
+      "selectHint": "Click a GPU or a host to open the charts",
+      "missingLink": "Counters to enable"
+    },
+    "groups": {
+      "sm": "SM activity",
+      "ecc": "ECC errors",
+      "throttle": "throttle reasons",
+      "nvlinkErrors": "NVLink errors"
+    },
+    "card": {
+      "title": "GPU {{index}}",
+      "exporter": "Exporter: {{exporter}}",
+      "util": "Utilization",
+      "sm": "SM",
+      "smGr": "by GR engine",
+      "smGrHint": "The exporter does not collect DCGM_FI_PROF_SM_ACTIVE: the graphics engine activity is shown",
+      "memory": "Memory",
+      "memoryValue": "{{used}} / {{total}} GiB",
+      "temp": "Temperature",
+      "power": "Power",
+      "noData": "no data",
+      "clockReasons": "Clock reasons: {{reasons}}",
+      "workload": "Workload: {{namespace}}/{{pod}}",
+      "mig": "MIG: {{instances}}"
+    },
+    "alerts": {
+      "throttle": "Throttling: {{reasons}}",
+      "throttleHint": "Clocks are reduced by power or temperature: {{reasons}}",
+      "xid": "XID {{code}}",
+      "xidHint": "The last XID error of the driver is {{code}} (errors in the exporter window: {{count}}); it stays until the driver reloads",
+      "ecc": "ECC: {{dbe}}",
+      "eccHint": "Uncorrectable ECC errors: {{dbe}}, remapped rows for uncorrectable errors: {{remap}}, row remap failures: {{failed}}",
+      "eccRemapFailure": "ECC: remap failure",
+      "eccRemapFailureHint": "Row remap failures: {{failed}}, uncorrectable ECC errors: {{dbe}}, remapped rows for uncorrectable errors: {{remap}}",
+      "eccRemapped": "ECC: rows {{count}}",
+      "eccRemappedHint": "Memory rows remapped after uncorrectable ECC errors: {{count}} (errors now: {{dbe}}, remap failures: {{failed}}) — the card has bad memory, consider replacing it",
+      "eccCorrectable": "ECC +{{count}}",
+      "eccCorrectableHint": "Correctable ECC errors in the last minute: {{count}}",
+      "nvlink": "NVLink +{{count}}",
+      "nvlinkHint": "NVLink errors in the last minute: {{count}}",
+      "pcie": "PCIe +{{count}}",
+      "pcieHint": "PCIe replays in the last minute: {{count}}"
+    },
+    "charts": {
+      "util": "Utilization",
+      "utilSm": "Utilization and SM",
+      "memory": "Memory",
+      "temp": "Temperature",
+      "power": "Power",
+      "clocks": "Clocks",
+      "errors": "Errors",
+      "all": "All GPUs",
+      "sm": "SM",
+      "used": "Used",
+      "total": "Total",
+      "gpuTemp": "GPU",
+      "memTemp": "Memory",
+      "smClock": "SM",
+      "memClock": "Memory"
+    },
+    "units": {
+      "percent": "{{value}} %",
+      "gib": "{{value}} GiB",
+      "celsius": "{{value}} °C",
+      "watt": "{{value}} W",
+      "mhz": "{{value}} MHz"
+    },
+    "overview": {
+      "title": "GPU by host",
+      "host": "Host",
+      "model": "Model",
+      "cards": "GPUs",
+      "util": "Utilization",
+      "memory": "Memory",
+      "temp": "Max temperature",
+      "mixed": "mixed",
+      "troubled": "problems: {{count}}",
+      "server": "GPUs of the server",
+      "bindHint": "Bind the GPUs in the server form",
+      "noBoundCards": "Host {{host}} has none of the bound GPUs",
+      "utilValue": "utilization {{value}} %",
+      "openGpu": "Open GPU"
     }
   }
 }

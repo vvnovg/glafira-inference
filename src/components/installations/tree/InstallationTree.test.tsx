@@ -4,6 +4,8 @@ import { StrictMode } from "react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import type { InstallationFolder, InstallationInfo, InstallationProfile, ServerConfig } from "../../../api/types";
 import { renderWithClient } from "../../../test/render";
+import { gpuStatusKey } from "../../gpu/useGpu";
+import { card, host, status } from "../../gpu/testGpu";
 import { installationQueryKey } from "../InstallationPanel";
 import { newInstallation, newServer } from "../profile";
 
@@ -22,6 +24,7 @@ vi.mock("../../../api/client", async (importOriginal) => {
       previewImport: vi.fn(),
       applyImport: vi.fn(),
       connectInstallation: vi.fn(),
+      readGpuStatus: vi.fn(),
     },
   };
 });
@@ -95,6 +98,19 @@ describe("InstallationTree", () => {
     await screen.findByText("local");
     await user.click(screen.getByRole("button", { name: "Обзор" }));
     expect(useWorkspace.getState().activeId).toBe("installation:y");
+  });
+
+  it("«GPU» — у инсталляции с компонентом GPU: число карт из снимка, щелчок открывает вкладку GPU", async () => {
+    const withGpu: InstallationProfile = { ...CONNS[1], gpu: { mode: "prometheus" } };
+    vi.mocked(api.listInstallations).mockResolvedValue([withGpu, { ...CONNS[0], folderId: null }]);
+    const user = userEvent.setup();
+    const { client } = renderWithClient(<InstallationTree />);
+    expect(await screen.findByRole("button", { name: "GPU" })).toBeInTheDocument();
+    expect(screen.getAllByRole("button", { name: /^GPU/ })).toHaveLength(1);
+    act(() => client.setQueryData(gpuStatusKey("y"), status(1, [host("gpu-1", [card(0), card(1)]), host("gpu-2", [card(0)])])));
+    await user.click(await screen.findByRole("button", { name: "GPU · 3" }));
+    expect(useWorkspace.getState().activeId).toBe("gpu:y");
+    expect(api.readGpuStatus).not.toHaveBeenCalled();
   });
 
   it("сворачивание папки сохраняется между перерисовками", async () => {

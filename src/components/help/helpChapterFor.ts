@@ -9,6 +9,8 @@ export function helpChapterFor(tab: TabSpec | null): ChapterId {
       return "installations";
     case "server":
       return "servers";
+    case "gpu":
+      return "gpu";
     case "about":
       return "updates";
     default:

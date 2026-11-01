@@ -2,8 +2,8 @@ import { useEffect, useMemo, useRef } from "react";
 import { useTranslation } from "react-i18next";
 import uPlot from "uplot";
 import "uplot/dist/uPlot.min.css";
-import { type ChartPick, axisIncrs, axisSize, chartData, drawMarker, hasValues, themeColor } from "./chart";
-import type { MetricPoint } from "./useServerMetrics";
+import type { ServerMetrics } from "../../api/types";
+import { type ChartPick, type ChartPoint, axisIncrs, axisSize, chartData, drawMarker, hasValues, themeColor } from "./chart";
 
 const PALETTE: [string, string][] = [
   ["--chart-1", "#3b82f6"],
@@ -18,10 +18,10 @@ const HEIGHT = 200;
 /** Шрифт подписей осей uPlot по умолчанию — по нему считается ширина оси Y. */
 const AXIS_FONT = '12px system-ui, -apple-system, "Segoe UI", Roboto, "Helvetica Neue", Arial, "Noto Sans", sans-serif';
 
-interface Props {
+interface Props<T> {
   title: string;
-  points: MetricPoint[];
-  picks: ChartPick[];
+  points: ChartPoint<T>[];
+  picks: ChartPick<T>[];
   format: (v: number) => string;
   /** Наименьший шаг делений оси Y — точность `format` (0,1 у десятых, 1 у целых). */
   step: number;
@@ -33,7 +33,7 @@ interface Props {
  * График метрики сервера за окно «сейчас» (спец. I1b §6): ряды по `picks`, разрывы на ошибках опроса, «нет данных»,
  * если значений нет. По образцу `UsageChart` Kubernetes-версии: цвета из CSS-переменных темы, ширина — по контейнеру.
  */
-export function MetricChart({ title, points, picks, format, step, marker = null }: Props) {
+export function MetricChart<T = ServerMetrics>({ title, points, picks, format, step, marker = null }: Props<T>) {
   const { t } = useTranslation();
   const ref = useRef<HTMLDivElement>(null);
   const data = useMemo(() => chartData(points, picks), [points, picks]);

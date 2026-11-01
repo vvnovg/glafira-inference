@@ -7,13 +7,14 @@ use serde::{Deserialize, Serialize};
 
 use crate::error::{AppResult, ErrorCode};
 use crate::i18n::LocalizedText;
-use crate::secrets::{API_KEY, SecretStore, history_secret_key, secret_key};
+use crate::secrets::{API_KEY, SecretStore, gpu_secret_key, history_secret_key, secret_key};
 use crate::storage::installations::{
     InstallationFolder, InstallationProfile, InstallationStore, StoreData, check_tree,
     folder_not_found, unique_name, validate_profile,
 };
 use crate::storage::profile::{
-    CaConfig, HistoryAuth, HistorySource, ServerConfig, normalize_profile, strip_private_keys,
+    CaConfig, DirectGpu, GpuAuth, GpuSource, HistoryAuth, HistorySource, ServerConfig,
+    normalize_profile, strip_private_keys,
 };
 use crate::storage::tree::TreeItemKind;
 
@@ -30,6 +31,9 @@ pub struct NeedsSecret {
     /// Был сохранён секрет источника истории (токен или пароль, спека I1c §2).
     #[serde(default, skip_serializing_if = "std::ops::Not::not")]
     pub history: bool,
+    /// Был сохранён пароль экспортёров DCGM (спека I1d §2).
+    #[serde(default, skip_serializing_if = "std::ops::Not::not")]
+    pub gpu: bool,
 }
 
 #[derive(Serialize)]
@@ -79,6 +83,21 @@ fn history_with_secret(p: &InstallationProfile) -> Option<&HistorySource> {
     p.history.as_ref().filter(|h| h.auth != HistoryAuth::None)
 }
 
+/// Сохранён ли непустой пароль экспортёров DCGM инсталляции `id`.
+fn has_gpu_secret(secrets: &dyn SecretStore, id: &str) -> AppResult<bool> {
+    Ok(secrets
+        .get(&gpu_secret_key(id))?
+        .is_some_and(|v| !v.is_empty()))
+}
+
+/// Экспортёры DCGM с входом basic: только им нужен пароль.
+fn gpu_with_secret(p: &InstallationProfile) -> Option<&DirectGpu> {
+    match &p.gpu {
+        Some(GpuSource::Direct(d)) if d.auth != GpuAuth::None => Some(d),
+        _ => None,
+    }
+}
+
 /// Серверы профиля, у которых сохранён ключ API, и сохранён ли секрет источника истории:
 /// устаревшие записи keychain (сервер удалён, вход в источник выключен) не требуют ввода у
 /// получателя.
@@ -93,11 +112,16 @@ pub(crate) fn needs_secret(
         }
     }
     let history = history_with_secret(p).is_some() && has_history_secret(secrets, &p.id)?;
-    Ok(NeedsSecret { api_keys, history })
+    let gpu = gpu_with_secret(p).is_some() && has_gpu_secret(secrets, &p.id)?;
+    Ok(NeedsSecret {
+        api_keys,
+        history,
+        gpu,
+    })
 }
 
-/// Неизвестные поля профиля, серверов и источника истории — локальные: в файл обмена и из него
-/// не переносятся.
+/// Неизвестные поля профиля, серверов, источника истории и компонента GPU — локальные: в файл
+/// обмена и из него не переносятся.
 fn clear_extra(p: &mut InstallationProfile) {
     p.extra.clear();
     for s in &mut p.servers {
@@ -106,6 +130,16 @@ fn clear_extra(p: &mut InstallationProfile) {
     if let Some(h) = &mut p.history {
         h.extra.clear();
     }
+    match &mut p.gpu {
+        Some(GpuSource::Direct(d)) => {
+            d.extra.clear();
+            for e in &mut d.exporters {
+                e.extra.clear();
+            }
+        }
+        Some(GpuSource::Prometheus(g)) => g.extra.clear(),
+        None => {}
+    }
 }
 
 /// Приватный ключ из поля CA в файл обмена не попадает, сертификаты остаются (спец. §5.1:
@@ -113,7 +147,17 @@ fn clear_extra(p: &mut InstallationProfile) {
 /// править руками), поэтому ключ вырезается и здесь.
 fn strip_pem_keys_for_export(p: &mut InstallationProfile) {
     let history = p.history.as_mut().map(|h| &mut h.ca);
-    for ca in p.servers.iter_mut().map(|s| &mut s.ca).chain(history) {
+    let gpu = match &mut p.gpu {
+        Some(GpuSource::Direct(d)) => Some(&mut d.ca),
+        _ => None,
+    };
+    for ca in p
+        .servers
+        .iter_mut()
+        .map(|s| &mut s.ca)
+        .chain(history)
+        .chain(gpu)
+    {
         if let CaConfig::Pem { pem } = ca {
             *pem = strip_private_keys(pem);
         }
@@ -366,6 +410,9 @@ pub(crate) struct ImportPlan {
     /// Обновлённые инсталляции, у которых источник истории убран или сменил вид входа: их
     /// секрет источника удаляется из keychain после записи.
     pub removed_history: Vec<String>,
+    /// Обновлённые инсталляции, у которых экспортёры DCGM лишились входа basic (компонент убран,
+    /// режим или вход сменились): их пароль удаляется из keychain после записи.
+    pub removed_gpu: Vec<String>,
 }
 
 /// Имена папок от корня до `folder` включительно.
@@ -459,6 +506,28 @@ fn history_secret_survives(local: &InstallationProfile, new: &InstallationProfil
     }
 }
 
+/// Меняется ли то, куда уходит пароль экспортёров DCGM: адреса экспортёров, прокси или проверка
+/// сертификата.
+fn gpu_moves(local: &InstallationProfile, new: &InstallationProfile) -> bool {
+    match (gpu_with_secret(local), gpu_with_secret(new)) {
+        (Some(l), Some(n)) => {
+            let urls = |d: &DirectGpu| {
+                d.exporters
+                    .iter()
+                    .map(|e| e.url.clone())
+                    .collect::<Vec<_>>()
+            };
+            urls(l) != urls(n) || l.proxy != n.proxy || l.ca != n.ca
+        }
+        _ => false,
+    }
+}
+
+/// Остаётся ли сохранённый пароль экспортёров после обновления: вход basic есть и до, и после.
+fn gpu_secret_survives(local: &InstallationProfile, new: &InstallationProfile) -> bool {
+    gpu_with_secret(local).is_some() && gpu_with_secret(new).is_some()
+}
+
 /// Пары «сервер до импорта — сервер из файла» с тем же id, у которых меняется направление.
 fn moved_servers<'a>(
     local: &'a InstallationProfile,
@@ -482,6 +551,8 @@ pub(crate) struct StoredSecrets {
     by_server: HashMap<(String, String), bool>,
     /// id инсталляции → есть ли сохранённый секрет источника истории.
     by_history: HashMap<String, bool>,
+    /// id инсталляции → есть ли сохранённый пароль экспортёров DCGM.
+    by_gpu: HashMap<String, bool>,
 }
 
 impl StoredSecrets {
@@ -495,6 +566,7 @@ impl StoredSecrets {
     ) -> Self {
         let mut by_server = HashMap::new();
         let mut by_history = HashMap::new();
+        let mut by_gpu = HashMap::new();
         for (incoming, _) in &parsed.installations {
             let Some(local) = data.installations.iter().find(|l| l.id == incoming.id) else {
                 continue;
@@ -507,10 +579,15 @@ impl StoredSecrets {
                 let stored = has_history_secret(secrets, &incoming.id).unwrap_or(true);
                 by_history.insert(incoming.id.clone(), stored);
             }
+            if gpu_moves(local, incoming) {
+                let stored = has_gpu_secret(secrets, &incoming.id).unwrap_or(true);
+                by_gpu.insert(incoming.id.clone(), stored);
+            }
         }
         Self {
             by_server,
             by_history,
+            by_gpu,
         }
     }
 
@@ -526,6 +603,11 @@ impl StoredSecrets {
     /// Сохранён ли секрет источника истории инсталляции `id` (не прочитанное — сохранён).
     fn has_history(&self, id: &str) -> bool {
         self.by_history.get(id).copied().unwrap_or(true)
+    }
+
+    /// Сохранён ли пароль экспортёров DCGM инсталляции `id` (не прочитанное — сохранён).
+    fn has_gpu(&self, id: &str) -> bool {
+        self.by_gpu.get(id).copied().unwrap_or(true)
     }
 }
 
@@ -579,6 +661,13 @@ fn destination_warnings(
             name = new.name
         ));
     }
+    if gpu_moves(local, new) && stored.has_gpu(&new.id) {
+        out.push(ltext!(
+            "messages.import.gpuChanged",
+            "“{{name}}”: the addresses, proxy or certificate verification of the DCGM exporters change. The saved password will be sent with the new settings.",
+            name = new.name
+        ));
+    }
     out
 }
 
@@ -604,6 +693,7 @@ pub(crate) fn plan_import(
     };
     let mut removed_servers = Vec::new();
     let mut removed_history = Vec::new();
+    let mut removed_gpu = Vec::new();
     // id папок файла совпадают с id в хранилище: существующие берутся как есть, новые создаются с тем же id.
     let file_folders: HashSet<&str> = parsed.folders.iter().map(|f| f.id.as_str()).collect();
     let local_folders: HashSet<&str> = data.folders.iter().map(|f| f.id.as_str()).collect();
@@ -654,8 +744,12 @@ pub(crate) fn plan_import(
             .history
             .as_ref()
             .is_some_and(|h| h.ca == CaConfig::Insecure);
+        let insecure_gpu =
+            matches!(&incoming.gpu, Some(GpuSource::Direct(d)) if d.ca == CaConfig::Insecure);
         if !opts.allow_insecure_tls
-            && (insecure_history || incoming.servers.iter().any(|s| s.ca == CaConfig::Insecure))
+            && (insecure_history
+                || insecure_gpu
+                || incoming.servers.iter().any(|s| s.ca == CaConfig::Insecure))
         {
             preview.skipped.push(Skipped {
                 name: incoming.name.clone(),
@@ -683,6 +777,31 @@ pub(crate) fn plan_import(
             }
             if let (Some(h), Some(old)) = (&mut profile.history, &slot.history) {
                 h.extra = old.extra.clone();
+            }
+            match (&mut profile.gpu, &slot.gpu) {
+                (Some(GpuSource::Direct(d)), Some(GpuSource::Direct(old))) => {
+                    d.extra = old.extra.clone();
+                    for e in &mut d.exporters {
+                        if let Some(o) = old.exporters.iter().find(|o| o.url == e.url) {
+                            e.extra = o.extra.clone();
+                        }
+                    }
+                }
+                (Some(GpuSource::Prometheus(g)), Some(GpuSource::Prometheus(old))) => {
+                    g.extra = old.extra.clone();
+                }
+                _ => {}
+            }
+            // Пароль экспортёров, который больше не нужен, удаляется, как секрет источника.
+            if gpu_with_secret(slot).is_some() && !gpu_secret_survives(slot, &profile) {
+                removed_gpu.push(profile.id.clone());
+                if profile.gpu.is_none() {
+                    preview.warnings.push(ltext!(
+                        "messages.import.gpuRemoved",
+                        "“{{name}}”: the GPU component is not in the file and will be removed together with the saved password of the DCGM exporters",
+                        name = profile.name
+                    ));
+                }
             }
             // Секрет источника истории, который больше не нужен, удаляется: источника нет в
             // файле или у него другой вид входа.
@@ -751,7 +870,7 @@ pub(crate) fn plan_import(
         profile.folder_id = folder;
         profile.name = name;
         clear_extra(&mut profile);
-        if !needs.api_keys.is_empty() || needs.history {
+        if !needs.api_keys.is_empty() || needs.history || needs.gpu {
             preview.needs_secrets += 1;
         }
         added.push((TreeItemKind::Installation, profile.id.clone()));
@@ -792,6 +911,7 @@ pub(crate) fn plan_import(
         preview,
         removed_servers,
         removed_history,
+        removed_gpu,
     })
 }
 
@@ -1226,6 +1346,107 @@ mod tests {
         let p = plan_with(&data, &parsed, &opts(None), &MemoryStore::default()).unwrap();
         assert_eq!(p.removed_history, ["a"]);
         assert!(warning_keys(&p.preview).is_empty());
+    }
+
+    fn with_gpu(auth: GpuAuth) -> InstallationProfile {
+        let mut p = sample_profile("a");
+        let GpuSource::Direct(d) = crate::storage::profile::sample_gpu() else {
+            unreachable!()
+        };
+        p.gpu = Some(GpuSource::Direct(DirectGpu { auth, ..d }));
+        p
+    }
+
+    fn gpu_json(auth: serde_json::Value) -> serde_json::Value {
+        serde_json::json!({
+            "mode": "direct",
+            "exporters": [{ "url": "http://gpu-1.dev.example.com:9400/metrics" }],
+            "auth": auth
+        })
+    }
+
+    fn glafira() -> GpuAuth {
+        GpuAuth::Basic {
+            username: "glafira".into(),
+        }
+    }
+
+    #[test]
+    fn gpu_secret_is_flagged_but_never_exported() {
+        let (_d, s) = store();
+        s.upsert(with_gpu(glafira())).unwrap();
+        let mut off = with_gpu(GpuAuth::None);
+        off.id = "off".into();
+        s.upsert(off).unwrap();
+        let secrets = MemoryStore::default();
+        secrets.set(&gpu_secret_key("a"), "dcgm-pa55").unwrap();
+        secrets.set(&gpu_secret_key("off"), "old").unwrap();
+        let out = build_export(&s, &secrets, None, "1", "now").unwrap();
+        let json = serde_json::to_string(&out).unwrap();
+        assert!(!json.contains("dcgm-pa55"), "{json}");
+        let flags = |id: &str| {
+            out.installations
+                .iter()
+                .find(|c| c.profile.id == id)
+                .unwrap()
+                .needs_secret
+                .clone()
+        };
+        assert!(flags("a").gpu);
+        assert!(
+            !flags("off").gpu,
+            "пароль без входа basic — устаревшая запись"
+        );
+        assert!(!json.contains(r#""gpu":false"#), "{json}");
+    }
+
+    #[test]
+    fn exporter_change_with_a_saved_password_warns() {
+        let secrets = MemoryStore::default();
+        secrets.set(&gpu_secret_key("a"), "p").unwrap();
+        let moved = |c: &mut serde_json::Value| {
+            c["gpu"] = gpu_json(serde_json::json!({ "mode": "basic", "username": "glafira" }));
+            c["gpu"]["exporters"][0]["url"] = "http://gpu-2:9400/metrics".into();
+        };
+        let p = plan_update(with_gpu(glafira()), &secrets, moved);
+        assert_eq!(warning_keys(&p), ["messages.import.gpuChanged"]);
+        let p = plan_update(with_gpu(glafira()), &MemoryStore::default(), moved);
+        assert!(
+            warning_keys(&p).is_empty(),
+            "без сохранённого пароля предупреждать не о чем"
+        );
+    }
+
+    #[test]
+    fn removed_gpu_component_drops_its_password() {
+        let data = StoreData {
+            installations: vec![with_gpu(glafira())],
+            ..Default::default()
+        };
+        let parsed = parse_exchange(&file(vec![], vec![inst_json("a", "inst-a", None)])).unwrap();
+        let p = plan_with(&data, &parsed, &opts(None), &MemoryStore::default()).unwrap();
+        assert_eq!(p.removed_gpu, ["a"]);
+        assert_eq!(warning_keys(&p.preview), ["messages.import.gpuRemoved"]);
+        // Вход выключен — пароль не нужен, компонент остаётся: без предупреждения.
+        let mut none = inst_json("a", "inst-a", None);
+        none["gpu"] = gpu_json(serde_json::json!({ "mode": "none" }));
+        let parsed = parse_exchange(&file(vec![], vec![none])).unwrap();
+        let p = plan_with(&data, &parsed, &opts(None), &MemoryStore::default()).unwrap();
+        assert_eq!(p.removed_gpu, ["a"]);
+        assert!(warning_keys(&p.preview).is_empty());
+    }
+
+    #[test]
+    fn insecure_dcgm_exporters_are_skipped_when_forbidden() {
+        let mut v = inst_json("i", "Insecure DCGM", None);
+        v["gpu"] = gpu_json(serde_json::json!({ "mode": "none" }));
+        v["gpu"]["ca"] = serde_json::json!({ "mode": "insecure" });
+        let o = ImportOptions {
+            allow_insecure_tls: false,
+            ..opts(None)
+        };
+        let p = plan(&StoreData::default(), &file(vec![], vec![v]), &o);
+        assert_eq!(p.preview.skipped[0].name, "Insecure DCGM");
     }
 
     #[test]

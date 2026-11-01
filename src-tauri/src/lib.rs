@@ -3,6 +3,7 @@ pub mod i18n;
 pub mod commands;
 mod dock_name;
 pub mod error;
+pub mod gpu;
 pub mod history;
 pub mod logging;
 pub mod metrics;
@@ -58,6 +59,9 @@ pub fn run() {
             commands::servers::read_server_config,
             commands::history::check_history_source,
             commands::history::read_server_history,
+            commands::gpu::check_gpu_source,
+            commands::gpu::read_gpu_status,
+            commands::gpu::read_gpu_history,
             commands::folders::list_folders,
             commands::folders::create_folder,
             commands::folders::rename_folder,

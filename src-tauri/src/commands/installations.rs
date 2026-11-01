@@ -5,17 +5,18 @@ use tauri::State;
 
 use super::blocking;
 use crate::error::AppResult;
-use crate::secrets::{API_KEY, history_secret_key, secret_key};
+use crate::secrets::{API_KEY, gpu_secret_key, history_secret_key, secret_key};
 use crate::servers::client::{Timeouts, ensure_allowed, ensure_ca_allowed};
 use crate::servers::connectivity::{TestReport, test_server};
 use crate::servers::pool::InstallationInfo;
 use crate::state::AppState;
 use crate::storage::exchange::{NeedsSecret, needs_secret};
-use crate::storage::profile::{HistoryAuth, InstallationProfile};
+use crate::storage::profile::{GpuAuth, GpuSource, HistoryAuth, InstallationProfile};
 
 /// Секреты из формы. Ключи API: id сервера → значение; сервера нет в списке — оставить
-/// сохранённый, `""` — удалить, иное — сохранить. Секрет источника истории (токен или пароль) —
-/// по тем же правилам: `None` — оставить, `""` — удалить. `Debug` печатает вместо значений `***`.
+/// сохранённый, `""` — удалить, иное — сохранить. Секрет источника истории (токен или пароль) и
+/// пароль экспортёров DCGM — по тем же правилам: `None` — оставить, `""` — удалить. `Debug`
+/// печатает вместо значений `***`.
 #[derive(Default, Clone, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct SecretsInput {
@@ -23,6 +24,8 @@ pub struct SecretsInput {
     pub api_keys: BTreeMap<String, String>,
     #[serde(default)]
     pub history_secret: Option<String>,
+    #[serde(default)]
+    pub gpu_secret: Option<String>,
 }
 
 /// Ключи не печатаются: структура может попасть в лог или сообщение об ошибке.
@@ -35,6 +38,7 @@ impl std::fmt::Debug for SecretsInput {
                     .as_ref()
                     .map(|_| ("historySecret", "***")),
             )
+            .entries(self.gpu_secret.as_ref().map(|_| ("gpuSecret", "***")))
             .finish()
     }
 }
@@ -113,6 +117,29 @@ pub(crate) fn history_op(
         Some("") => SecretOp::Delete,
         Some(v) => SecretOp::Set(v.to_string()),
         None if previous.and_then(mode) == Some(now) => SecretOp::Keep,
+        None => SecretOp::Delete,
+    }
+}
+
+/// Экспортёры DCGM с входом basic: только им нужен пароль.
+pub(crate) fn gpu_has_login(p: &InstallationProfile) -> bool {
+    matches!(&p.gpu, Some(GpuSource::Direct(d)) if d.auth != GpuAuth::None)
+}
+
+/// Пароль экспортёров DCGM — по данным формы, как секрет источника истории: без входа basic он не
+/// нужен, сохранённый остаётся, только если вход basic был и в прежнем профиле.
+pub(crate) fn gpu_op(
+    saved: &InstallationProfile,
+    previous: Option<&InstallationProfile>,
+    s: &SecretsInput,
+) -> SecretOp {
+    if !gpu_has_login(saved) {
+        return SecretOp::Delete;
+    }
+    match s.gpu_secret.as_deref().map(str::trim) {
+        Some("") => SecretOp::Delete,
+        Some(v) => SecretOp::Set(v.to_string()),
+        None if previous.is_some_and(gpu_has_login) => SecretOp::Keep,
         None => SecretOp::Delete,
     }
 }
@@ -204,6 +231,9 @@ pub fn save_installation_blocking(
     if let Some(h) = &profile.history {
         ensure_ca_allowed(&h.ca, &st.policy.status)?;
     }
+    if let Some(GpuSource::Direct(d)) = &profile.gpu {
+        ensure_ca_allowed(&d.ca, &st.policy.status)?;
+    }
     if profile.id.is_empty() {
         profile.id = uuid::Uuid::new_v4().to_string();
     }
@@ -219,6 +249,10 @@ pub fn save_installation_blocking(
     ops.push((
         history_secret_key(&saved.id),
         history_op(&saved, previous.as_ref(), &secrets),
+    ));
+    ops.push((
+        gpu_secret_key(&saved.id),
+        gpu_op(&saved, previous.as_ref(), &secrets),
     ));
     let result = apply_secret_ops(st, ops);
     if result.is_err() {
@@ -321,7 +355,8 @@ mod tests {
     use crate::error::{AppError, ErrorCode};
     use crate::secrets::{MemoryStore, SecretStore};
     use crate::storage::profile::{
-        CaConfig, HistoryAuth, HistorySource, sample_history, sample_profile, sample_server,
+        CaConfig, DirectGpu, GpuAuth, GpuSource, HistoryAuth, HistorySource, PrometheusGpu,
+        sample_gpu, sample_history, sample_profile, sample_server,
     };
 
     fn state(dir: &std::path::Path) -> AppState {
@@ -337,6 +372,7 @@ mod tests {
                     .map(|(k, v)| (k.to_string(), v.to_string()))
                     .collect(),
                 history_secret: None,
+                gpu_secret: None,
             },
         }
     }
@@ -359,6 +395,7 @@ mod tests {
                 .map(|(k, v)| (k.to_string(), v.to_string()))
                 .collect(),
             history_secret: None,
+            gpu_secret: None,
         };
         // Убранный сервер (`gone`) в операции не входит: его ключ чистится после фиксации.
         // Новый сервер без ключа в форме (`s4`) получает `Delete`, а не `Keep`: осиротевший
@@ -446,6 +483,88 @@ mod tests {
         assert_eq!(read().as_deref(), Some("prom-t0ken"));
         st.delete_installation_full(&saved.id).unwrap();
         assert_eq!(read(), None);
+    }
+
+    fn with_gpu(auth: GpuAuth) -> InstallationProfile {
+        let mut p = sample_profile("a");
+        let GpuSource::Direct(d) = sample_gpu() else {
+            unreachable!()
+        };
+        p.gpu = Some(GpuSource::Direct(DirectGpu { auth, ..d }));
+        p
+    }
+
+    #[test]
+    fn gpu_secret_ops() {
+        let basic = with_gpu(GpuAuth::Basic {
+            username: "glafira".into(),
+        });
+        let none = with_gpu(GpuAuth::None);
+        let mut prom = sample_profile("a");
+        prom.history = Some(sample_history());
+        prom.gpu = Some(GpuSource::Prometheus(PrometheusGpu {
+            selector: None,
+            extra: Default::default(),
+        }));
+        let typed = |v: Option<&str>| SecretsInput {
+            gpu_secret: v.map(String::from),
+            ..SecretsInput::default()
+        };
+        assert_eq!(gpu_op(&basic, Some(&basic), &typed(None)), SecretOp::Keep);
+        assert_eq!(
+            gpu_op(&basic, None, &typed(Some(" p "))),
+            SecretOp::Set("p".into())
+        );
+        assert_eq!(
+            gpu_op(&basic, Some(&basic), &typed(Some(""))),
+            SecretOp::Delete
+        );
+        // Пароль не берётся неоткуда: вход basic появился без пароля в форме.
+        assert_eq!(gpu_op(&basic, Some(&none), &typed(None)), SecretOp::Delete);
+        for without in [&none, &prom, &sample_profile("a")] {
+            assert_eq!(
+                gpu_op(without, Some(&basic), &typed(Some("p"))),
+                SecretOp::Delete
+            );
+        }
+        let s = typed(Some("p"));
+        assert_eq!(format!("{s:?}"), r#"{"gpuSecret": "***"}"#);
+    }
+
+    #[test]
+    fn gpu_secret_is_saved_and_deleted_with_the_installation() {
+        let dir = tempfile::tempdir().unwrap();
+        let st = state(dir.path());
+        let mut i = input(
+            with_gpu(GpuAuth::Basic {
+                username: "glafira".into(),
+            }),
+            &[],
+        );
+        i.secrets.gpu_secret = Some("dcgm-pa55".into());
+        let saved = save_installation_blocking(&st, i).unwrap();
+        let read = || st.secrets.get(&gpu_secret_key(&saved.id)).unwrap();
+        assert_eq!(read().as_deref(), Some("dcgm-pa55"));
+        let profile = std::fs::read_to_string(dir.path().join("installations.json")).unwrap();
+        assert!(!profile.contains("dcgm-pa55"), "{profile}");
+        save_installation_blocking(&st, input(saved.clone(), &[])).unwrap();
+        assert_eq!(read().as_deref(), Some("dcgm-pa55"));
+        st.delete_installation_full(&saved.id).unwrap();
+        assert_eq!(read(), None);
+    }
+
+    #[test]
+    fn policy_forbids_insecure_dcgm_exporters() {
+        let dir = tempfile::tempdir().unwrap();
+        let mut policy = crate::policy::Policy::default();
+        policy.status.allow_insecure_tls = false;
+        let st = state(dir.path()).with_policy(policy);
+        let mut p = with_gpu(GpuAuth::None);
+        if let Some(GpuSource::Direct(d)) = &mut p.gpu {
+            d.ca = CaConfig::Insecure;
+        }
+        let e = save_installation_blocking(&st, input(p, &[])).unwrap_err();
+        assert_eq!(e.key, "errors.installations.insecureForbidden");
     }
 
     #[test]

@@ -35,6 +35,7 @@ describe("workspace", () => {
     expect(tabId({ kind: "installation-form", installationId: "a" })).toBe("installation-form:a");
     expect(tabId({ kind: "installation", installationId: "a" })).toBe("installation:a");
     expect(tabId({ kind: "server", installationId: "a", serverId: "s1" })).toBe("server:a:s1");
+    expect(tabId({ kind: "gpu", installationId: "a" })).toBe("gpu:a");
     expect(tabInstallation({ kind: "server", installationId: "a", serverId: "s1" })).toBe("a");
     expect(tabId({ kind: "help", chapter: "installations" })).toBe("help");
     expect(tabId({ kind: "about" })).toBe("about");

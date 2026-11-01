@@ -165,10 +165,15 @@ fn import_from_file(
     if !apply {
         return Ok(plan_import(&snapshot, &parsed, &opts, &stored)?.preview);
     }
-    let (preview, removed, removed_history) = st.installations.update(|data| {
+    let (preview, removed, removed_history, removed_gpu) = st.installations.update(|data| {
         let plan = plan_import(data, &parsed, &opts, &stored)?;
         *data = plan.next;
-        Ok((plan.preview, plan.removed_servers, plan.removed_history))
+        Ok((
+            plan.preview,
+            plan.removed_servers,
+            plan.removed_history,
+            plan.removed_gpu,
+        ))
     })?;
     // Секреты серверов, которых больше нет в профиле, не нужны: удаляются все, как при
     // сохранении и удалении инсталляции. Сбой keychain импорт не отменяет: профиль уже
@@ -184,6 +189,12 @@ fn import_from_file(
         let key = crate::secrets::history_secret_key(&installation);
         if let Err(e) = st.secrets.delete(&key) {
             tracing::warn!("history secret of installation {installation} was not deleted: {e}");
+        }
+    }
+    for installation in removed_gpu {
+        let key = crate::secrets::gpu_secret_key(&installation);
+        if let Err(e) = st.secrets.delete(&key) {
+            tracing::warn!("GPU secret of installation {installation} was not deleted: {e}");
         }
     }
     // Обновлённые инсталляции подключатся заново с новым профилем — как при сохранении формы.

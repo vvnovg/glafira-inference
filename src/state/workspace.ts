@@ -5,6 +5,8 @@ export type TabSpec =
   | { kind: "installation"; installationId: string }
   /** Сервер инсталляции: обзор, аргументы запуска, метрики «сейчас». */
   | { kind: "server"; installationId: string; serverId: string }
+  /** GPU инсталляции: карты по хостам и их графики (спека I1d §5). */
+  | { kind: "gpu"; installationId: string }
   /** folderId — папка новой инсталляции («Новая инсталляция здесь»). */
   | { kind: "installation-form"; installationId: string | null; folderId?: string | null }
   | { kind: "about" }
@@ -22,6 +24,8 @@ export function tabId(spec: TabSpec): string {
       return `installation:${spec.installationId}`;
     case "server":
       return `server:${spec.installationId}:${spec.serverId}`;
+    case "gpu":
+      return `gpu:${spec.installationId}`;
     default:
       return spec.kind;
   }

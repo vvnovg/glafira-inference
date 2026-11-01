@@ -2,7 +2,7 @@ import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import { createServer } from "node:http";
 import { test } from "node:test";
-import { handler, KINDS, liveMetrics, parseArgs, prometheusReply } from "./mock-server.mjs";
+import { dcgmMetrics, handler, KINDS, liveMetrics, parseArgs, prometheusReply } from "./mock-server.mjs";
 
 async function serve(opts) {
   const server = createServer(handler({ health: 200, apiKey: null, ...opts }));
@@ -154,7 +154,7 @@ test("ключ API у llama.cpp и Ollama — как у vLLM: только /v1",
 });
 
 test("--models empty: /v1/models отдаёт пустой список, остальное без изменений", async () => {
-  for (const kind of Object.keys(KINDS).filter((k) => !KINDS[k].prometheus)) {
+  for (const kind of Object.keys(KINDS).filter((k) => !KINDS[k].prometheus && !KINDS[k].dcgm)) {
     const s = await serve({ kind, models: "empty" });
     try {
       const r = await fetch(`${s.base}/v1/models`);
@@ -333,6 +333,99 @@ test("prometheus: --api-key закрывает всё, --slow задержива
     const ok = await fetch(`${s.base}/api/v1/query?query=up`, { headers: { authorization: "Bearer prom-t0ken" } });
     assert.equal(ok.status, 200);
     assert.equal((await ok.json()).data.result.length, 4);
+  } finally {
+    await s.close();
+  }
+});
+
+const DCGM = { gpus: 2, hostname: "localhost", model: null, pod: null, throttle: false, xid: 0, ecc: false };
+
+/** Серии /metrics экспортёра DCGM: [{ name, labels, value }]. */
+function series(text) {
+  return text
+    .split("\n")
+    .filter((l) => l && !l.startsWith("#"))
+    .map((l) => {
+      const [, name, labels, value] = /^(\w+)\{(.*)\} (\S+)$/.exec(l);
+      return { name, labels: Object.fromEntries([...labels.matchAll(/(\w+)="([^"]*)"/g)].map((m) => [m[1], m[2]])), value: Number(value) };
+    });
+}
+
+test("параметры DCGM: значения по умолчанию, свои и ошибки", () => {
+  assert.deepEqual(parseArgs(["--kind", "dcgm"]).dcgm, DCGM);
+  assert.deepEqual(
+    parseArgs(["--kind", "dcgm-full", "--gpus", "8", "--hostname", "gpu-node-1", "--model", "NVIDIA H200", "--pod", "llm/vllm-0", "--throttle", "--xid", "79", "--ecc"]).dcgm,
+    { gpus: 8, hostname: "gpu-node-1", model: "NVIDIA H200", pod: "llm/vllm-0", throttle: true, xid: 79, ecc: true },
+  );
+  assert.equal(parseArgs(["--kind", "vllm"]).dcgm, undefined);
+  assert.throws(() => parseArgs(["--kind", "vllm", "--gpus", "2"]), /только у видов dcgm/);
+  assert.throws(() => parseArgs(["--kind", "dcgm", "--gpus", "73"]), /--gpus.*Использование/s);
+  assert.throws(() => parseArgs(["--kind", "dcgm", "--pod", "vllm-0"]), /--pod/);
+  assert.throws(() => parseArgs(["--kind", "dcgm", "--hostname"]), /--hostname/);
+  assert.throws(() => parseArgs(["--kind", "dcgm", "--xid", "0"]), /--xid/);
+});
+
+test("dcgm: набор по умолчанию dcgm-exporter 4.8.4 — метки карты, без SM_ACTIVE, ECC и причин троттлинга", () => {
+  const all = series(dcgmMetrics("default", DCGM, 0));
+  const names = new Set(all.map((s) => s.name));
+  for (const name of ["DCGM_FI_DEV_GPU_UTIL", "DCGM_FI_DEV_FB_USED", "DCGM_FI_PROF_GR_ENGINE_ACTIVE", "DCGM_FI_DEV_XID_ERRORS", "DCGM_FI_DEV_PCIE_REPLAY_COUNTER"])
+    assert.ok(names.has(name), name);
+  for (const name of ["DCGM_FI_PROF_SM_ACTIVE", "DCGM_FI_DEV_ECC_DBE_VOL_TOTAL", "DCGM_FI_DEV_CLOCKS_EVENT_REASONS", "DCGM_EXP_XID_ERRORS_COUNT"])
+    assert.ok(!names.has(name), name);
+  const util = all.filter((s) => s.name === "DCGM_FI_DEV_GPU_UTIL");
+  assert.deepEqual(util.map((s) => s.labels.gpu), ["0", "1"]);
+  assert.deepEqual(Object.keys(util[0].labels), ["gpu", "UUID", "pci_bus_id", "device", "modelName", "hostname", "DCGM_FI_DRIVER_VERSION"]);
+  assert.equal(util[0].labels.modelName, "NVIDIA H100 80GB HBM3");
+  const mem = (name) => all.find((s) => s.name === name && s.labels.gpu === "0").value;
+  assert.equal(mem("DCGM_FI_DEV_FB_USED") + mem("DCGM_FI_DEV_FB_FREE") + mem("DCGM_FI_DEV_FB_RESERVED"), 81559);
+});
+
+test("dcgm-full, dcgm-4.1, dcgm-mig и --pod: дополнительные серии, метка Hostname, экземпляры MIG, метки Kubernetes", () => {
+  const full = new Set(series(dcgmMetrics("full", DCGM, 0)).map((s) => s.name));
+  for (const name of ["DCGM_FI_PROF_SM_ACTIVE", "DCGM_FI_DEV_ECC_SBE_VOL_TOTAL", "DCGM_FI_DEV_ECC_DBE_VOL_TOTAL", "DCGM_FI_DEV_CLOCKS_EVENT_REASONS", "DCGM_FI_DEV_POWER_VIOLATION", "DCGM_FI_DEV_NVLINK_CRC_ERROR_TOTAL"])
+    assert.ok(full.has(name), name);
+  const old = series(dcgmMetrics("4.1", { ...DCGM, hostname: "gpu-old" }, 0))[0];
+  assert.equal(old.labels.Hostname, "gpu-old");
+  assert.equal(old.labels.hostname, undefined);
+  assert.equal(old.labels.modelName, "NVIDIA A100-SXM4-80GB");
+  const mig = series(dcgmMetrics("mig", DCGM, 0));
+  assert.deepEqual(mig.filter((s) => s.name === "DCGM_FI_DEV_GPU_UTIL").map((s) => s.labels.gpu), ["1"], "у карты MIG нет утилизации");
+  const used = mig.filter((s) => s.name === "DCGM_FI_DEV_FB_USED" && s.labels.gpu === "0");
+  assert.deepEqual(used.map((s) => [s.labels.GPU_I_PROFILE, s.labels.GPU_I_ID]), [["3g.40gb", "1"], ["3g.40gb", "2"]]);
+  assert.ok(mig.some((s) => s.name === "DCGM_FI_DEV_GPU_TEMP" && s.labels.gpu === "0" && !s.labels.GPU_I_ID), "температура — у карты");
+  const pod = series(dcgmMetrics("default", { ...DCGM, pod: "llm/vllm-0" }, 0))[0].labels;
+  assert.deepEqual([pod.container, pod.namespace, pod.pod], ["vllm", "llm", "vllm-0"]);
+});
+
+test("dcgm: датчики меняются, счётчики растут; --throttle, --xid и --ecc включают проблемы", () => {
+  const at = (kind, o, poll, name, gpu = "0") => series(dcgmMetrics(kind, o, poll)).find((s) => s.name === name && s.labels.gpu === gpu)?.value;
+  assert.notEqual(at("default", DCGM, 0, "DCGM_FI_DEV_GPU_UTIL"), at("default", DCGM, 2, "DCGM_FI_DEV_GPU_UTIL"));
+  assert.ok(at("default", DCGM, 3, "DCGM_FI_DEV_TOTAL_ENERGY_CONSUMPTION") > at("default", DCGM, 1, "DCGM_FI_DEV_TOTAL_ENERGY_CONSUMPTION"));
+  assert.equal(at("full", DCGM, 5, "DCGM_FI_DEV_CLOCKS_EVENT_REASONS"), 0);
+  assert.equal(at("full", DCGM, 5, "DCGM_FI_DEV_XID_ERRORS"), 0);
+  const bad = { ...DCGM, throttle: true, xid: 79, ecc: true };
+  assert.equal(at("full", bad, 5, "DCGM_FI_DEV_CLOCKS_EVENT_REASONS"), 0x48, "HW_SLOWDOWN | HW_THERMAL");
+  assert.ok(at("full", bad, 5, "DCGM_FI_DEV_PCIE_REPLAY_COUNTER") > at("full", bad, 2, "DCGM_FI_DEV_PCIE_REPLAY_COUNTER"));
+  assert.ok(at("full", bad, 5, "DCGM_FI_DEV_NVLINK_CRC_ERROR_TOTAL") > 0);
+  assert.equal(at("full", bad, 5, "DCGM_FI_DEV_XID_ERRORS"), 79);
+  assert.equal(at("full", bad, 5, "DCGM_FI_DEV_XID_ERRORS", "1"), 0, "проблемы — только у карты 0");
+  assert.equal(at("full", bad, 5, "DCGM_FI_DEV_ECC_DBE_VOL_TOTAL"), 2);
+  assert.equal(at("full", bad, 5, "DCGM_EXP_XID_ERRORS_COUNT"), 1);
+  assert.equal(at("default", bad, 5, "DCGM_EXP_XID_ERRORS_COUNT"), undefined, "в наборе по умолчанию счётчика XID нет");
+});
+
+test("dcgm: /metrics по опросам; --api-key — пароль basic с логином glafira", async () => {
+  const s = await serve({ kind: "dcgm", dcgm: { ...DCGM, gpus: 3 }, apiKey: "dcgm-pa55" });
+  try {
+    assert.equal((await fetch(`${s.base}/metrics`)).status, 401);
+    assert.equal((await fetch(`${s.base}/metrics`, { headers: { authorization: "Bearer dcgm-pa55" } })).status, 401);
+    const auth = { authorization: `Basic ${Buffer.from("glafira:dcgm-pa55").toString("base64")}` };
+    const r = await fetch(`${s.base}/metrics`, { headers: auth });
+    assert.equal(r.status, 200);
+    assert.match(r.headers.get("content-type"), /text\/plain/);
+    const util = series(await r.text()).filter((x) => x.name === "DCGM_FI_DEV_GPU_UTIL");
+    assert.equal(util.length, 3);
+    assert.equal((await fetch(`${s.base}/nope`, { headers: auth })).status, 404);
   } finally {
     await s.close();
   }

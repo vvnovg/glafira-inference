@@ -1,13 +1,31 @@
 {
   "ru": [
     "errors.generic",
+    "gpu.alerts.ecc",
+    "gpu.alerts.eccCorrectable",
+    "gpu.alerts.nvlink",
+    "gpu.alerts.pcie",
+    "gpu.alerts.xid",
+    "gpu.card.mig",
+    "gpu.card.sm",
+    "gpu.card.title",
+    "gpu.charts.sm",
+    "gpu.charts.smClock",
+    "gpu.panel.title",
+    "gpu.units.celsius",
+    "gpu.units.percent",
     "installations.form.kinds.sglang",
     "installations.form.kinds.vllm",
     "installations.form.step.tcp",
     "installations.form.step.tls",
+    "installations.gpu.binding",
+    "installations.gpu.title",
     "messages.connectionTest.kind",
     "messages.connectionTest.kindVersion",
     "servers.metrics.sources.prometheus",
-    "servers.metrics.sources.victoriametrics"
+    "servers.metrics.sources.victoriametrics",
+    "sidebar.gpu",
+    "sidebar.gpuCount",
+    "tabs.gpu"
   ]
 }

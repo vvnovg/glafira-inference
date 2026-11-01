@@ -22,6 +22,10 @@ shows their number. The tiles show the current state:
 "No data" means the server does not expose the series (the tile's tooltip names it) or there were no requests in the
 interval. Glafira never shows zero in place of an unknown value.
 
+If the installation has a GPU component, the [[ui:gpu.overview.server]] block below the tiles shows the GPUs the server
+is bound to with utilization, memory, temperature and problem badges. The binding is set in the installation form — see
+[GPU](gpu.md#binding).
+
 ## Percentiles {#percentiles}
 
 Percentiles come from the server's histograms, the same way as `histogram_quantile` in Prometheus, with linear
