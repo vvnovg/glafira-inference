@@ -129,4 +129,16 @@ describe("GpuPanel", () => {
     expect(boundServers(profile(), "gpu-1")).toEqual(["vllm-1"]);
     expect(boundServers(profile(), "gpu-2")).toEqual([]);
   });
+
+  it("активное окно подсвечивается правилом .server-metrics .toolbar button.active", async () => {
+    vi.mocked(api.readGpuStatus).mockResolvedValue(status(1, [host("gpu-1", [card(0)])]));
+    renderWithClient(<GpuPanel installationId="i1" />);
+    await screen.findByRole("region", { name: "gpu-1" });
+    const pressed = screen.getByRole("button", { name: "Сейчас", pressed: true });
+    expect(pressed).toHaveClass("active");
+    const toolbar = pressed.closest(".toolbar");
+    expect(toolbar).not.toBeNull();
+    expect(toolbar).not.toHaveClass("server-metrics");
+    expect(toolbar!.parentElement?.closest(".server-metrics")).not.toBeNull();
+  });
 });

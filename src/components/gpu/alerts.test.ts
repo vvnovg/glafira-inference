@@ -22,11 +22,17 @@ describe("значки карты", () => {
     expect(cardAlerts(bad)).toEqual([
       { kind: "throttle", severity: "warn", params: { reasons: "HW_SLOWDOWN, HW_THERMAL, POWER 40 %" } },
       { kind: "xid", severity: "danger", params: { code: "79", count: "1" } },
-      { kind: "ecc", severity: "danger", params: { dbe: "2", remap: "1" } },
+      { kind: "ecc", severity: "danger", params: { dbe: "2", remap: "1", failed: "0" } },
       { kind: "nvlink", severity: "warn", params: { count: "3" } },
       { kind: "pcie", severity: "warn", params: { count: "6" } },
     ]);
     expect(cardAlerts(card(0, { values: {}, deltas: { eccSbe: 2 } }))).toEqual([{ kind: "eccCorrectable", severity: "warn", params: { count: "2" } }]);
     expect(cardAlerts(card(0, { values: {}, deltas: { thermalViolation: 12.345 } }))[0].params.reasons).toBe("THERMAL 12.3 %");
+  });
+
+  it("сбой переназначения строк без ошибок ECC — значок называет причину", () => {
+    expect(cardAlerts(card(0, { values: { eccDbe: 0, remapFailure: 1 } }))).toEqual([
+      { kind: "ecc", severity: "danger", params: { dbe: "0", remap: "0", failed: "1" } },
+    ]);
   });
 });

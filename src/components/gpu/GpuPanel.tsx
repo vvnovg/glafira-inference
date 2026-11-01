@@ -58,25 +58,27 @@ export function GpuPanel({ installationId }: { installationId: string }) {
           {profile.name}
         </button>
       </div>
-      <div className="toolbar server-metrics" role="group" aria-label={t("servers.metrics.window")}>
-        {WINDOWS.map((w) => (
-          <button
-            key={w}
-            type="button"
-            className={w === win ? "active" : undefined}
-            aria-pressed={w === win}
-            disabled={w !== "now" && !!unavailable}
-            title={w !== "now" && unavailable ? t(unavailable) : undefined}
-            onClick={() => setWin(w)}
-          >
-            {t(`servers.metrics.windows.${w}`)}
-          </button>
-        ))}
-        {win !== "now" && (
-          <button type="button" onClick={() => void queryClient.invalidateQueries({ queryKey: ["gpu-history", installationId] })}>
-            {t("common.refresh")}
-          </button>
-        )}
+      <div className="server-metrics">
+        <div className="toolbar" role="group" aria-label={t("servers.metrics.window")}>
+          {WINDOWS.map((w) => (
+            <button
+              key={w}
+              type="button"
+              className={w === win ? "active" : undefined}
+              aria-pressed={w === win}
+              disabled={w !== "now" && !!unavailable}
+              title={w !== "now" && unavailable ? t(unavailable) : undefined}
+              onClick={() => setWin(w)}
+            >
+              {t(`servers.metrics.windows.${w}`)}
+            </button>
+          ))}
+          {win !== "now" && (
+            <button type="button" onClick={() => void queryClient.invalidateQueries({ queryKey: ["gpu-history", installationId] })}>
+              {t("common.refresh")}
+            </button>
+          )}
+        </div>
       </div>
       {live.isPending && !live.error && <p className="muted">{t("common.loading")}</p>}
       {live.error && <ErrorBanner error={live.error} onRetry={() => void live.refetch()} />}

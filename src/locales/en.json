@@ -656,7 +656,7 @@
       "xid": "XID {{code}}",
       "xidHint": "The last XID error of the driver is {{code}} (errors in the exporter window: {{count}}); it stays until the driver reloads",
       "ecc": "ECC: {{dbe}}",
-      "eccHint": "Uncorrectable ECC errors: {{dbe}}, remapped rows for uncorrectable errors: {{remap}}",
+      "eccHint": "Uncorrectable ECC errors: {{dbe}}, remapped rows for uncorrectable errors: {{remap}}, row remap failures: {{failed}}",
       "eccCorrectable": "ECC +{{count}}",
       "eccCorrectableHint": "Correctable ECC errors in the last minute: {{count}}",
       "nvlink": "NVLink +{{count}}",

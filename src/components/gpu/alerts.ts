@@ -53,8 +53,10 @@ export function cardAlerts(c: GpuCard): CardAlert[] {
     });
   if (v.xid != null && v.xid > 0) out.push({ kind: "xid", severity: "danger", params: { code: String(v.xid), count: String(v.xidCount ?? "—") } });
   const dbe = v.eccDbe ?? 0;
-  const remap = (v.remapUncorrectable ?? 0) + (v.remapFailure ?? 0);
-  if (dbe > 0 || remap > 0) out.push({ kind: "ecc", severity: "danger", params: { dbe: String(dbe), remap: String(v.remapUncorrectable ?? 0) } });
+  const remapUncorrectable = v.remapUncorrectable ?? 0;
+  const remapFailure = v.remapFailure ?? 0;
+  if (dbe > 0 || remapUncorrectable + remapFailure > 0)
+    out.push({ kind: "ecc", severity: "danger", params: { dbe: String(dbe), remap: String(remapUncorrectable), failed: String(remapFailure) } });
   else if ((d.eccSbe ?? 0) > 0) out.push({ kind: "eccCorrectable", severity: "warn", params: { count: String(d.eccSbe) } });
   if ((d.nvlinkErrors ?? 0) > 0) out.push({ kind: "nvlink", severity: "warn", params: { count: String(d.nvlinkErrors) } });
   if ((d.pcieReplay ?? 0) > 0) out.push({ kind: "pcie", severity: "warn", params: { count: String(d.pcieReplay) } });
