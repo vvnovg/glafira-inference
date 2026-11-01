@@ -3,6 +3,7 @@ pub mod i18n;
 pub mod commands;
 mod dock_name;
 pub mod error;
+pub mod gpu;
 pub mod history;
 pub mod logging;
 pub mod metrics;
