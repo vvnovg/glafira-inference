@@ -17,7 +17,7 @@ use crate::policy::PolicyStatus;
 use crate::servers::client::{METRICS_LIMIT, ServerClient, Timeouts};
 use crate::storage::profile::{
     DirectGpu, GPU_NAME, GpuAuth, GpuExporter, PrometheusGpu, ServerConfig, ServerKind,
-    parse_exporter_url, redact_url,
+    exporter_metrics_path, parse_exporter_url, redact_url,
 };
 
 /// Сколько экспортёров опрашивается одновременно.
@@ -42,7 +42,7 @@ pub struct GpuSnapshot {
 }
 
 /// Экспортёр как адрес с настройками соединения: так его открывает общий HTTP-клиент и шаг
-/// «DNS/TCP» проверки. Путь адреса — путь метрик.
+/// «DNS/TCP» проверки. Путь адреса — путь метрик (без пути — `/metrics`, `/` на конце не считается).
 pub fn exporter_server(e: &GpuExporter, d: &DirectGpu) -> AppResult<ServerConfig> {
     let url = parse_exporter_url(e)?;
     Ok(ServerConfig {
@@ -50,7 +50,7 @@ pub fn exporter_server(e: &GpuExporter, d: &DirectGpu) -> AppResult<ServerConfig
         name: GPU_NAME.into(),
         base_url: url.origin().ascii_serialization(),
         kind: ServerKind::Auto,
-        metrics_path: url.path().to_string(),
+        metrics_path: exporter_metrics_path(&url),
         ca: d.ca.clone(),
         proxy: d.proxy.clone(),
         history_selector: None,

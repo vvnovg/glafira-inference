@@ -37,4 +37,14 @@ describe("значки карты", () => {
     // Некорректируемые ошибки главнее: бейдж остаётся «ECC: N».
     expect(cardAlerts(card(0, { values: { eccDbe: 2, remapFailure: 1 } }))[0].kind).toBe("ecc");
   });
+
+  it("переназначенные строки без ошибок и сбоев (после перезагрузки драйвера) — свой значок, не «ECC: 0»", () => {
+    expect(cardAlerts(card(0, { values: { eccDbe: 0, remapUncorrectable: 3 } }))).toEqual([
+      { kind: "eccRemapped", severity: "danger", params: { dbe: "0", remap: "3", failed: "0", count: "3" } },
+    ]);
+    // Порядок: ошибки → сбой переназначения → переназначенные строки → рост корректируемых.
+    expect(cardAlerts(card(0, { values: { eccDbe: 1, remapUncorrectable: 3 } }))[0].kind).toBe("ecc");
+    expect(cardAlerts(card(0, { values: { remapFailure: 1, remapUncorrectable: 3 } }))[0].kind).toBe("eccRemapFailure");
+    expect(cardAlerts(card(0, { values: { remapUncorrectable: 3 }, deltas: { eccSbe: 2 } })).map((a) => a.kind)).toEqual(["eccRemapped"]);
+  });
 });

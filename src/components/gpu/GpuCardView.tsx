@@ -14,9 +14,20 @@ function Bar({ pct }: { pct: number }) {
 
 /**
  * Карточка карты (спека I1d §5): номер и модель, утилизация, активность SM (запасная — с пометкой), память, температура,
- * мощность, значки проблем с расшифровкой, нагрузка Kubernetes и экземпляры MIG. Поле без серии — «нет данных».
+ * мощность, подпись экспортёра (если номер карты повторяется у хоста), значки проблем с расшифровкой, нагрузка Kubernetes и экземпляры MIG. Поле без серии — «нет данных».
  */
-export function GpuCardView({ card, selected, onSelect }: { card: GpuCard; selected: boolean; onSelect: () => void }) {
+export function GpuCardView({
+  card,
+  selected,
+  showExporter = false,
+  onSelect,
+}: {
+  card: GpuCard;
+  selected: boolean;
+  /** Номер карты повторяется у хоста — подписать экспортёр. */
+  showExporter?: boolean;
+  onSelect: () => void;
+}) {
   const { t } = useTranslation();
   const v = card.values;
   const none = <span className="muted">{t("gpu.card.noData")}</span>;
@@ -28,6 +39,7 @@ export function GpuCardView({ card, selected, onSelect }: { card: GpuCard; selec
       <button type="button" className="link gpu-card-title" aria-pressed={selected} onClick={onSelect} title={card.uuid}>
         <strong>{t("gpu.card.title", { index: card.index })}</strong> <span className="muted">{card.model ?? ""}</span>
       </button>
+      {showExporter && card.exporter && <p className="muted">{t("gpu.card.exporter", { exporter: card.exporter })}</p>}
       <dl className="facts">
         <dt>{t("gpu.card.util")}</dt>
         <dd>

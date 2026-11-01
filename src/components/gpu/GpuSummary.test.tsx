@@ -29,9 +29,11 @@ describe("сводка GPU", () => {
       card(0, { values: { util: 80, memUsed: 1024, memTotal: 2048, temp: 70 } }),
       card(1, { values: { util: 40, memUsed: 1024, memTotal: 2048, temp: 85, xid: 79 } }),
     ]);
-    expect(hostSummary(h)).toEqual({ host: "gpu-1", model: "NVIDIA H100 80GB HBM3", count: 2, avgUtil: 60, memUsed: 2048, memTotal: 4096, maxTemp: 85, troubled: 1 });
+    expect(hostSummary(h)).toEqual({ host: "gpu-1", model: "NVIDIA H100 80GB HBM3", mixed: false, count: 2, avgUtil: 60, memUsed: 2048, memTotal: 4096, maxTemp: 85, troubled: 1 });
     const mixed = hostSummary(host("x", [card(0), card(1, { model: "NVIDIA A100", values: {} })]));
-    expect(mixed.model).toBeNull();
+    expect(mixed).toMatchObject({ model: null, mixed: true });
+    // Ни у одной карты нет модели — это «неизвестно», а не «разные».
+    expect(hostSummary(host("z", [card(0, { model: undefined }), card(1, { model: undefined })]))).toMatchObject({ model: null, mixed: false });
     expect(hostSummary(host("y", [card(0, { values: {} })]))).toMatchObject({ avgUtil: null, memUsed: null, maxTemp: null });
   });
 

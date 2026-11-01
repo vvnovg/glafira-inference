@@ -49,14 +49,15 @@ servers) and GPU cards. A field without a series reads “no data”, not zero. 
 |---|---|
 | Throttling | Clocks are reduced by power or temperature (`SW_POWER_CAP`, `HW_SLOWDOWN`, `SW_THERMAL`, `HW_THERMAL`, `HW_POWER_BRAKE`) or by the throttle time counters |
 | XID | The last XID error of the driver; stays until the driver reloads |
-| ECC: N | Uncorrectable ECC errors or remapped memory rows — a reason to replace the card |
+| ECC: N | Uncorrectable ECC errors — a reason to replace the card |
 | ECC: remap failure | A memory row remap failure with no uncorrectable errors counted — a reason to replace the card |
+| ECC: rows N | Memory rows were remapped after uncorrectable errors, and there are no errors or failures now (for example, after a driver reload) — the card has bad memory, consider replacing it |
 | ECC +N | Correctable ECC errors in the last minute |
 | NVLink +N, PCIe +N | NVLink errors and PCIe replays in the last minute |
 
 The ECC badges are exclusive and picked in this order: uncorrectable errors give “ECC: N”, otherwise a row remap
-failure gives “ECC: remap failure”, otherwise growth of correctable errors gives “ECC +N”. The badge hint lists the
-numbers: errors, remapped rows and remap failures.
+failure gives “ECC: remap failure”, otherwise remapped rows give “ECC: rows N”, otherwise growth of correctable errors
+gives “ECC +N”. The badge hint lists the numbers: errors, remapped rows and remap failures.
 
 “Workload” is the pod and namespace from the Kubernetes labels of the exporter. GPUs in MIG mode list their instances;
 Glafira does not show instance metrics yet.

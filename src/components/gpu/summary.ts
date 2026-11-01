@@ -4,8 +4,10 @@ import { cardAlerts } from "./alerts";
 /** Строка хоста в «Обзоре» инсталляции (спека I1d §5). */
 export interface HostSummary {
   host: string;
-  /** Модель карт; у разных моделей — `null`. */
+  /** Модель карт; `null` — моделей несколько (`mixed`) или ни у одной карты нет. */
   model: string | null;
+  /** Карты разных моделей. */
+  mixed: boolean;
   count: number;
   avgUtil: number | null;
   memUsed: number | null;
@@ -19,14 +21,15 @@ const values = (cards: GpuCard[], f: (c: GpuCard) => number | undefined) =>
   cards.map(f).filter((v): v is number => typeof v === "number");
 
 export function hostSummary(h: GpuHost): HostSummary {
-  const models = new Set(h.cards.map((c) => c.model ?? ""));
+  const models = new Set(h.cards.map((c) => c.model).filter((m): m is string => !!m));
   const util = values(h.cards, (c) => c.values.util);
   const used = values(h.cards, (c) => c.values.memUsed);
   const total = values(h.cards, (c) => c.values.memTotal);
   const temp = values(h.cards, (c) => c.values.temp);
   return {
     host: h.host,
-    model: models.size === 1 ? [...models][0] || null : null,
+    model: models.size === 1 ? [...models][0] : null,
+    mixed: models.size > 1,
     count: h.cards.length,
     avgUtil: util.length ? util.reduce((a, b) => a + b, 0) / util.length : null,
     memUsed: used.length ? used.reduce((a, b) => a + b, 0) : null,

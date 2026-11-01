@@ -14,7 +14,14 @@ export interface GpuNowPoint {
 /** Буфер «Сейчас»: карта (`cardKey`) → точки за последний час. */
 export type GpuBuffer = Record<string, GpuNowPoint[]>;
 
-export const cardKey = (host: string, index: number) => `${host}\u0000${index}`;
+/** Карта в буфере: хост, номер и экспортёр — две карты с одним хостом и номером от разных экспортёров не сливаются. */
+export const cardKey = (host: string, index: number, exporter?: string) => `${host}\u0000${index}\u0000${exporter ?? ""}`;
+
+/** Карта хоста для рядов: номер и экспортёр (режим `direct`). */
+export interface CardRef {
+  index: number;
+  exporter?: string;
+}
 
 function append(points: GpuNowPoint[] | undefined, p: GpuNowPoint, windowMs: number): GpuNowPoint[] {
   const list = points ?? [];
@@ -29,7 +36,7 @@ export function appendStatus(buf: GpuBuffer, status: GpuStatus, windowMs = WINDO
   const next: GpuBuffer = { ...buf };
   for (const h of status.hosts)
     for (const c of h.cards) {
-      const key = cardKey(h.host, c.index);
+      const key = cardKey(h.host, c.index, c.exporter);
       next[key] = append(buf[key], { at: status.at, values: c.values }, windowMs);
     }
   return next;
@@ -104,13 +111,14 @@ export function useGpuHistory(installationId: string, window: HistoryWindow, hos
 }
 
 /**
- * Ряды окна «Сейчас» карт `indices` хоста `host`: точки истории (окно `now`) раньше первой живой точки карты, затем
- * буфер опроса.
+ * Ряды окна «Сейчас» карт `cards` хоста `host` (по номеру карты): точки истории (окно `now`) раньше первой живой
+ * точки карты, затем буфер опроса. История — по паре «хост + номер»; при повторе номера берётся первая карта.
  */
-export function nowSeries(buffer: GpuBuffer, host: string, indices: number[], history?: GpuHistoryAnswer): Record<number, GpuNowPoint[]> {
+export function nowSeries(buffer: GpuBuffer, host: string, cards: CardRef[], history?: GpuHistoryAnswer): Record<number, GpuNowPoint[]> {
   const out: Record<number, GpuNowPoint[]> = {};
-  for (const index of indices) {
-    const live = buffer[cardKey(host, index)] ?? [];
+  for (const { index, exporter } of cards) {
+    if (index in out) continue;
+    const live = buffer[cardKey(host, index, exporter)] ?? [];
     const first = live.length > 0 ? live[0].at : Number.POSITIVE_INFINITY;
     const past = history?.series.find((s) => s.host === host && s.gpu === index)?.points.filter((p) => p.at < first) ?? [];
     out[index] = [...past, ...live];

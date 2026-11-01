@@ -36,12 +36,24 @@ describe("буфер «Сейчас» карт", () => {
       series: [{ host: "gpu-1", gpu: 0, points: [{ at: 15_000, values: { util: 1 } }, { at: 30_000, values: { util: 2 } }] }],
       partial: [],
     };
-    const s = nowSeries(b, "gpu-1", [0, 1, 2], history);
+    const s = nowSeries(b, "gpu-1", [{ index: 0 }, { index: 1 }, { index: 2 }], history);
     expect(s[0].map((p) => p.at)).toEqual([15_000, 30_000]);
     expect(s[0][0].values).toEqual({ util: 1 });
     expect(s[1].map((p) => p.at)).toEqual([30_000]);
     expect(s[2]).toEqual([]);
-    expect(nowSeries(b, "gpu-1", [0])[0]).toHaveLength(1);
+    expect(nowSeries(b, "gpu-1", [{ index: 0 }])[0]).toHaveLength(1);
+  });
+
+  it("карты с одним хостом и номером от разных экспортёров не затирают буфер друг друга", () => {
+    const a = card(0, { exporter: "http://10.0.0.5:9400/metrics", values: { util: 10 } });
+    const b = card(0, { exporter: "http://gpu-1:9400/metrics", values: { util: 20 } });
+    let buf = {};
+    for (const at of [0, 5_000]) buf = appendStatus(buf, status(at, [host("gpu-1", [a, b])]));
+    expect(Object.keys(buf)).toEqual([cardKey("gpu-1", 0, a.exporter), cardKey("gpu-1", 0, b.exporter)]);
+    const buffer = buf as Record<string, { at: number; values: { util?: number } | null }[]>;
+    expect(buffer[cardKey("gpu-1", 0, a.exporter)].map((p) => p.values?.util)).toEqual([10, 10]);
+    expect(buffer[cardKey("gpu-1", 0, b.exporter)].map((p) => p.values?.util)).toEqual([20, 20]);
+    expect(nowSeries(buf, "gpu-1", [{ index: 0, exporter: b.exporter }])[0][0].values).toEqual({ util: 20 });
   });
 });
 

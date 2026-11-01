@@ -122,6 +122,26 @@ describe("GpuPanel", () => {
     expect(await screen.findByText(/Шаг 1 мин · Prometheus/)).toBeInTheDocument();
   });
 
+  it("номер карты повторяется у хоста (один экспортёр дважды) — подпись экспортёра и независимый выбор", async () => {
+    const ip = "http://10.0.0.5:9400/metrics";
+    const name = "http://gpu-1:9400/metrics";
+    vi.mocked(api.readGpuStatus).mockResolvedValue(
+      status(1, [host("gpu-1", [card(0, { exporter: ip }), card(0, { exporter: name }), card(1, { exporter: ip })])]),
+    );
+    const user = userEvent.setup();
+    renderWithClient(<GpuPanel installationId="i1" />);
+    await screen.findByRole("region", { name: "gpu-1" });
+    const zeros = screen.getAllByRole("region", { name: "GPU 0" });
+    expect(zeros).toHaveLength(2);
+    expect(within(zeros[0]).getByText(`Экспортёр: ${ip}`)).toBeInTheDocument();
+    expect(within(zeros[1]).getByText(`Экспортёр: ${name}`)).toBeInTheDocument();
+    expect(within(screen.getByRole("region", { name: "GPU 1" })).queryByText(/Экспортёр:/)).not.toBeInTheDocument();
+    await user.click(within(zeros[1]).getByRole("button", { name: /GPU 0/ }));
+    const after = screen.getAllByRole("region", { name: "GPU 0" });
+    expect(after[0]).not.toHaveClass("selected");
+    expect(after[1]).toHaveClass("selected");
+  });
+
   it("без компонента GPU — подсказка; помощники доступности истории и привязанных серверов", async () => {
     vi.mocked(api.listInstallations).mockResolvedValue([profile({ gpu: undefined })]);
     renderWithClient(<GpuPanel installationId="i1" />);

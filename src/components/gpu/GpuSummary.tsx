@@ -45,7 +45,7 @@ export function GpuHostsBlock({ profile }: { profile: InstallationProfile }) {
                     {s.host}
                   </button>
                 </td>
-                <td>{s.model ?? t("gpu.overview.mixed")}</td>
+                <td>{s.model ?? (s.mixed ? t("gpu.overview.mixed") : "—")}</td>
                 <td>{s.count}</td>
                 <td>{pct(s.avgUtil)}</td>
                 <td>

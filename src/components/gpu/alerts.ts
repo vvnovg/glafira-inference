@@ -21,7 +21,7 @@ export function reasons(mask: number): string[] {
   return REASONS.filter(([bit]) => (mask & bit) !== 0).map(([, name]) => name);
 }
 
-export type AlertKind = "throttle" | "xid" | "ecc" | "eccRemapFailure" | "eccCorrectable" | "nvlink" | "pcie";
+export type AlertKind = "throttle" | "xid" | "ecc" | "eccRemapFailure" | "eccRemapped" | "eccCorrectable" | "nvlink" | "pcie";
 
 /** Значок проблемы карты: вид, серьёзность и параметры подсказки (`gpu.alerts.<вид>`). */
 export interface CardAlert {
@@ -34,7 +34,7 @@ const fmt = (v: number) => String(Math.round(v * 10) / 10);
 
 /**
  * Значки карты (спека I1d §5): троттлинг (причины из маски или доля времени по счётчикам), последняя XID-ошибка,
- * некорректируемые ECC и сбои переназначения строк, корректируемые ECC, ошибки NVLink и повторы PCIe за минуту.
+ * некорректируемые ECC, сбои переназначения и переназначенные строки, корректируемые ECC, ошибки NVLink и повторы PCIe за минуту.
  */
 export function cardAlerts(c: GpuCard): CardAlert[] {
   const v = c.values;
@@ -56,10 +56,11 @@ export function cardAlerts(c: GpuCard): CardAlert[] {
   const remapUncorrectable = v.remapUncorrectable ?? 0;
   const remapFailure = v.remapFailure ?? 0;
   const ecc = { dbe: String(dbe), remap: String(remapUncorrectable), failed: String(remapFailure) };
-  // Без некорректируемых ошибок бейдж «ECC: 0» ничего не сказал бы — сбой переназначения называет сам бейдж.
+  // Без некорректируемых ошибок бейдж «ECC: 0» ничего не сказал бы — сбой переназначения и переназначенные строки
+  // (после перезагрузки драйвера ошибки обнуляются, строки остаются) называют себя сами.
   if (dbe > 0) out.push({ kind: "ecc", severity: "danger", params: ecc });
   else if (remapFailure > 0) out.push({ kind: "eccRemapFailure", severity: "danger", params: ecc });
-  else if (remapUncorrectable > 0) out.push({ kind: "ecc", severity: "danger", params: ecc });
+  else if (remapUncorrectable > 0) out.push({ kind: "eccRemapped", severity: "danger", params: { ...ecc, count: ecc.remap } });
   else if ((d.eccSbe ?? 0) > 0) out.push({ kind: "eccCorrectable", severity: "warn", params: { count: String(d.eccSbe) } });
   if ((d.nvlinkErrors ?? 0) > 0) out.push({ kind: "nvlink", severity: "warn", params: { count: String(d.nvlinkErrors) } });
   if ((d.pcieReplay ?? 0) > 0) out.push({ kind: "pcie", severity: "warn", params: { count: String(d.pcieReplay) } });

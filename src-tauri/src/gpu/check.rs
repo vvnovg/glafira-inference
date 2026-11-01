@@ -497,6 +497,44 @@ async fn history_step(
     }
 }
 
+/// Предупреждения о картах с одним хостом и номером от разных экспортёров (один экспортёр,
+/// записанный дважды — по IP и по имени): по шагу на хост; показываются обе карты (спека I1d §2).
+fn duplicate_steps(cards: &[GpuCard]) -> Vec<TestStep> {
+    let mut by_card: BTreeMap<(&str, u32), Vec<&str>> = BTreeMap::new();
+    for c in cards {
+        let list = by_card.entry((&c.host, c.index)).or_default();
+        if let Some(e) = c.exporter.as_deref().filter(|e| !list.contains(e)) {
+            list.push(e);
+        }
+    }
+    // Хост → число повторных карт и адреса экспортёров, от которых они пришли.
+    let mut by_host: BTreeMap<&str, (usize, Vec<&str>)> = BTreeMap::new();
+    for ((host, _), exporters) in by_card.iter().filter(|(_, e)| e.len() > 1) {
+        let entry = by_host.entry(host).or_default();
+        entry.0 += 1;
+        for e in exporters {
+            if !entry.1.contains(e) {
+                entry.1.push(e);
+            }
+        }
+    }
+    by_host
+        .into_iter()
+        .map(|(host, (count, exporters))| {
+            warning_step(
+                "cards",
+                ltext!(
+                    "messages.gpuTest.duplicateCards",
+                    "Host {{host}}: {{count}} GPUs are reported by several exporters ({{exporters}}) — is one exporter listed twice? Both cards are shown",
+                    host = host,
+                    count = count,
+                    exporters = exporters.join(", ")
+                ),
+            )
+        })
+        .collect()
+}
+
 /// Шаги-подсказки о группах счётчиков, которых нет ни у одной карты.
 fn counter_steps(groups: &[Group]) -> Vec<TestStep> {
     groups
@@ -557,13 +595,18 @@ pub async fn check_gpu(
         return finish(out, vec![failed_step("config", e)]);
     }
     let timeouts = Timeouts::from(p);
+    // Сбой клиента истории в режиме `direct` — шаг `history` ниже: экспортёры проверяются и без него.
+    let mut history_error = None;
     let history = match &p.history {
         Some(h) => match HistoryClient::new(h, timeouts, history_secret, policy) {
             Ok(c) => Some(c),
             Err(e) if matches!(g, GpuSource::Prometheus(_)) => {
                 return finish(out, vec![failed_step("config", e)]);
             }
-            Err(_) => None,
+            Err(e) => {
+                history_error = Some(e);
+                None
+            }
         },
         None => None,
     };
@@ -582,6 +625,7 @@ pub async fn check_gpu(
             if cards.len() > MAX_GPUS {
                 steps.push(failed_step("cards", too_many_gpus(cards.len())));
             }
+            steps.extend(duplicate_steps(&cards));
             let groups = missing(&cards);
             let hosts = hosts_of(cards.iter().map(|c| (c.host.as_str(), c.index)));
             out.hosts = hosts.clone();
@@ -590,6 +634,9 @@ pub async fn check_gpu(
                     let step = bind_step(server, &hosts, &mut out.bindings);
                     steps.push(step);
                 }
+            }
+            if let Some(e) = history_error {
+                steps.push(failed_step("history", e));
             }
             if let Some(client) = &history {
                 match client.query(TARGETS).await {
@@ -756,6 +803,74 @@ mod tests {
             ]
         );
         assert!(c.report.ok, "подсказки — не ошибки");
+    }
+
+    #[tokio::test]
+    async fn address_without_a_path_or_with_a_slash_reads_metrics() {
+        let a = TestServer::start(vec![("/metrics", Reply::text(FULL))]).await;
+        for url in [
+            a.url(),
+            format!("{}/", a.url()),
+            format!("{}/metrics/", a.url()),
+        ] {
+            let p = direct_profile(std::slice::from_ref(&url));
+            let c = check_gpu(&p, None, None, &PolicyStatus::default()).await;
+            assert!(c.report.ok, "{url}: {:?}", c.report);
+            assert_eq!(keys(&c)[1], "messages.gpuTest.exporterCards", "{url}");
+        }
+    }
+
+    #[tokio::test]
+    async fn the_same_exporter_twice_warns_about_repeated_cards() {
+        let a = TestServer::start(vec![("/metrics", Reply::text(FULL))]).await;
+        let b = TestServer::start(vec![("/metrics", Reply::text(FULL))]).await;
+        let (ua, ub) = (
+            format!("{}/metrics", a.url()),
+            format!("{}/metrics", b.url()),
+        );
+        let p = direct_profile(&[ua.clone(), ub.clone()]);
+        let c = check_gpu(&p, None, None, &PolicyStatus::default()).await;
+        assert!(
+            c.report.ok,
+            "предупреждение не валит проверку: {:?}",
+            c.report
+        );
+        let dup: Vec<&TestStep> = c
+            .report
+            .steps
+            .iter()
+            .filter(|s| s.message.key == "messages.gpuTest.duplicateCards")
+            .collect();
+        assert_eq!(dup.len(), 1);
+        assert_eq!(
+            (dup[0].name, dup[0].ok, dup[0].warning),
+            ("cards", true, true)
+        );
+        assert_eq!(dup[0].message.params["host"], "gpu-node-1");
+        assert_eq!(dup[0].message.params["count"], "8");
+        assert_eq!(dup[0].message.params["exporters"], format!("{ua}, {ub}"));
+
+        let different = direct_profile(&[ua]);
+        let c = check_gpu(&different, None, None, &PolicyStatus::default()).await;
+        assert!(!keys(&c).contains(&"messages.gpuTest.duplicateCards"));
+    }
+
+    #[tokio::test]
+    async fn a_history_client_error_is_a_history_step_in_direct_mode() {
+        let a = TestServer::start(vec![("/metrics", Reply::text(FULL))]).await;
+        let mut p = direct_profile(&[format!("{}/metrics", a.url())]);
+        let mut h = history_source("http://prom:9090", HistoryAuth::None);
+        h.url = "ftp://prom".into();
+        p.history = Some(h);
+        let c = check_gpu(&p, None, None, &PolicyStatus::default()).await;
+        assert!(!c.report.ok);
+        let step = c.report.steps.iter().find(|s| s.name == "history").unwrap();
+        assert!(!step.ok && step.error.is_some(), "{step:?}");
+        assert_eq!(
+            keys(&c)[1],
+            "messages.gpuTest.exporterCards",
+            "экспортёры проверены"
+        );
     }
 
     #[tokio::test]

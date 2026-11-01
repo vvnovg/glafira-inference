@@ -70,6 +70,8 @@ prometheus --config.file=scripts/prometheus/smoke.yml --storage.tsdb.path=/tmp/g
 Отложено до стенда с GPU:
 
 13. Настоящий dcgm-exporter: сверка формата меток (`hostname`/`Hostname`, `UUID`/`uuid`, `DCGM_FI_DRIVER_VERSION`) и
-    единиц (МиБ, Вт, доли у `PROF_*`) с моком — первым делом.
+    единиц (МиБ, Вт, доли у `PROF_*`) с моком — первым делом. Отдельно — единицы счётчиков
+    `DCGM_FI_DEV_POWER_VIOLATION` и `DCGM_FI_DEV_THERMAL_VIOLATION` (наносекунды или микросекунды): от них зависит
+    доля времени троттлинга в значке.
 14. Троттлинг и ошибки под нагрузкой; карты A100/H100 с NVLink; MIG на настоящей карте.
 15. dcgm-exporter в Kubernetes (GPU Operator): метки `pod`/`namespace` и «Нагрузка» на карточке.

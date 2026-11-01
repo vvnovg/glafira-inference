@@ -2,7 +2,7 @@ import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useState } from "react";
 import { useTranslation } from "react-i18next";
 import { api, toAppError } from "../../api/client";
-import type { HistoryWindow, InstallationProfile } from "../../api/types";
+import type { GpuCard, HistoryWindow, InstallationProfile } from "../../api/types";
 import { tr } from "../../i18n/text";
 import { useWorkspace } from "../../state/workspace";
 import { EnvBadge } from "../common/EnvBadge";
@@ -18,6 +18,14 @@ export function gpuHistoryUnavailable(p: InstallationProfile): string | null {
   if (!p.history) return "gpu.noSource";
   if (p.gpu?.mode === "direct" && !p.gpu.exporters.some((e) => e.historySelector)) return "gpu.notMatched";
   return null;
+}
+
+/** Номера карт, которые повторяются в группе хоста (карты от разных экспортёров с одним хостом и номером). */
+export function repeatedIndices(cards: GpuCard[]): Set<number> {
+  const seen = new Set<number>();
+  const repeated = new Set<number>();
+  for (const c of cards) (seen.has(c.index) ? repeated : seen).add(c.index);
+  return repeated;
 }
 
 /** Серверы, привязанные к хосту карт (без учёта регистра). */
@@ -37,7 +45,7 @@ export function GpuPanel({ installationId }: { installationId: string }) {
   const profile = installations.data?.find((c) => c.id === installationId);
   const live = useGpuStatus(installationId, !!profile?.gpu);
   const [win, setWin] = useState<HistoryWindow>("now");
-  const [selected, setSelected] = useState<{ host: string; gpu: number | null } | null>(null);
+  const [selected, setSelected] = useState<{ host: string; gpu: number | null; exporter?: string } | null>(null);
 
   if (!profile) {
     if (installations.error) return <ErrorBanner error={toAppError(installations.error)} onRetry={() => void installations.refetch()} />;
@@ -46,8 +54,8 @@ export function GpuPanel({ installationId }: { installationId: string }) {
   if (!profile.gpu) return <p className="empty">{t("gpu.panel.noComponent")}</p>;
   const unavailable = gpuHistoryUnavailable(profile);
   const status = live.status;
-  const pick = (host: string, gpu: number | null) =>
-    setSelected((s) => (s && s.host === host && s.gpu === gpu ? null : { host, gpu }));
+  const pick = (host: string, gpu: number | null, exporter?: string) =>
+    setSelected((s) => (s && s.host === host && s.gpu === gpu && s.exporter === exporter ? null : { host, gpu, exporter }));
 
   return (
     <div className="page">
@@ -98,7 +106,8 @@ export function GpuPanel({ installationId }: { installationId: string }) {
       {status && status.hosts.length === 0 && <p className="empty">{t("gpu.panel.noCards")}</p>}
       {status?.hosts.map((h) => {
         const servers = boundServers(profile, h.host);
-        const indices = h.cards.map((c) => c.index);
+        // Номера, которые повторяются у хоста (один экспортёр дважды): у таких карт подпись экспортёра.
+        const repeated = repeatedIndices(h.cards);
         return (
           <section key={h.host} className="gpu-host" aria-label={h.host}>
             <button type="button" className="link gpu-host-title" aria-pressed={selected?.host === h.host && selected.gpu == null} onClick={() => pick(h.host, null)}>
@@ -119,8 +128,9 @@ export function GpuPanel({ installationId }: { installationId: string }) {
                 <GpuCardView
                   key={`${c.index}-${c.exporter ?? ""}`}
                   card={c}
-                  selected={selected?.host === h.host && selected.gpu === c.index}
-                  onSelect={() => pick(h.host, c.index)}
+                  showExporter={repeated.has(c.index)}
+                  selected={selected?.host === h.host && selected.gpu === c.index && selected.exporter === c.exporter}
+                  onSelect={() => pick(h.host, c.index, c.exporter)}
                 />
               ))}
             </div>
@@ -129,7 +139,8 @@ export function GpuPanel({ installationId }: { installationId: string }) {
                 installationId={installationId}
                 host={h.host}
                 gpu={selected.gpu}
-                indices={indices}
+                exporter={selected.exporter}
+                cards={h.cards}
                 buffer={live.buffer}
                 window={win}
                 historyUnavailable={unavailable}
