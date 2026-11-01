@@ -143,7 +143,26 @@ describe("InstallationForm: история метрик", () => {
     expect(secrets?.historySecret).toBeUndefined();
   });
 
+  it("форма с сохранённым источником проверяет его сама при открытии, без источника — нет", async () => {
+    vi.mocked(api.checkHistorySource).mockResolvedValue(CHECK);
+    const initial = saved();
+    initial.history = { url: "http://prometheus:9090", auth: { mode: "none" }, ca: { mode: "system" }, proxy: { mode: "system" } };
+    renderWithClient(<InstallationForm initial={initial} tabId="form:i1" />);
+    const section = screen.getByRole("region", { name: "История метрик (Prometheus / VictoriaMetrics)" });
+    const gpu1 = within(section).getByLabelText("gpu-1") as HTMLSelectElement;
+    await waitFor(() => expect(gpu1.value).toBe(AUTO));
+    expect(within(section).getByText("автоподбор")).toBeInTheDocument();
+    expect(api.checkHistorySource).toHaveBeenCalledTimes(1);
+    expect(api.checkHistorySource).toHaveBeenCalledWith(expect.objectContaining({ id: "i1" }), { apiKeys: {} });
+
+    vi.mocked(api.checkHistorySource).mockClear();
+    renderWithClient(<InstallationForm initial={saved()} tabId="form:i2" />);
+    expect(api.checkHistorySource).not.toHaveBeenCalled();
+  });
+
   it("сохранённая цель до проверки — подписью цели, а не своим селектором", () => {
+    // Проверка при открытии ещё идёт.
+    vi.mocked(api.checkHistorySource).mockReturnValue(new Promise(() => {}));
     const initial = saved();
     initial.history = { url: "http://prometheus:9090", auth: { mode: "none" }, ca: { mode: "system" }, proxy: { mode: "system" } };
     initial.servers[0].historySelector = AUTO;

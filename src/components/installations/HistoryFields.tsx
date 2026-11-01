@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { toAppError } from "../../api/client";
 import type { AppError, HistoryAuth, HistoryCheck, HistorySource, HistoryTarget, InstallationProfile } from "../../api/types";
@@ -85,21 +85,6 @@ export function HistoryFields({ profile, idPrefix, savedSecret, secret, insecure
     setAuto((a) => new Map([...a].filter(([id]) => !stale.some((s) => s.id === id))));
   }, [profile.servers, auto, onSelector]);
 
-  if (!h) {
-    return (
-      <section className="history-source" aria-label={t("installations.history.title")}>
-        <h3>{t("installations.history.title")}</h3>
-        <p className="muted">{t("installations.history.none")}</p>
-        <div className="toolbar">
-          <button type="button" disabled={busy} onClick={() => onHistory(newHistory())}>
-            {t("installations.history.add")}
-          </button>
-        </div>
-      </section>
-    );
-  }
-
-  const set = (patch: Partial<HistorySource>) => onHistory({ ...h, ...patch });
   const onCheck = async () => {
     setChecking(true);
     setError(null);
@@ -122,6 +107,31 @@ export function HistoryFields({ profile, idPrefix, savedSecret, secret, insecure
       setChecking(false);
     }
   };
+
+  // Форма открыта с сохранённым источником — проверка запускается сама: без неё нет списков целей.
+  const autoChecked = useRef(false);
+  useEffect(() => {
+    if (autoChecked.current) return;
+    autoChecked.current = true;
+    if (h?.url.trim()) void onCheck();
+    // Только при открытии формы: дальше проверку запускает человек.
+  }, []);
+
+  if (!h) {
+    return (
+      <section className="history-source" aria-label={t("installations.history.title")}>
+        <h3>{t("installations.history.title")}</h3>
+        <p className="muted">{t("installations.history.none")}</p>
+        <div className="toolbar">
+          <button type="button" disabled={busy} onClick={() => onHistory(newHistory())}>
+            {t("installations.history.add")}
+          </button>
+        </div>
+      </section>
+    );
+  }
+
+  const set = (patch: Partial<HistorySource>) => onHistory({ ...h, ...patch });
   const targets = result?.targets ?? [];
   const choose = (serverId: string, value: string) => {
     setAuto((a) => new Map([...a].filter(([x]) => x !== serverId)));
