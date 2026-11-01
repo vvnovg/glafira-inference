@@ -53,3 +53,8 @@ input::placeholder, textarea::placeholder { font-style: italic; color: var(--mut
 .gpu-bar { display: inline-block; width: 60px; height: 6px; border-radius: 3px; background: var(--bg-alt); vertical-align: middle; overflow: hidden; }
 .gpu-bar > span { display: block; height: 100%; background: var(--accent); }
 .gpu-alerts li { font-size: 12px; }
+.gpu-summary { border-collapse: collapse; width: 100%; }
+.gpu-summary th { text-align: left; color: var(--muted); font-weight: normal; padding: 2px 8px 2px 0; }
+.gpu-summary td { padding: 2px 8px 2px 0; font-variant-numeric: tabular-nums; }
+.gpu-server { display: flex; flex-direction: column; gap: 4px; margin-top: 8px; }
+.gpu-server h4 { margin: 0; font-size: 13px; }

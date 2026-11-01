@@ -691,6 +691,22 @@
       "celsius": "{{value}} °C",
       "watt": "{{value}} Вт",
       "mhz": "{{value}} МГц"
+    },
+    "overview": {
+      "title": "GPU по хостам",
+      "host": "Хост",
+      "model": "Модель",
+      "cards": "Карт",
+      "util": "Утилизация",
+      "memory": "Память",
+      "temp": "Макс. температура",
+      "mixed": "разные",
+      "troubled": "проблемы: {{count}}",
+      "server": "GPU сервера",
+      "bindHint": "Привяжите GPU в форме сервера",
+      "noBoundCards": "На хосте {{host}} нет привязанных карт",
+      "utilValue": "утилизация {{value}} %",
+      "openGpu": "Открыть GPU"
     }
   }
 }

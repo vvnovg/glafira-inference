@@ -687,6 +687,22 @@
       "celsius": "{{value}} °C",
       "watt": "{{value}} W",
       "mhz": "{{value}} MHz"
+    },
+    "overview": {
+      "title": "GPU by host",
+      "host": "Host",
+      "model": "Model",
+      "cards": "GPUs",
+      "util": "Utilization",
+      "memory": "Memory",
+      "temp": "Max temperature",
+      "mixed": "mixed",
+      "troubled": "problems: {{count}}",
+      "server": "GPUs of the server",
+      "bindHint": "Bind the GPUs in the server form",
+      "noBoundCards": "Host {{host}} has none of the bound GPUs",
+      "utilValue": "utilization {{value}} %",
+      "openGpu": "Open GPU"
     }
   }
 }

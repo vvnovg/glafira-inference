@@ -90,6 +90,13 @@ describe("ServerPanel", () => {
     expect(api.readServerMetrics).toHaveBeenCalledWith("i1", "s1");
   });
 
+  it("«Обзор» с компонентом GPU — блок «GPU сервера»: без привязки подсказка", async () => {
+    vi.mocked(api.listInstallations).mockResolvedValue([{ ...PROFILE, gpu: { mode: "prometheus" } }]);
+    renderWithClient(<ServerPanel installationId="i1" serverId="s1" />);
+    const block = await screen.findByRole("region", { name: "GPU сервера" });
+    expect(within(block).getByText("Привяжите GPU в форме сервера")).toBeInTheDocument();
+  });
+
   it("«Конфигурация»: источник, расхождение источников и скрытый секрет", async () => {
     const user = userEvent.setup();
     renderWithClient(<ServerPanel installationId="i1" serverId="s1" />);

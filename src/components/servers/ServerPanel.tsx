@@ -6,6 +6,7 @@ import { tr } from "../../i18n/text";
 import { useWorkspace } from "../../state/workspace";
 import { EnvBadge } from "../common/EnvBadge";
 import { ErrorBanner } from "../common/ErrorBanner";
+import { ServerGpuBlock } from "../gpu/GpuSummary";
 import { installationQueryKey } from "../installations/InstallationPanel";
 import { ServerConfigView } from "./ServerConfigView";
 import { ServerMetricsView } from "./ServerMetricsView";
@@ -91,7 +92,10 @@ export function ServerPanel({ installationId, serverId }: { installationId: stri
             ))}
           </div>
           {sub === "overview" && (
-            <ServerOverview facts={state.facts} latest={live.error ? undefined : live.latest} restarted={restarted} error={!!live.error} fromHistory={live.fromHistory} />
+            <>
+              <ServerOverview facts={state.facts} latest={live.error ? undefined : live.latest} restarted={restarted} error={!!live.error} fromHistory={live.fromHistory} />
+              {profile.gpu && <ServerGpuBlock profile={profile} server={server} />}
+            </>
           )}
           {sub === "config" && <ServerConfigView installationId={installationId} serverId={serverId} />}
           {sub === "metrics" && (
