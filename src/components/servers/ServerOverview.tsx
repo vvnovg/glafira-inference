@@ -56,6 +56,8 @@ export function ServerOverview({
 }) {
   const { t } = useTranslation();
   const kind = t(`installations.form.kinds.${facts.kind}`);
+  // Метрик у сервера нет (OpenAI-совместимый, версия ниже границы, SGLang без --enable-metrics) — одна подсказка
+  // вместо восьми плиток «нет данных», как во вкладке «Метрики».
   const readable = readsMetrics(facts);
   const noSeriesHint = (c: Canonical) => {
     if (error) return t("servers.tiles.noAnswer");
@@ -86,8 +88,6 @@ export function ServerOverview({
         )}
       </dl>
       {restarted && <p className="warn">{t("servers.overview.reset")}</p>}
-      {/* Метрик у сервера нет (OpenAI-совместимый, версия ниже границы, SGLang без --enable-metrics) — одна подсказка
-          вместо восьми плиток «нет данных», как во вкладке «Метрики». */}
       {!readable ? (
         <p className="muted">{t(noMetricsHintKey(facts) ?? "servers.tiles.noSeries")}</p>
       ) : (
