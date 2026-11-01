@@ -58,6 +58,11 @@ export function InstallationForm({ initial, tabId }: { initial: InstallationProf
   const closeForInstallation = useWorkspace((s) => s.closeForInstallation);
   const isNew = initial.id === "";
   const savedServers = new Set(initial.servers.map((s) => s.id));
+  // Есть ли у сохранённого сервера ключ в keychain: без ключа нет ни «оставьте пустым», ни предупреждения о http.
+  // Признаки не прочитаны — ключ может быть, как считалось до них.
+  const savedSecretsQ = useQuery({ queryKey: ["savedSecrets", initial.id], queryFn: () => api.savedSecrets(initial.id), enabled: !isNew });
+  const hasSavedKey = (id: string) =>
+    !isNew && savedServers.has(id) && (savedSecretsQ.isError || (savedSecretsQ.data?.apiKeys.includes(id) ?? false));
 
   const update = (patch: Partial<InstallationProfile>) => setProfile((p) => ({ ...p, ...patch }));
   const updateServer = (id: string, patch: Partial<ServerConfig>) =>
@@ -236,7 +241,7 @@ export function InstallationForm({ initial, tabId }: { initial: InstallationProf
           server={s}
           index={i}
           idPrefix={fid(`s-${s.id}`)}
-          saved={!isNew && savedServers.has(s.id)}
+          savedKey={hasSavedKey(s.id)}
           keyInput={keys[s.id] ?? { value: "", clear: false }}
           insecureForbidden={insecureForbidden}
           busy={busy}
@@ -317,7 +322,7 @@ function ServerFields({
   server: s,
   index,
   idPrefix,
-  saved,
+  savedKey,
   keyInput,
   insecureForbidden,
   busy,
@@ -335,8 +340,8 @@ function ServerFields({
   index: number;
   /** Префикс id полей: уникален для формы и сервера (по id сервера, а не по номеру — тот сдвигается при удалении). */
   idPrefix: string;
-  /** Сервер уже сохранён: у него может быть ключ в keychain. */
-  saved: boolean;
+  /** У сохранённого сервера есть ключ в keychain: пустое поле его оставляет. */
+  savedKey: boolean;
   keyInput: KeyInput;
   insecureForbidden: boolean;
   busy: boolean;
@@ -352,7 +357,7 @@ function ServerFields({
 }) {
   const { t } = useTranslation();
   const id = (field: string) => `${idPrefix}-${field}`;
-  const keyGoesPlain = isPlainHttp(s.baseUrl) && !keyInput.clear && (keyInput.value.trim() !== "" || saved);
+  const keyGoesPlain = isPlainHttp(s.baseUrl) && !keyInput.clear && (keyInput.value.trim() !== "" || savedKey);
   return (
     <fieldset className="server" aria-label={t("installations.form.server", { n: index + 1 })}>
       <legend>{s.name.trim() || t("installations.form.server", { n: index + 1 })}</legend>
@@ -386,12 +391,12 @@ function ServerFields({
           id={id("key")}
           type="password"
           autoComplete="off"
-          placeholder={saved ? t("installations.form.apiKeyKeep") : ""}
+          placeholder={savedKey ? t("installations.form.apiKeyKeep") : ""}
           disabled={keyInput.clear}
           value={keyInput.value}
           onChange={(e) => onKey({ value: e.target.value })}
         />
-        {saved && (
+        {savedKey && (
           <label className="inline full">
             <input type="checkbox" checked={keyInput.clear} onChange={(e) => onKey({ clear: e.target.checked })} />{" "}
             {t("installations.form.apiKeyClear")}

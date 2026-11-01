@@ -10,6 +10,7 @@ use crate::servers::client::{Timeouts, ensure_allowed, ensure_ca_allowed};
 use crate::servers::connectivity::{TestReport, test_server};
 use crate::servers::pool::InstallationInfo;
 use crate::state::AppState;
+use crate::storage::exchange::{NeedsSecret, needs_secret};
 use crate::storage::profile::{HistoryAuth, InstallationProfile};
 
 /// Секреты из формы. Ключи API: id сервера → значение; сервера нет в списке — оставить
@@ -240,6 +241,19 @@ pub fn save_installation_blocking(
     // Клиенты работают со старыми адресами и ключами: следующий вызов подключится заново.
     st.evict_installation(&saved.id);
     result.map(|()| saved)
+}
+
+/// Какие секреты инсталляции уже лежат в keychain — только признаки, без значений: по ним форма
+/// решает, предупреждать ли о ключе по http и предлагать ли оставить сохранённый.
+#[tauri::command]
+pub async fn saved_secrets(state: State<'_, AppState>, id: String) -> AppResult<NeedsSecret> {
+    let st = state.inner().clone();
+    blocking(move || saved_secrets_blocking(&st, &id)).await
+}
+
+pub fn saved_secrets_blocking(st: &AppState, id: &str) -> AppResult<NeedsSecret> {
+    let profile = st.installations.get(id)?;
+    needs_secret(st.secrets.as_ref(), &profile)
 }
 
 #[tauri::command]
@@ -482,6 +496,23 @@ mod tests {
         assert_eq!(key(&st, "a", "s2"), None);
         save_installation_blocking(&st, input(sample_profile("a"), &[("s1", "")])).unwrap();
         assert_eq!(key(&st, "a", "s1"), None);
+    }
+
+    #[test]
+    fn saved_secrets_tell_which_keys_exist_without_values() {
+        let dir = tempfile::tempdir().unwrap();
+        let st = state(dir.path());
+        let mut two = sample_profile("a");
+        two.servers.push(sample_server("s2"));
+        save_installation_blocking(&st, input(two, &[("s2", "sk-2")])).unwrap();
+        let saved = saved_secrets_blocking(&st, "a").unwrap();
+        assert_eq!(saved.api_keys, ["s2"]);
+        assert!(!saved.history);
+        assert!(!serde_json::to_string(&saved).unwrap().contains("sk-2"));
+        assert_eq!(
+            saved_secrets_blocking(&st, "nope").unwrap_err().code,
+            ErrorCode::NotFound
+        );
     }
 
     /// Keychain, который отказывает в записи.

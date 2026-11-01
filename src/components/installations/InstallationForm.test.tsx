@@ -16,6 +16,7 @@ vi.mock("../../api/client", async (importOriginal) => {
       listFolders: vi.fn().mockResolvedValue([]),
       moveItems: vi.fn(),
       getPolicyStatus: vi.fn(),
+      savedSecrets: vi.fn(),
     },
   };
 });
@@ -55,6 +56,7 @@ beforeEach(() => {
   vi.clearAllMocks();
   vi.mocked(api.listFolders).mockResolvedValue([]);
   vi.mocked(api.getPolicyStatus).mockResolvedValue(POLICY);
+  vi.mocked(api.savedSecrets).mockResolvedValue({ apiKeys: ["s1", "s2"] });
   useWorkspace.setState({ tabs: [], activeId: null });
 });
 
@@ -329,7 +331,7 @@ describe("InstallationForm", () => {
     const user = userEvent.setup();
     renderWithClient(<InstallationForm initial={saved()} tabId="t" />);
     const first = screen.getByRole("group", { name: "Сервер 1" });
-    expect(within(first).getByLabelText("Ключ API")).toHaveAttribute("placeholder", "оставьте пустым, чтобы не менять сохранённый");
+    await waitFor(() => expect(within(first).getByLabelText("Ключ API")).toHaveAttribute("placeholder", "оставьте пустым, чтобы не менять сохранённый"));
     await user.click(within(first).getByLabelText("Удалить сохранённый ключ"));
     expect(within(first).getByLabelText("Ключ API")).toBeDisabled();
     await user.click(screen.getByRole("button", { name: "Сохранить" }));
@@ -344,9 +346,26 @@ describe("InstallationForm", () => {
     expect(screen.queryByText(/ключ API уйдёт открытым текстом/)).toBeNull();
     await user.type(screen.getByLabelText("Ключ API"), "sk");
     expect(screen.getByText("Адрес — http://: ключ API уйдёт открытым текстом")).toBeInTheDocument();
-    // У сохранённого сервера с http ключ может уже быть: предупреждение и без ввода.
+    // У сохранённого сервера с http ключ в keychain уже есть: предупреждение и без ввода.
     renderWithClient(<InstallationForm initial={saved()} tabId="t2" />);
-    expect(within(screen.getAllByRole("group", { name: "Сервер 2" })[0]).getByRole("alert")).toBeInTheDocument();
+    expect(await within(screen.getAllByRole("group", { name: "Сервер 2" })[0]).findByRole("alert")).toBeInTheDocument();
+  });
+
+  it("сохранённый http-сервер без ключа: ни предупреждения, ни «оставьте пустым»", async () => {
+    vi.mocked(api.savedSecrets).mockResolvedValue({ apiKeys: [] });
+    renderWithClient(<InstallationForm initial={saved()} tabId="t" />);
+    await waitFor(() => expect(api.savedSecrets).toHaveBeenCalledWith("i1"));
+    const second = screen.getByRole("group", { name: "Сервер 2" });
+    await waitFor(() => expect(within(second).getByLabelText("Ключ API")).toHaveAttribute("placeholder", ""));
+    expect(within(second).queryByRole("alert")).toBeNull();
+    expect(within(second).queryByLabelText("Удалить сохранённый ключ")).toBeNull();
+  });
+
+  it("признаки ключей не прочитаны — форма считает, что ключ может быть", async () => {
+    vi.mocked(api.savedSecrets).mockRejectedValue({ code: "INTERNAL", message: "keychain", retryable: false });
+    renderWithClient(<InstallationForm initial={saved()} tabId="t" />);
+    const second = screen.getByRole("group", { name: "Сервер 2" });
+    expect(await within(second).findByRole("alert")).toBeInTheDocument();
   });
 
   it("серверы добавляются и убираются; последний убрать нельзя", async () => {

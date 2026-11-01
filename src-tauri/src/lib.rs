@@ -48,6 +48,7 @@ pub fn run() {
             commands::app::check_update,
             commands::app::install_update,
             commands::installations::list_installations,
+            commands::installations::saved_secrets,
             commands::installations::save_installation,
             commands::installations::delete_installation,
             commands::installations::test_server_connection,

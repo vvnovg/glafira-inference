@@ -13,6 +13,7 @@ import type {
   InstallationProfile,
   LanguageSettings,
   PolicyStatus,
+  SavedSecrets,
   SecretsInput,
   ServerMetrics,
   TestReport,
@@ -51,6 +52,8 @@ export const api = {
   saveInstallation: (profile: InstallationProfile, secrets: SecretsInput = {}) =>
     call<InstallationProfile>("save_installation", { input: { profile, secrets } }),
   deleteInstallation: (id: string) => call<void>("delete_installation", { id }),
+  /** Какие секреты инсталляции уже сохранены — признаки без значений. */
+  savedSecrets: (id: string) => call<SavedSecrets>("saved_secrets", { id }),
   /** Проверка сервера `serverId` несохранённого профиля: ключ из формы — поверх keychain. */
   testServer: (profile: InstallationProfile, serverId: string, secrets: SecretsInput = {}) =>
     call<TestReport>("test_server_connection", { input: { profile, secrets }, serverId }),

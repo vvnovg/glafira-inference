@@ -82,7 +82,10 @@ fn history_with_secret(p: &InstallationProfile) -> Option<&HistorySource> {
 /// Серверы профиля, у которых сохранён ключ API, и сохранён ли секрет источника истории:
 /// устаревшие записи keychain (сервер удалён, вход в источник выключен) не требуют ввода у
 /// получателя.
-fn needs_secret(secrets: &dyn SecretStore, p: &InstallationProfile) -> AppResult<NeedsSecret> {
+pub(crate) fn needs_secret(
+    secrets: &dyn SecretStore,
+    p: &InstallationProfile,
+) -> AppResult<NeedsSecret> {
     let mut api_keys = Vec::new();
     for s in &p.servers {
         if has_api_key(secrets, &p.id, &s.id)? {
