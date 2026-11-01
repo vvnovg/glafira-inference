@@ -238,7 +238,11 @@
       "proxy": "System — the <code>HTTP_PROXY</code>, <code>HTTPS_PROXY</code>, <code>ALL_PROXY</code> and <code>NO_PROXY</code> environment variables, then the OS proxy settings. Or an explicit address such as <code>http://proxy:3128</code>.",
       "test": "Checks this server step by step with the values of the form, without saving: address, TLS, /health, API key, type, version, models.",
       "detectedKind": "The type Glafira works with. If it differs from what the server looks like, the type is chosen in the installation or the server version is too old.",
-      "historyUrl": "Address of the Prometheus or VictoriaMetrics HTTP API that scrapes the servers: http://prometheus.monitoring:9090. Glafira only reads it with PromQL queries and keeps nothing on disk."
+      "historyUrl": "Address of the Prometheus or VictoriaMetrics HTTP API that scrapes the servers: http://prometheus.monitoring:9090. Glafira only reads it with PromQL queries and keeps nothing on disk.",
+      "gpuMode": "DCGM exporters: Glafira reads /metrics of dcgm-exporter itself. From the history source: the same DCGM series from Prometheus or VictoriaMetrics.",
+      "gpuSelector": "Label matchers that pick the GPUs of the installation, such as {hostname=~\"gpu-1|gpu-2\"}. Empty — the check picks the hosts of the servers. At most 64 GPUs.",
+      "gpuCheck": "Checks the exporters or the history source, finds the GPU hosts, binds servers whose address matches a host and matches the exporters with history targets.",
+      "gpuBinding": "The GPUs of the server: a host and all or some cards. The check binds a server whose address matches a GPU host; behind a load balancer choose the host manually."
     },
     "import": {
       "target": "Where new folders and installations go. Existing ones stay where they are.",
@@ -308,7 +312,12 @@
         "models": "Models",
         "up": "Query up",
         "targets": "Targets",
-        "match": "Matching"
+        "match": "Matching",
+        "metrics": "Metrics",
+        "cards": "GPUs",
+        "bind": "Binding",
+        "history": "History",
+        "counters": "Counters"
       }
     },
     "panel": {
@@ -355,6 +364,37 @@
       "noMatch": "Do not match",
       "custom": "Custom selector…",
       "selector": "Series selector of “{{server}}”"
+    },
+    "gpu": {
+      "title": "GPU (DCGM)",
+      "mode": "Source",
+      "modes": {
+        "none": "None",
+        "direct": "DCGM exporters",
+        "prometheus": "From the history source"
+      },
+      "prometheusNeedsHistory": "GPU metrics from the history source need a metrics history source",
+      "historyRemoved": "Without the metrics history source this GPU component will not be saved: choose DCGM exporters or add the source back",
+      "selector": "Card selector",
+      "auto": "auto-match",
+      "hosts": "Hosts",
+      "moreHosts": "and {{count}} more",
+      "check": "Check GPU",
+      "report": "GPU check",
+      "exporters": "DCGM exporters",
+      "exporter": "Exporter {{n}}",
+      "removeExporter": "Remove",
+      "exporterSeries": "Series in history",
+      "exporterSelector": "Series selector of exporter {{n}}",
+      "addExporter": "Add exporter",
+      "auth": "Sign-in",
+      "secretClear": "Delete the saved password",
+      "binding": "GPU",
+      "noBinding": "None",
+      "hostMissing": "{{host}} (not found)",
+      "checkForHosts": "The found hosts appear after “Check GPU”",
+      "cards": "GPUs",
+      "allCards": "All GPUs"
     }
   },
   "settings": {

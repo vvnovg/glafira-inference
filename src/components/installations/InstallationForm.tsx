@@ -2,11 +2,12 @@ import { useId, useMemo, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { api, toAppError } from "../../api/client";
-import type { AppError, Environment, InstallationProfile, SecretsInput, ServerConfig, ServerKind, TestReport } from "../../api/types";
+import type { AppError, Environment, GpuCheck, InstallationProfile, SecretsInput, ServerConfig, ServerKind, TestReport } from "../../api/types";
 import { tr } from "../../i18n/text";
 import { useWorkspace } from "../../state/workspace";
 import { ErrorBanner } from "../common/ErrorBanner";
 import { Hint } from "../common/Hint";
+import { GpuBindingField, GpuFields } from "./GpuFields";
 import { HistoryFields, type SecretInput } from "./HistoryFields";
 import { type CaMode, isPlainHttp, MAX_SERVERS, newServer, type ProxyMode, stepMark, withCaMode, withProxyMode } from "./profile";
 import { folderPaths } from "./tree/folderTree";
@@ -32,6 +33,9 @@ export function InstallationForm({ initial, tabId }: { initial: InstallationProf
   const [keys, setKeys] = useState<Record<string, KeyInput>>({});
   // Секрет источника истории: пустое поле — оставить сохранённый.
   const [historySecret, setHistorySecret] = useState<SecretInput>({ value: "", clear: false });
+  // Пароль экспортёров DCGM и итог проверки GPU: хосты из него нужны полю «GPU» каждого сервера.
+  const [gpuSecret, setGpuSecret] = useState<SecretInput>({ value: "", clear: false });
+  const [gpuCheck, setGpuCheck] = useState<GpuCheck | null>(null);
   // Последние введённые PEM и адрес прокси по серверам: переключение режима туда и обратно их не теряет.
   const [lastPem, setLastPem] = useState<Record<string, string>>({});
   const [lastProxy, setLastProxy] = useState<Record<string, string>>({});
@@ -71,6 +75,9 @@ export function InstallationForm({ initial, tabId }: { initial: InstallationProf
     setKeys((k) => ({ ...k, [id]: { value: k[id]?.value ?? "", clear: k[id]?.clear ?? false, ...patch } }));
   // Сохранённый секрет источника есть, пока вид входа тот же; «удалить» действует только при нём.
   const savedHistorySecret = !isNew && !!initial.history && initial.history.auth.mode !== "none" && initial.history.auth.mode === profile.history?.auth.mode;
+  const gpuLogin = (p: InstallationProfile) => p.gpu?.mode === "direct" && p.gpu.auth.mode === "basic";
+  // Сохранённый пароль экспортёров есть, пока у них вход basic.
+  const savedGpuSecret = !isNew && gpuLogin(initial) && gpuLogin(profile);
   const current = (): InstallationProfile => ({ ...profile, folderId });
   const secrets = (): SecretsInput => {
     const apiKeys: Record<string, string> = {};
@@ -83,6 +90,10 @@ export function InstallationForm({ initial, tabId }: { initial: InstallationProf
     if (profile.history && profile.history.auth.mode !== "none") {
       if (savedHistorySecret && historySecret.clear) out.historySecret = "";
       else if (historySecret.value.trim()) out.historySecret = historySecret.value;
+    }
+    if (gpuLogin(profile)) {
+      if (savedGpuSecret && gpuSecret.clear) out.gpuSecret = "";
+      else if (gpuSecret.value.trim()) out.gpuSecret = gpuSecret.value;
     }
     return out;
   };
@@ -266,6 +277,7 @@ export function InstallationForm({ initial, tabId }: { initial: InstallationProf
           }}
           onTest={() => onTest(s.id)}
           onRemove={() => removeServer(s.id)}
+          gpu={profile.gpu ? { hosts: gpuCheck?.hosts ?? [], checked: !!gpuCheck } : undefined}
         />
       ))}
       <div className="toolbar">
@@ -288,6 +300,21 @@ export function InstallationForm({ initial, tabId }: { initial: InstallationProf
         onSecret={(patch) => setHistorySecret((s) => ({ ...s, ...patch }))}
         onSelector={(serverId, historySelector) => updateServer(serverId, { historySelector })}
         check={() => api.checkHistorySource(current(), secrets())}
+      />
+
+      <GpuFields
+        profile={profile}
+        idPrefix={fid("gpu")}
+        savedSecret={savedGpuSecret}
+        secret={gpuSecret}
+        insecureForbidden={insecureForbidden}
+        busy={busy}
+        result={gpuCheck}
+        onResult={setGpuCheck}
+        onGpu={(gpu) => update({ gpu })}
+        onSecret={(patch) => setGpuSecret((s) => ({ ...s, ...patch }))}
+        onBinding={(serverId, gpus) => updateServer(serverId, { gpus })}
+        check={() => api.checkGpuSource(current(), secrets())}
       />
 
       <div className="toolbar">
@@ -335,6 +362,7 @@ function ServerFields({
   onProxyMode,
   onTest,
   onRemove,
+  gpu,
 }: {
   server: ServerConfig;
   index: number;
@@ -354,6 +382,8 @@ function ServerFields({
   onProxyMode: (mode: ProxyMode) => void;
   onTest: () => void;
   onRemove: () => void;
+  /** Поле «GPU»: хосты из проверки GPU; без компонента GPU поля нет. */
+  gpu?: { hosts: GpuCheck["hosts"]; checked: boolean };
 }) {
   const { t } = useTranslation();
   const id = (field: string) => `${idPrefix}-${field}`;
@@ -461,6 +491,7 @@ function ServerFields({
             onChange={(e) => onChange({ proxy: { mode: "url", url: e.target.value } })}
           />
         )}
+        {gpu && <GpuBindingField binding={s.gpus} hosts={gpu.hosts} checked={gpu.checked} idPrefix={idPrefix} onChange={(gpus) => onChange({ gpus })} />}
       </div>
       <div className="toolbar">
         <button type="button" disabled={busy} onClick={onTest}>

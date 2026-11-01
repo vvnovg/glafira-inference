@@ -18,6 +18,8 @@
     "installations.form.kinds.vllm",
     "installations.form.step.tcp",
     "installations.form.step.tls",
+    "installations.gpu.binding",
+    "installations.gpu.title",
     "messages.connectionTest.kind",
     "messages.connectionTest.kindVersion",
     "servers.metrics.sources.prometheus",
