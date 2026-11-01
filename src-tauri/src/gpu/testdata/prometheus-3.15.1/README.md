@@ -9,3 +9,7 @@
 | `instant.json` | мгновенный запрос карт `gpu::source::instant_expr` с селектором `{job="dcgm"}` |
 | `cards.json` | `count by (hostname, Hostname, instance, gpu) (DCGM_FI_DEV_FB_USED)` |
 | `targets.json` | `count by (job, instance) (DCGM_FI_DEV_FB_USED)` |
+| `range-gpu-node-1.json` | `query_range` шаблонов `gpu::promql::queries` для `job="dcgm",hostname="gpu-node-1"` (окно `now`: 15 мин, шаг 15 с, интервал 1m) |
+
+`range-gpu-node-1.json` — `{ start, end, step, rate, queries: [{ expr, response }] }`. Prometheus запущен примерно за
+6 мин до конца окна, поэтому первые точки окна пустые.

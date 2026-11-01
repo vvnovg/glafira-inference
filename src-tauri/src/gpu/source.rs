@@ -282,7 +282,7 @@ pub fn too_many_gpus(found: usize) -> AppError {
 }
 
 #[cfg(test)]
-mod tests {
+pub(crate) mod tests {
     use super::*;
     use crate::gpu::fields::Field;
     use crate::gpu::snapshot::tests::{DEFAULT, FULL};
