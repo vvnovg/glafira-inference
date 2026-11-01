@@ -228,9 +228,46 @@ pub fn matching_targets<'a>(base: &url::Url, targets: &'a [Target]) -> Vec<&'a T
     found
 }
 
+/// Подпись селектора для отчёта: ровно `job="…"` и `instance="…"` — `job · instance`, как у
+/// цели в форме; любой другой — сам селектор.
+pub fn selector_label(selector: &str) -> String {
+    match parse_selector(selector).as_deref() {
+        Ok([job, instance])
+            if job.label == "job"
+                && job.op == MatchOp::Eq
+                && instance.label == "instance"
+                && instance.op == MatchOp::Eq =>
+        {
+            format!("{} · {}", job.value, instance.value)
+        }
+        _ => selector.to_string(),
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn selector_of_a_target_is_shown_as_its_label() {
+        assert_eq!(
+            selector_label(r#"{job="vllm", instance="127.0.0.1:8000"}"#),
+            "vllm · 127.0.0.1:8000"
+        );
+        assert_eq!(
+            selector_label(r#"{ job = "vllm" , instance="h:1" }"#),
+            "vllm · h:1"
+        );
+        for other in [
+            r#"{job="nothing"}"#,
+            r#"{instance="h:1", job="vllm"}"#,
+            r#"{job="vllm", instance=~"h:.*"}"#,
+            r#"{job="vllm", instance="h:1", pod="p"}"#,
+            "job=x",
+        ] {
+            assert_eq!(selector_label(other), other);
+        }
+    }
 
     fn m(label: &str, op: MatchOp, value: &str) -> Matcher {
         Matcher {

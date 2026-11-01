@@ -8,7 +8,9 @@ use serde::Serialize;
 
 use crate::error::{AppError, ErrorCode};
 use crate::history::client::{BuildInfo, HistoryClient, Sample};
-use crate::history::targets::{Target, TargetKind, matching_targets, parse_selector, render};
+use crate::history::targets::{
+    Target, TargetKind, matching_targets, parse_selector, render, selector_label,
+};
 use crate::i18n::LocalizedText;
 use crate::policy::PolicyStatus;
 use crate::servers::client::Timeouts;
@@ -114,7 +116,7 @@ async fn match_step(
                         "messages.historyTest.matchSelector",
                         "“{{server}}”: {{selector}}",
                         server = name,
-                        selector = selector
+                        selector = selector_label(selector)
                     ),
                 ),
                 None,
@@ -124,7 +126,7 @@ async fn match_step(
                     "messages.historyTest.noSeries",
                     "“{{server}}”: there are no vLLM or SGLang series under the selector {{selector}}",
                     server = name,
-                    selector = selector
+                    selector = selector_label(selector)
                 );
                 (warning_step("match", w), None)
             }
@@ -441,6 +443,15 @@ mod tests {
                 "messages.historyTest.noSeries",
                 "messages.historyTest.noTarget"
             ]
+        );
+        // Селектор цели — её подпись, другой — как есть.
+        assert_eq!(
+            c.report.steps[6].message.params["selector"],
+            "vllm · 127.0.0.1:8001"
+        );
+        assert_eq!(
+            c.report.steps[7].message.params["selector"],
+            r#"{job="gone"}"#
         );
         assert!(c.report.warnings.is_empty());
         let marks: Vec<_> = c.report.steps.iter().map(|s| s.warning).collect();

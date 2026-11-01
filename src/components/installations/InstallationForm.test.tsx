@@ -143,6 +143,21 @@ describe("InstallationForm: история метрик", () => {
     expect(secrets?.historySecret).toBeUndefined();
   });
 
+  it("сохранённая цель до проверки — подписью цели, а не своим селектором", () => {
+    const initial = saved();
+    initial.history = { url: "http://prometheus:9090", auth: { mode: "none" }, ca: { mode: "system" }, proxy: { mode: "system" } };
+    initial.servers[0].historySelector = AUTO;
+    initial.servers[1].historySelector = '{job="mine"}';
+    renderWithClient(<InstallationForm initial={initial} tabId="form:i1" />);
+    const section = screen.getByRole("region", { name: "История метрик (Prometheus / VictoriaMetrics)" });
+    const gpu1 = within(section).getByLabelText("gpu-1") as HTMLSelectElement;
+    expect(gpu1.value).toBe(AUTO);
+    expect(gpu1.selectedOptions[0].textContent).toBe("vllm · gpu-1:8000");
+    expect(within(section).queryByLabelText("Селектор серий «gpu-1»")).toBeNull();
+    // Не селектор цели — по-прежнему свой селектор.
+    expect(within(section).getByLabelText("Селектор серий «gpu-2»")).toHaveValue('{job="mine"}');
+  });
+
   it("смена адреса сервера сбрасывает автоподобранный селектор, но не выбранный вручную", async () => {
     vi.mocked(api.checkHistorySource).mockResolvedValue(CHECK);
     const initial = saved();

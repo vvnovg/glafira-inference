@@ -282,7 +282,10 @@ export function HistoryFields({ profile, idPrefix, savedSecret, secret, insecure
         {profile.servers.map((s) => {
           const sel = s.historySelector;
           const known = targets.find((x) => targetSelector(x) === sel);
-          const value = custom.has(s.id) || (sel && !known) ? CUSTOM : (sel ?? NONE);
+          // Сохранённая цель, которой нет среди найденных (проверки ещё не было или цель пропала), —
+          // своим пунктом с подписью цели, а не сырым селектором.
+          const savedTarget = sel && !known && selectorLabel(sel) !== sel ? sel : undefined;
+          const value = custom.has(s.id) || (sel && !known && !savedTarget) ? CUSTOM : (sel ?? NONE);
           const name = s.name.trim() || s.baseUrl || s.id;
           return (
             <div key={s.id} className="contents">
@@ -292,6 +295,7 @@ export function HistoryFields({ profile, idPrefix, savedSecret, secret, insecure
               </span>
               <select id={id(`sel-${s.id}`)} value={value} onChange={(e) => choose(s.id, e.target.value)}>
                 <option value={NONE}>{t("installations.history.noMatch")}</option>
+                {savedTarget && <option value={savedTarget}>{selectorLabel(savedTarget)}</option>}
                 {targets.map((x) => (
                   <option key={targetSelector(x)} value={targetSelector(x)}>
                     {targetLabel(x)}
