@@ -275,6 +275,24 @@ pub fn scrape_interval_of(data: &Value, job: &str, instance: &str) -> Option<u64
         .and_then(parse_duration)
 }
 
+/// Пробный запрос, по ответу которого VictoriaMetrics отличают от Prometheus.
+pub const PROBE: &str = "vector(1)";
+
+/// В ответе мгновенного запроса есть `stats.seriesFetched` — так отвечает VictoriaMetrics.
+pub fn has_query_stats(body: &[u8]) -> bool {
+    serde_json::from_slice::<Value>(body)
+        .ok()
+        .is_some_and(|b| b.pointer("/stats/seriesFetched").is_some())
+}
+
+/// Версия из строки `vm_app_version{version="1.155.0", …}` текста `/metrics` VictoriaMetrics.
+pub fn vm_version(metrics: &str) -> Option<String> {
+    let line = metrics.lines().find(|l| l.starts_with("vm_app_version{"))?;
+    let rest = &line[line.find("version=\"")? + "version=\"".len()..];
+    let v = &rest[..rest.find('"')?];
+    (!v.is_empty()).then(|| v.to_string())
+}
+
 /// Источник истории как адрес с настройками соединения: так его открывают общий HTTP-клиент и
 /// шаг «DNS/TCP» проверки.
 pub fn as_server(h: &HistorySource) -> ServerConfig {
@@ -318,7 +336,10 @@ impl HistoryClient {
         parse_api(&reply, path)
     }
 
-    /// Тип и версия источника; `None` — у источника нет `buildinfo` (404).
+    /// Тип и версия источника; `None` — у источника нет `buildinfo` (404). VictoriaMetrics отдаёт
+    /// в `buildinfo` версию совместимого API (`2.24.0`), поэтому её узнают по полю
+    /// `stats.seriesFetched` в ответе пробного запроса, а версию берут из `vm_app_version` в
+    /// `/metrics` (`/metrics` недоступен — без версии).
     pub async fn buildinfo(&self) -> AppResult<Option<BuildInfo>> {
         let path = "/api/v1/status/buildinfo";
         let reply = self.http.get(path, METRICS_LIMIT).await?;
@@ -330,17 +351,35 @@ impl HistoryClient {
             .get("version")
             .and_then(Value::as_str)
             .map(String::from);
-        let vm = version
+        let named = version
             .as_deref()
             .is_some_and(|v| v.to_lowercase().contains("victoria"));
+        if !named && !self.answers_like_victoria().await {
+            return Ok(Some(BuildInfo {
+                kind: SourceKind::Prometheus,
+                version,
+            }));
+        }
+        let own = match self.http.get("/metrics", METRICS_LIMIT).await {
+            Ok(r) if r.ok() => vm_version(&String::from_utf8_lossy(&r.body)),
+            _ => None,
+        };
         Ok(Some(BuildInfo {
-            kind: if vm {
-                SourceKind::Victoriametrics
-            } else {
-                SourceKind::Prometheus
-            },
-            version,
+            kind: SourceKind::Victoriametrics,
+            version: own.or(version.filter(|_| named)),
         }))
+    }
+
+    /// Пробный запрос: в ответе VictoriaMetrics есть `stats.seriesFetched`; сбой — не она.
+    async fn answers_like_victoria(&self) -> bool {
+        match self
+            .http
+            .get_query("/api/v1/query", &[("query", PROBE)], METRICS_LIMIT)
+            .await
+        {
+            Ok(r) if r.ok() => has_query_stats(&r.body),
+            _ => false,
+        }
     }
 
     /// Мгновенный запрос.
@@ -566,7 +605,9 @@ pub(crate) mod tests {
             Some(5)
         );
         let seen = server.seen.lock().unwrap().clone();
-        assert_eq!(seen[1].path, "/api/v1/query?query=up");
+        // buildinfo, проба VictoriaMetrics, up.
+        assert_eq!(seen[1].path, probe_path());
+        assert_eq!(seen[2].path, "/api/v1/query?query=up");
         assert!(
             seen.iter()
                 .all(|s| s.authorization.as_deref() == Some("Bearer prom-t0ken"))
@@ -591,6 +632,91 @@ pub(crate) mod tests {
             last.authorization.as_deref(),
             Some("Basic cmVhZGVyOnBhNTU=")
         );
+    }
+
+    fn vm_snapshot(name: &str) -> String {
+        std::fs::read_to_string(format!(
+            "{}/src/history/testdata/victoriametrics-1.155.0/{name}",
+            env!("CARGO_MANIFEST_DIR")
+        ))
+        .unwrap()
+    }
+
+    pub(crate) fn probe_path() -> String {
+        let q = url::form_urlencoded::Serializer::new(String::new())
+            .append_pair("query", PROBE)
+            .finish();
+        format!("/api/v1/query?{q}")
+    }
+
+    #[test]
+    fn victoria_is_told_by_query_stats_and_metrics() {
+        assert!(has_query_stats(vm_snapshot("probe.json").as_bytes()));
+        assert!(!has_query_stats(snapshot("probe.json").as_bytes()));
+        assert!(!has_query_stats(b"<html>"));
+        assert_eq!(
+            vm_version(&vm_snapshot("metrics.txt")).as_deref(),
+            Some("1.155.0")
+        );
+        assert_eq!(vm_version("go_info{version=\"go1.27.3\"} 1"), None);
+        assert_eq!(vm_version("vm_app_version{version=\"\"} 1"), None);
+    }
+
+    #[tokio::test]
+    async fn victoriametrics_is_recognised_with_its_own_version() {
+        let probe = probe_path();
+        let routes = |metrics: bool| {
+            let mut r = vec![
+                (
+                    "/api/v1/status/buildinfo",
+                    Reply::json(&vm_snapshot("buildinfo.json")),
+                ),
+                (probe.as_str(), Reply::json(&vm_snapshot("probe.json"))),
+            ];
+            if metrics {
+                r.push(("/metrics", Reply::text(&vm_snapshot("metrics.txt"))));
+            }
+            r
+        };
+        let info = |server: &TestServer| {
+            let c = HistoryClient::new(
+                &source(&server.url(), HistoryAuth::None),
+                TIMEOUTS,
+                None,
+                &PolicyStatus::default(),
+            )
+            .unwrap();
+            async move { c.buildinfo().await.unwrap().unwrap() }
+        };
+        let vm = TestServer::start(routes(true)).await;
+        assert_eq!(
+            info(&vm).await,
+            BuildInfo {
+                kind: SourceKind::Victoriametrics,
+                version: Some("1.155.0".into())
+            }
+        );
+        // /metrics закрыт или не по этому адресу (кластер за префиксом) — тип тот же, версии нет:
+        // 2.24.0 из buildinfo — не версия VictoriaMetrics.
+        let closed = TestServer::start(routes(false)).await;
+        assert_eq!(
+            info(&closed).await,
+            BuildInfo {
+                kind: SourceKind::Victoriametrics,
+                version: None
+            }
+        );
+        // Prometheus с настоящим ответом пробы — Prometheus, /metrics не спрашивается.
+        let prom = TestServer::start(vec![
+            (
+                "/api/v1/status/buildinfo",
+                Reply::json(&snapshot("buildinfo.json")),
+            ),
+            (probe.as_str(), Reply::json(&snapshot("probe.json"))),
+        ])
+        .await;
+        assert_eq!(info(&prom).await.kind, SourceKind::Prometheus);
+        assert!(!prom.paths().iter().any(|p| p == "/metrics"));
     }
 
     #[tokio::test]

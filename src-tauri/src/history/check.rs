@@ -253,7 +253,12 @@ pub async fn check_source(
                     kind = source_label(info.as_ref()),
                     version = v
                 ),
-                _ => ltext!(
+                Some(_) => ltext!(
+                    "messages.historyTest.sourceKind",
+                    "{{kind}}",
+                    kind = source_label(info.as_ref())
+                ),
+                None => ltext!(
                     "messages.historyTest.noBuildinfo",
                     "The source has no buildinfo — sign-in is checked by the next step"
                 ),

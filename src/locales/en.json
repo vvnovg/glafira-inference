@@ -154,6 +154,7 @@
     },
     "historyTest": {
       "source": "{{kind}} {{version}}",
+      "sourceKind": "{{kind}}",
       "noBuildinfo": "The source has no buildinfo — sign-in is checked by the next step",
       "up": "Targets up: {{alive}} of {{total}}",
       "targets": "Inference targets found: {{count}}",

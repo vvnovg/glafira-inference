@@ -154,6 +154,7 @@
     },
     "historyTest": {
       "source": "{{kind}} {{version}}",
+      "sourceKind": "{{kind}}",
       "noBuildinfo": "У источника нет buildinfo — вход проверит следующий шаг",
       "up": "Целей в работе: {{alive}} из {{total}}",
       "targets": "Найдены цели инференса: {{count}}",

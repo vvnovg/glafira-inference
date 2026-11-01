@@ -1,0 +1,2 @@
+go_info{version="go1.27.3"} 1
+vm_app_version{version="1.155.0", short_version=""} 1
