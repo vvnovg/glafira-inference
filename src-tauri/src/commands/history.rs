@@ -32,7 +32,10 @@ pub async fn check_history_source(
 
 /// Секрет источника для проверки: `history_op` над сохранённым профилем инсталляции (новой
 /// инсталляции в хранилище ещё нет — прежнего профиля нет, и сохранённый секрет не берётся).
-async fn form_secret(st: &AppState, input: &InstallationInput) -> AppResult<Option<String>> {
+pub(crate) async fn form_secret(
+    st: &AppState,
+    input: &InstallationInput,
+) -> AppResult<Option<String>> {
     let previous = st.installations.get(&input.profile.id).ok();
     match history_op(&input.profile, previous.as_ref(), &input.secrets) {
         SecretOp::Set(v) => Ok(Some(v)),
@@ -57,7 +60,7 @@ pub async fn read_server_history(
 
 /// Клиент источника инсталляции из пула; нет — создаётся (секрет из keychain, тип источника по
 /// `buildinfo`) и кладётся, если инсталляцию за это время не сбросили.
-async fn history_source(st: &AppState, installation_id: &str) -> AppResult<Arc<Source>> {
+pub(crate) async fn history_source(st: &AppState, installation_id: &str) -> AppResult<Arc<Source>> {
     if let Some(s) = st.pool.history(installation_id) {
         return Ok(s);
     }

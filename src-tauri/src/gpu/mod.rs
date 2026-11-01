@@ -2,9 +2,11 @@
 //! привязок, источник карт и приросты счётчиков, окна истории.
 
 pub mod bind;
+pub mod check;
 pub mod fields;
 pub mod live;
 pub mod promql;
+pub mod read;
 pub mod series;
 pub mod snapshot;
 pub mod source;

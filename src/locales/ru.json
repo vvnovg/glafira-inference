@@ -139,7 +139,12 @@
       "noHistorySource": "Метрикам GPU из источника истории нужен источник истории метрик: добавьте его в инсталляцию",
       "tooManyExporters": "У компонента GPU может быть не больше {{max}} экспортёров DCGM",
       "tooManyGpus": "Найдено карт: {{found}}, у инсталляции их может быть не больше {{max}} — сузьте селектор карт или уберите экспортёры",
-      "unauthorized": "Экспортёр DCGM отклонил запрос ({{status}}) — проверьте имя пользователя и пароль"
+      "unauthorized": "Экспортёр DCGM отклонил запрос ({{status}}) — проверьте имя пользователя и пароль",
+      "hostNotInHistory": "В истории метрик нет серий GPU хоста {{host}}",
+      "noDcgm": "{{url}} отвечает, но метрик DCGM нет (DCGM_FI_DEV_FB_USED): проверьте адрес экспортёра",
+      "notConfigured": "У инсталляции нет компонента GPU",
+      "notMatched": "Экспортёры DCGM не сопоставлены с историей метрик: выберите их цели в инсталляции",
+      "tooManySeries": "На хосте больше {{max}} карт: показаны первые {{max}}"
     }
   },
   "messages": {
@@ -186,6 +191,27 @@
       "matchSelector": "«{{server}}»: {{selector}}",
       "noSeries": "«{{server}}»: под селектором {{selector}} нет серий vLLM и SGLang",
       "noTarget": "«{{server}}»: цели с адресом сервера нет — выберите цель вручную"
+    },
+    "gpuTest": {
+      "bound": "«{{server}}»: {{host}}, {{cards}}",
+      "boundAuto": "«{{server}}»: {{host}}, все карты (автоподбор)",
+      "boundCardsMissing": "«{{server}}»: на хосте {{host}} нет карт {{cards}}",
+      "boundHostMissing": "«{{server}}»: хоста привязки {{host}} нет среди хостов GPU",
+      "exporterCards": "{{url}}: карт {{count}} на {{hosts}}, драйвер {{driver}}",
+      "historyAuto": "{{url}}: {{job}} · {{instance}} (автоподбор)",
+      "historyCards": "Карт {{count}} на {{hosts}}",
+      "historyNoSeries": "{{url}}: под селектором {{selector}} нет серий DCGM",
+      "historyNoTarget": "{{url}}: цели с адресом экспортёра в истории нет — окна истории GPU недоступны",
+      "historySelector": "{{url}}: {{selector}}",
+      "missingEcc": "Экспортёр не собирает ошибки ECC (DCGM_FI_DEV_ECC_DBE_VOL_TOTAL, DCGM_FI_DEV_ECC_SBE_VOL_TOTAL)",
+      "missingNvlink": "Экспортёр не собирает ошибки NVLink (DCGM_FI_DEV_NVLINK_*_ERROR_TOTAL)",
+      "missingSm": "Экспортёр не собирает активность SM (DCGM_FI_PROF_SM_ACTIVE): вместо неё показана активность graphics engine",
+      "missingThrottle": "Экспортёр не собирает причины троттлинга (DCGM_FI_DEV_CLOCKS_EVENT_REASONS)",
+      "noCardsUnderSelector": "Под селектором карт нет ни одной карты",
+      "noDcgmInHistory": "Источник истории не собирает метрики DCGM",
+      "noServerHosts": "Хостов серверов нет среди хостов GPU — выберите хосты: {{hosts}}",
+      "selectorAuto": "Селектор карт {{selector}} (автоподбор)",
+      "unbound": "«{{server}}»: хоста сервера нет среди хостов GPU — выберите хост GPU вручную"
     }
   },
   "common": {

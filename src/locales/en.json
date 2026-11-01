@@ -139,7 +139,12 @@
       "noHistorySource": "GPU metrics from the history source need a metrics history source: add it to the installation",
       "tooManyExporters": "The GPU component can have at most {{max}} DCGM exporters",
       "tooManyGpus": "Found {{found}} GPUs, an installation can have at most {{max}}: narrow the card selector or remove exporters",
-      "unauthorized": "The DCGM exporter rejected the request ({{status}}) — check the user name and password"
+      "unauthorized": "The DCGM exporter rejected the request ({{status}}) — check the user name and password",
+      "hostNotInHistory": "The metrics history has no GPU series of host {{host}}",
+      "noDcgm": "{{url}} answers, but there are no DCGM metrics (DCGM_FI_DEV_FB_USED): check the exporter address",
+      "notConfigured": "The installation has no GPU component",
+      "notMatched": "The DCGM exporters are not matched with the metrics history: choose their targets in the installation",
+      "tooManySeries": "The host has more than {{max}} GPUs: the first {{max}} are shown"
     }
   },
   "messages": {
@@ -186,6 +191,27 @@
       "matchSelector": "“{{server}}”: {{selector}}",
       "noSeries": "“{{server}}”: there are no vLLM or SGLang series under the selector {{selector}}",
       "noTarget": "“{{server}}”: no target with the address of the server — choose the target manually"
+    },
+    "gpuTest": {
+      "bound": "“{{server}}”: {{host}}, {{cards}}",
+      "boundAuto": "“{{server}}”: {{host}}, all GPUs (auto-match)",
+      "boundCardsMissing": "“{{server}}”: host {{host}} has no GPUs {{cards}}",
+      "boundHostMissing": "“{{server}}”: the bound host {{host}} is not among the GPU hosts",
+      "exporterCards": "{{url}}: {{count}} GPUs on {{hosts}}, driver {{driver}}",
+      "historyAuto": "{{url}}: {{job}} · {{instance}} (auto-match)",
+      "historyCards": "{{count}} GPUs on {{hosts}}",
+      "historyNoSeries": "{{url}}: there are no DCGM series under the selector {{selector}}",
+      "historyNoTarget": "{{url}}: no history target with the address of the exporter — GPU history windows are unavailable",
+      "historySelector": "{{url}}: {{selector}}",
+      "missingEcc": "The exporter does not collect ECC errors (DCGM_FI_DEV_ECC_DBE_VOL_TOTAL, DCGM_FI_DEV_ECC_SBE_VOL_TOTAL)",
+      "missingNvlink": "The exporter does not collect NVLink errors (DCGM_FI_DEV_NVLINK_*_ERROR_TOTAL)",
+      "missingSm": "The exporter does not collect SM activity (DCGM_FI_PROF_SM_ACTIVE): graphics engine activity is shown instead",
+      "missingThrottle": "The exporter does not collect throttle reasons (DCGM_FI_DEV_CLOCKS_EVENT_REASONS)",
+      "noCardsUnderSelector": "There are no GPUs under the card selector",
+      "noDcgmInHistory": "The history source does not collect DCGM metrics",
+      "noServerHosts": "The hosts of the servers are not among the GPU hosts — choose the hosts: {{hosts}}",
+      "selectorAuto": "Card selector {{selector}} (auto-match)",
+      "unbound": "“{{server}}”: the host of the server is not among the GPU hosts — choose the GPU host manually"
     }
   },
   "common": {

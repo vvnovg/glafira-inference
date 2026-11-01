@@ -50,6 +50,9 @@ impl Connected {
 /// Снимки метрик одного сервера за последнюю минуту.
 pub type LiveHistory = Arc<tokio::sync::Mutex<VecDeque<Timed>>>;
 
+/// Снимки счётчиков карт инсталляции за последнюю минуту (спека I1d §4).
+pub type GpuLive = Arc<tokio::sync::Mutex<VecDeque<crate::gpu::live::Timed>>>;
+
 #[derive(Default)]
 pub struct ServerPool {
     connected: Mutex<HashMap<String, Arc<Connected>>>,
@@ -61,6 +64,10 @@ pub struct ServerPool {
     live: Mutex<HashMap<(String, String), LiveHistory>>,
     /// Открытые источники истории метрик (спека I1c §4), по инсталляции.
     history: Mutex<HashMap<String, Arc<crate::history::read::Source>>>,
+    /// Открытые компоненты GPU (спека I1d §4), по инсталляции.
+    gpu: Mutex<HashMap<String, Arc<crate::gpu::source::OpenGpu>>>,
+    /// Снимки счётчиков карт за последнюю минуту, по инсталляции.
+    gpu_live: Mutex<HashMap<String, GpuLive>>,
 }
 
 impl ServerPool {
@@ -82,6 +89,37 @@ impl ServerPool {
             .lock_safe()
             .retain(|(installation, _), _| installation != id);
         self.history.lock_safe().remove(id);
+        self.gpu.lock_safe().remove(id);
+        self.gpu_live.lock_safe().remove(id);
+    }
+
+    /// Открытый компонент GPU инсталляции; `evict` его забывает.
+    pub fn gpu(&self, id: &str) -> Option<Arc<crate::gpu::source::OpenGpu>> {
+        self.gpu.lock_safe().get(id).cloned()
+    }
+
+    /// Кладёт компонент GPU, только если с момента `generation` инсталляцию не сбрасывали.
+    pub fn insert_gpu_if_current(
+        &self,
+        id: &str,
+        generation: u64,
+        open: Arc<crate::gpu::source::OpenGpu>,
+    ) -> bool {
+        let generations = self.generations.lock_safe();
+        if generations.get(id).copied().unwrap_or(0) != generation {
+            return false;
+        }
+        self.gpu.lock_safe().insert(id.to_string(), open);
+        true
+    }
+
+    /// Снимки счётчиков карт инсталляции; `evict` их сбрасывает.
+    pub fn gpu_live(&self, id: &str) -> GpuLive {
+        self.gpu_live
+            .lock_safe()
+            .entry(id.to_string())
+            .or_default()
+            .clone()
     }
 
     /// Открытый источник истории инсталляции; `evict` его забывает.
