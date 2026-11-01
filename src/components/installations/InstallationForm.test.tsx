@@ -91,6 +91,8 @@ describe("InstallationForm: история метрик", () => {
     await user.type(within(section).getByLabelText("Адрес"), "http://prometheus:9090");
     await user.selectOptions(within(section).getByLabelText("Вход"), "bearer");
     await user.type(within(section).getByLabelText("Токен"), "prom-t0ken");
+    const hint = "Найденные цели появятся в списках после «Проверить источник»";
+    expect(within(section).getByText(hint)).toBeInTheDocument();
     await user.click(within(section).getByRole("button", { name: "Проверить источник" }));
     expect(api.checkHistorySource).toHaveBeenCalledWith(
       expect.objectContaining({ history: { url: "http://prometheus:9090", auth: { mode: "bearer" }, ca: { mode: "system" }, proxy: { mode: "system" } } }),
@@ -98,6 +100,7 @@ describe("InstallationForm: история метрик", () => {
     );
     const report = await within(section).findByRole("list", { name: "Проверка источника истории" });
     expect(within(report).getByText("Цели:")).toBeInTheDocument();
+    expect(within(section).queryByText(hint)).not.toBeInTheDocument();
     expect(within(report).getByText(/«gpu-2»: цели с адресом сервера нет — выберите цель вручную/)).toBeInTheDocument();
     const gpu1 = within(section).getByLabelText("gpu-1") as HTMLSelectElement;
     expect(gpu1.value).toBe(AUTO);

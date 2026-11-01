@@ -276,6 +276,8 @@ export function HistoryFields({ profile, idPrefix, savedSecret, secret, insecure
       )}
 
       <h4>{t("installations.history.series")}</h4>
+      {/* Цели — только из результата проверки: в заново открытой форме их ещё нет. */}
+      {!result && <p className="muted">{t("installations.history.checkForTargets")}</p>}
       <div className="form">
         {profile.servers.map((s) => {
           const sel = s.historySelector;

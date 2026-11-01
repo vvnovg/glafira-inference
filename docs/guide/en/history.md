@@ -21,7 +21,8 @@ If the source is unavailable, the installation still connects: only the history 
 
 A server needs a series selector — the labels its metrics have in the source, for example
 `{job="vllm", instance="10.0.0.5:8000"}`. After the check, every server in [[ui:installations.history.series]] has a
-list of the found targets:
+list of the found targets. Only the check fills the lists: in a reopened form a saved target shows as an own selector
+until the check runs again:
 
 - **auto-match** — the target whose `instance` equals the host and port of the server address (`localhost` and
   `127.0.0.1` are one address); auto-match never overwrites a choice made by a person; if you change the server address after auto-match, the selector is cleared: run the check again;

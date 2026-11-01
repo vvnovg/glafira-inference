@@ -300,6 +300,7 @@
       "check": "Check the source",
       "report": "Check of the history source",
       "series": "Series in the history",
+      "checkForTargets": "The found targets appear in the lists after “Check the source”",
       "auto": "auto-match",
       "noMatch": "Do not match",
       "custom": "Own selector…",
