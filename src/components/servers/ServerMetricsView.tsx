@@ -40,6 +40,8 @@ export function ServerMetricsView({ installationId, serverId, points, historyUnt
   const fromHistory = win !== "now";
   const hist = useServerHistory(installationId, serverId, fromHistory ? win : "1h", fromHistory && !historyUnavailable);
   const shown = fromHistory ? (hist.data?.points ?? EMPTY) : points;
+  // Первая загрузка окна: прежних графиков нет — без «Загрузка…» каждый график показал бы «нет данных».
+  const firstLoad = fromHistory && !hist.error && !hist.data && hist.isFetching;
   // Причины завершения — из точек; от точек зависит только их список, иначе графики пересоздавались бы каждый опрос.
   // Прерывания vLLM приходят и причиной `abort`, и отдельным счётчиком: если счётчик есть, причину не рисуем второй раз.
   const hasAborted = shown.some((x) => x.m?.rates?.aborted != null);
@@ -113,7 +115,12 @@ export function ServerMetricsView({ installationId, serverId, points, historyUnt
           })}
         </p>
       )}
-      {!(fromHistory && hist.error) && (
+      {firstLoad && (
+        <p className="muted" role="status">
+          {t("common.loading")}
+        </p>
+      )}
+      {!(fromHistory && hist.error) && !firstLoad && (
         <div className={fromHistory && hist.isFetching ? "charts loading" : "charts"} aria-busy={fromHistory && hist.isFetching}>
           {charts.map((c) => (
             <MetricChart

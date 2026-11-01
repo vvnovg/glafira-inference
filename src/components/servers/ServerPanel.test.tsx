@@ -148,6 +148,21 @@ describe("ServerPanel", () => {
     await waitFor(() => expect(vi.mocked(api.readServerHistory).mock.calls.filter((c) => c[2] === "24h")).toHaveLength(2));
   });
 
+  it("первая загрузка окна истории — «Загрузка…», а не «нет данных» у каждого графика", async () => {
+    vi.mocked(api.listInstallations).mockResolvedValue([withHistory()]);
+    vi.mocked(api.readServerHistory).mockImplementation(async (_i, _s, window) => {
+      if (window === "now") return { window, stepSec: 15, source: "prometheus", points: [], partial: [] };
+      return new Promise(() => {});
+    });
+    const user = userEvent.setup();
+    renderWithClient(<ServerPanel installationId="i1" serverId="s1" />);
+    await user.click(await screen.findByRole("tab", { name: "Метрики" }));
+    await user.click(screen.getByRole("button", { name: "1 ч" }));
+    expect(await screen.findByText("Загрузка…")).toBeInTheDocument();
+    expect(screen.queryByRole("region", { name: "Запросы" })).toBeNull();
+    expect(screen.queryByText("Нет данных")).toBeNull();
+  });
+
   it("«Обзор» до второго опроса: скорости и перцентили — из истории, с пометкой", async () => {
     vi.mocked(api.listInstallations).mockResolvedValue([withHistory()]);
     const now = Date.now();
