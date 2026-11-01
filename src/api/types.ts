@@ -90,6 +90,14 @@ export interface SecretsInput {
   historySecret?: string;
 }
 
+/** Какие секреты сохранённой инсталляции уже лежат в keychain — только признаки, без значений. */
+export interface SavedSecrets {
+  /** Серверы (id) с сохранённым ключом API. */
+  apiKeys: string[];
+  /** Сохранён секрет источника истории. */
+  history?: boolean;
+}
+
 export interface InstallationFolder {
   id: string;
   name: string;

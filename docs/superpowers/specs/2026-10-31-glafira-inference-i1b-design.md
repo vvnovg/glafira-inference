@@ -71,7 +71,7 @@
 | `prompt_len` | `vllm:request_prompt_tokens` | `sglang:prompt_tokens_histogram` |
 | `gen_len` | `vllm:request_generation_tokens` | `sglang:generation_tokens_histogram` |
 
-Тип `openai` метрик не читает: у llama.cpp и Ollama своих канонических серий нет — экран показывает «нет данных». Сервер
+Тип `openai` метрик не читает: у llama.cpp и Ollama своих канонических серий нет — «Обзор» вместо плиток показывает одну строку-подсказку, почему метрик нет (как вкладка «Метрики»). Сервер
 такого типа, а также SGLang без `--enable-metrics`, не опрашивается: `read_server_metrics` у типа без карты возвращает
 пустой ответ, не обращаясь к серверу, а фронтенд опрашивает только `kind != openai` с `metrics = true`. Карточка
 инсталляции показывает «—» с той же подсказкой. Если тип определён как vLLM/SGLang, но версия ниже границы (`kind` —

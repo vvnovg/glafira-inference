@@ -217,15 +217,15 @@ describe("ServerPanel", () => {
     expect(await screen.findByText("Нет ответа сервера: Сервер не ответил вовремя")).toBeInTheDocument();
   });
 
-  it("OpenAI-совместимый сервер (Ollama): метрики не опрашиваются, «Нет ответа сервера» нет, у плиток подсказка", async () => {
+  it("OpenAI-совместимый сервер (Ollama): метрики не опрашиваются, «Нет ответа сервера» нет, вместо плиток подсказка", async () => {
     vi.mocked(api.connectInstallation).mockResolvedValue({
       installationId: "i1",
       servers: [{ serverId: "s1", facts: { kind: "openai", detected: "openai", version: null, models: [{ id: "llama3" }], metrics: false, warnings: [] } }],
     });
     renderWithClient(<ServerPanel installationId="i1" serverId="s1" />);
-    const kv = await screen.findByRole("region", { name: "KV-кэш" });
-    expect(within(kv).getByText("Нет данных")).toBeInTheDocument();
-    expect(kv).toHaveAttribute("title", "Glafira читает метрики только vLLM и SGLang");
+    expect(await screen.findByText("Glafira читает метрики только vLLM и SGLang")).toBeInTheDocument();
+    expect(screen.queryByRole("region", { name: "KV-кэш" })).toBeNull();
+    expect(screen.queryByText("Нет данных")).toBeNull();
     expect(api.readServerMetrics).not.toHaveBeenCalled();
     expect(screen.queryByText(/Нет ответа сервера/)).toBeNull();
   });
@@ -236,9 +236,8 @@ describe("ServerPanel", () => {
       servers: [{ serverId: "s1", facts: { kind: "sglang", detected: "sglang", version: "0.5.4", models: [{ id: "m" }], metrics: false, warnings: [] } }],
     });
     renderWithClient(<ServerPanel installationId="i1" serverId="s1" />);
-    const kv = await screen.findByRole("region", { name: "KV-кэш" });
-    expect(kv).toHaveAttribute("title", "SGLang отдаёт метрики, только если запущен с --enable-metrics");
-    expect(within(kv).getByText("Нет данных")).toBeInTheDocument();
+    expect(await screen.findByText("SGLang отдаёт метрики, только если запущен с --enable-metrics")).toBeInTheDocument();
+    expect(screen.queryByRole("region", { name: "KV-кэш" })).toBeNull();
     expect(api.readServerMetrics).not.toHaveBeenCalled();
     expect(screen.queryByText(/Нет ответа сервера/)).toBeNull();
   });
@@ -294,8 +293,8 @@ describe("ServerPanel", () => {
       servers: [{ serverId: "s1", facts: { kind: "openai", detected: "vllm", version: "0.7.3", models: [{ id: "m" }], metrics: false, warnings: [] } }],
     });
     renderWithClient(<ServerPanel installationId="i1" serverId="s1" />);
-    const kv = await screen.findByRole("region", { name: "KV-кэш" });
-    expect(kv).toHaveAttribute("title", "Версия ниже поддерживаемой: метрики читаются у vLLM с 0.10 и SGLang с 0.5");
+    expect(await screen.findByText("Версия ниже поддерживаемой: метрики читаются у vLLM с 0.10 и SGLang с 0.5")).toBeInTheDocument();
+    expect(screen.queryByRole("region", { name: "KV-кэш" })).toBeNull();
     expect(api.readServerMetrics).not.toHaveBeenCalled();
   });
 
