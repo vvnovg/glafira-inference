@@ -172,6 +172,7 @@ describe("ServerPanel", () => {
     vi.mocked(api.listInstallations).mockResolvedValue([withHistory()]);
     vi.mocked(api.readServerHistory).mockImplementation(async (_i, _s, window) => {
       if (window === "now") throw { code: "CONNECTION_FAILED", key: "errors.history.timeout", message: "down", retryable: true };
+      if (window === "24h") throw { code: "TIMEOUT", key: "errors.history.deadline", params: { seconds: "30" }, message: "late", retryable: true };
       throw { code: "AUTH_FAILED", key: "errors.history.unauthorized", message: "401", retryable: false };
     });
     const user = userEvent.setup();
@@ -181,6 +182,11 @@ describe("ServerPanel", () => {
     await user.click(screen.getByRole("button", { name: "1 ч" }));
     expect(await screen.findByText(/Источник истории метрик отклонил вход \(401\)/)).toBeInTheDocument();
     expect(screen.queryByRole("region", { name: "Время до первого токена (TTFT)" })).toBeNull();
+    // Повтор не поможет — кнопки нет; таймаут — есть.
+    expect(screen.queryByRole("button", { name: "Повторить" })).toBeNull();
+    await user.click(screen.getByRole("button", { name: "24 ч" }));
+    expect(await screen.findByText(/не отдал окно за 30 с/)).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Повторить" })).toBeInTheDocument();
   });
 
   it("сервер, который не подключился: его ошибка, без подвкладок и без опроса", async () => {

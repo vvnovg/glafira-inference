@@ -100,7 +100,12 @@ export function ServerMetricsView({ installationId, serverId, points, historyUnt
           <span className="muted">{t("servers.metrics.step", { step: step(hist.data.stepSec), source: t(`servers.metrics.sources.${hist.data.source}`) })}</span>
         )}
       </div>
-      {fromHistory && hist.error && <ErrorBanner error={toAppError(hist.error)} onRetry={() => void hist.refetch()} />}
+      {fromHistory && hist.error && (
+        <ErrorBanner
+          error={toAppError(hist.error)}
+          onRetry={toAppError(hist.error).retryable ? () => void hist.refetch() : undefined}
+        />
+      )}
       {fromHistory && hist.data && hist.data.partial.length > 0 && (
         <p className="warn" role="status">
           {t("servers.metrics.partial", {

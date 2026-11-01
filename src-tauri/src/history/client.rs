@@ -134,7 +134,8 @@ pub fn parse_api(reply: &HttpReply, path: &str) -> AppResult<Value> {
                 "errors.history.tooLarge",
                 "The answer of the metrics history source is larger than 8 MB: choose a shorter window"
             ),
-            ErrorCode::Internal,
+            // Не внутренняя ошибка и не повод повторять: окно слишком велико для предела ответа.
+            ErrorCode::InvalidInput,
         ));
     }
     match reply.status {
@@ -606,7 +607,11 @@ pub(crate) mod tests {
         assert_eq!(key(reply(200, "<html>")), "errors.history.unexpected");
         let mut big = reply(200, "{");
         big.truncated = true;
-        assert_eq!(key(big), "errors.history.tooLarge");
+        let e = parse_api(&big, "/api/v1/query_range").unwrap_err();
+        assert_eq!(
+            (e.key.as_str(), e.code, e.retryable),
+            ("errors.history.tooLarge", ErrorCode::InvalidInput, false)
+        );
         let long = format!(
             r#"{{"status":"error","errorType":"bad_data","error":"{}"}}"#,
             "x".repeat(600)
