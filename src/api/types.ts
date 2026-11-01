@@ -52,7 +52,29 @@ export interface ServerConfig {
   proxy: ProxyConfig;
   /** Селектор серий сервера в источнике истории (`{job="vllm", instance="10.0.0.5:8000"}`); нет — истории нет. */
   historySelector?: string;
+  /** Карты GPU сервера (спека I1d §2); нет — сервер к GPU не привязан. */
+  gpus?: GpuBinding;
 }
+
+/** Привязка сервера к картам: хост и номера; без `indices` — все карты хоста. */
+export interface GpuBinding {
+  host: string;
+  indices?: number[];
+}
+
+/** Вход в экспортёры DCGM: пароль — только в keychain (спека I1d §2). */
+export type GpuAuth = { mode: "none" } | { mode: "basic"; username: string };
+
+/** Экспортёр DCGM: адрес `/metrics` и селектор его серий в источнике истории. */
+export interface GpuExporter {
+  url: string;
+  historySelector?: string;
+}
+
+/** Компонент GPU: экспортёры DCGM или серии DCGM источника истории под селектором карт. */
+export type GpuSource =
+  | { mode: "direct"; exporters: GpuExporter[]; auth: GpuAuth; ca: CaConfig; proxy: ProxyConfig }
+  | { mode: "prometheus"; selector?: string };
 
 /** Вход в источник истории: токен или пароль — только в keychain (спека I1c §2). */
 export type HistoryAuth = { mode: "none" } | { mode: "bearer" } | { mode: "basic"; username: string };
@@ -74,6 +96,8 @@ export interface InstallationProfile {
   servers: ServerConfig[];
   /** Источник истории метрик; нет — окна истории недоступны. */
   history?: HistorySource;
+  /** Компонент GPU; нет — карт у инсталляции нет. */
+  gpu?: GpuSource;
   requestTimeoutMs: number;
   connectTimeoutMs: number;
   folderId: string | null;
@@ -83,11 +107,12 @@ export interface InstallationProfile {
 
 /**
  * Ключи API из формы: id сервера → значение; сервера нет — оставить сохранённый, "" — удалить. Секрет источника
- * истории (токен или пароль) — по тем же правилам: нет поля — оставить, "" — удалить.
+ * истории (токен или пароль) и пароль экспортёров DCGM — по тем же правилам: нет поля — оставить, "" — удалить.
  */
 export interface SecretsInput {
   apiKeys?: Record<string, string>;
   historySecret?: string;
+  gpuSecret?: string;
 }
 
 /** Какие секреты сохранённой инсталляции уже лежат в keychain — только признаки, без значений. */
@@ -96,6 +121,8 @@ export interface SavedSecrets {
   apiKeys: string[];
   /** Сохранён секрет источника истории. */
   history?: boolean;
+  /** Сохранён пароль экспортёров DCGM. */
+  gpu?: boolean;
 }
 
 export interface InstallationFolder {
@@ -142,7 +169,22 @@ export interface TreeItemRef {
   id: string;
 }
 
-export type TestStepName = "config" | "tcp" | "tls" | "health" | "auth" | "kind" | "models" | "up" | "targets" | "match";
+export type TestStepName =
+  | "config"
+  | "tcp"
+  | "tls"
+  | "health"
+  | "auth"
+  | "kind"
+  | "models"
+  | "up"
+  | "targets"
+  | "match"
+  | "metrics"
+  | "cards"
+  | "bind"
+  | "history"
+  | "counters";
 
 export interface TestStep {
   name: TestStepName;
@@ -281,6 +323,102 @@ export interface HistoryAnswer {
   stepSec: number;
   source: HistorySourceKind;
   points: { at: number; m: ServerMetrics }[];
+  partial: { chart: string; error: AppError }[];
+}
+
+/** Поле карты GPU (спека I1d §4): проценты, МиБ, °C, Вт, МГц, Б/с, МБ/с; `throttle` — битовая маска причин. */
+export type GpuField =
+  | "util"
+  | "smActive"
+  | "tensorActive"
+  | "dramActive"
+  | "memCopyUtil"
+  | "memUsed"
+  | "memFree"
+  | "memReserved"
+  | "memTotal"
+  | "temp"
+  | "memTemp"
+  | "power"
+  | "smClock"
+  | "memClock"
+  | "throttle"
+  | "powerViolation"
+  | "thermalViolation"
+  | "xid"
+  | "xidCount"
+  | "eccDbe"
+  | "eccSbe"
+  | "remapUncorrectable"
+  | "remapCorrectable"
+  | "remapFailure"
+  | "pcieReplay"
+  | "pcieTx"
+  | "pcieRx"
+  | "nvlinkBandwidth"
+  | "nvlinkErrors";
+
+export type GpuValues = Partial<Record<GpuField, number>>;
+
+/** Группа счётчиков, которой нет ни у одной карты. */
+export type GpuGroup = "sm" | "ecc" | "throttle" | "nvlinkErrors";
+
+export interface GpuCard {
+  index: number;
+  uuid?: string;
+  model?: string;
+  pciBusId?: string;
+  workload?: { namespace: string; pod: string; container?: string };
+  mig?: { profile: string; instance: string }[];
+  /** Адрес экспортёра (режим `direct`). */
+  exporter?: string;
+  /** Откуда активность SM: `gr` — запасная серия graphics engine. */
+  smSource?: "sm" | "gr";
+  values: GpuValues;
+  /** Приросты за последнюю минуту опросов; у `powerViolation`, `thermalViolation` — доля времени, %. */
+  deltas?: GpuValues;
+}
+
+export interface GpuHost {
+  host: string;
+  driver?: string;
+  cards: GpuCard[];
+}
+
+/** Снимок карт инсталляции (`read_gpu_status`). */
+export interface GpuStatus {
+  at: number;
+  hosts: GpuHost[];
+  /** Сбои части источника: экспортёра (`exporter`) или всего источника. */
+  errors: { exporter?: string; error: AppError }[];
+  missing: GpuGroup[];
+  /** Длина окна приростов, с; `null` — первый опрос. */
+  deltaSec: number | null;
+}
+
+/** Цель экспортёра DCGM в источнике истории. */
+export interface DcgmTarget {
+  job: string;
+  instance: string;
+}
+
+/** Проверка компонента GPU: шаги, хосты карт и автоподбор. */
+export interface GpuCheck {
+  report: TestReport;
+  hosts: { host: string; cards: number[] }[];
+  /** Все хосты карт источника истории (режим `prometheus`). */
+  available: string[];
+  selector?: string;
+  bindings: { serverId: string; binding: GpuBinding | null }[];
+  exporters: { url: string; historySelector: string | null; targets: DcgmTarget[] }[];
+}
+
+/** Окно истории карт хоста: ряд на карту. */
+export interface GpuHistoryAnswer {
+  window: HistoryWindow;
+  stepSec: number;
+  source: HistorySourceKind;
+  series: { host: string; gpu: number; points: { at: number; values: GpuValues }[] }[];
   partial: { chart: string; error: AppError }[];
 }
 

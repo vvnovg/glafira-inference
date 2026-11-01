@@ -31,6 +31,23 @@ describe("api client", () => {
     expect(invoke).toHaveBeenCalledWith("check_history_source", { input: { profile, secrets: { historySecret: "t" } } });
   });
 
+  it("checkGpuSource передаёт профиль формы и пароль экспортёров", async () => {
+    invoke.mockResolvedValue({ report: { ok: true, steps: [], warnings: [] }, hosts: [], available: [], bindings: [], exporters: [] });
+    const profile = { id: "a" } as InstallationProfile;
+    await api.checkGpuSource(profile, { gpuSecret: "p" });
+    expect(invoke).toHaveBeenCalledWith("check_gpu_source", { input: { profile, secrets: { gpuSecret: "p" } } });
+  });
+
+  it("readGpuStatus и readGpuHistory: инсталляция, окно, хост и карта (без карты — null)", async () => {
+    invoke.mockResolvedValue({});
+    await api.readGpuStatus("i1");
+    expect(invoke).toHaveBeenLastCalledWith("read_gpu_status", { installationId: "i1" });
+    await api.readGpuHistory("i1", "1h", "gpu-node-1", 3);
+    expect(invoke).toHaveBeenLastCalledWith("read_gpu_history", { installationId: "i1", window: "1h", host: "gpu-node-1", gpu: 3 });
+    await api.readGpuHistory("i1", "now", "gpu-node-1");
+    expect(invoke).toHaveBeenLastCalledWith("read_gpu_history", { installationId: "i1", window: "now", host: "gpu-node-1", gpu: null });
+  });
+
   it("testServer передаёт профиль формы, ключи и id сервера", async () => {
     invoke.mockResolvedValue({ ok: true, steps: [], warnings: [] });
     const profile = { id: "", name: "x" } as InstallationProfile;

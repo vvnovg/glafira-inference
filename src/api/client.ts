@@ -4,6 +4,9 @@ import type {
   AppInfo,
   ConfigEntry,
   ExportSummary,
+  GpuCheck,
+  GpuHistoryAnswer,
+  GpuStatus,
   HistoryAnswer,
   HistoryCheck,
   HistoryWindow,
@@ -71,6 +74,11 @@ export const api = {
     call<HistoryCheck>("check_history_source", { input: { profile, secrets } }),
   readServerHistory: (installationId: string, serverId: string, window: HistoryWindow) =>
     call<HistoryAnswer>("read_server_history", { installationId, serverId, window }),
+  checkGpuSource: (profile: InstallationProfile, secrets: SecretsInput = {}) =>
+    call<GpuCheck>("check_gpu_source", { input: { profile, secrets } }),
+  readGpuStatus: (installationId: string) => call<GpuStatus>("read_gpu_status", { installationId }),
+  readGpuHistory: (installationId: string, window: HistoryWindow, host: string, gpu: number | null = null) =>
+    call<GpuHistoryAnswer>("read_gpu_history", { installationId, window, host, gpu }),
 
   listFolders: () => call<InstallationFolder[]>("list_folders"),
   createFolder: (name: string, parentId: string | null) =>
