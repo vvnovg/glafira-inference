@@ -21,7 +21,7 @@ export function reasons(mask: number): string[] {
   return REASONS.filter(([bit]) => (mask & bit) !== 0).map(([, name]) => name);
 }
 
-export type AlertKind = "throttle" | "xid" | "ecc" | "eccCorrectable" | "nvlink" | "pcie";
+export type AlertKind = "throttle" | "xid" | "ecc" | "eccRemapFailure" | "eccCorrectable" | "nvlink" | "pcie";
 
 /** Значок проблемы карты: вид, серьёзность и параметры подсказки (`gpu.alerts.<вид>`). */
 export interface CardAlert {
@@ -55,8 +55,11 @@ export function cardAlerts(c: GpuCard): CardAlert[] {
   const dbe = v.eccDbe ?? 0;
   const remapUncorrectable = v.remapUncorrectable ?? 0;
   const remapFailure = v.remapFailure ?? 0;
-  if (dbe > 0 || remapUncorrectable + remapFailure > 0)
-    out.push({ kind: "ecc", severity: "danger", params: { dbe: String(dbe), remap: String(remapUncorrectable), failed: String(remapFailure) } });
+  const ecc = { dbe: String(dbe), remap: String(remapUncorrectable), failed: String(remapFailure) };
+  // Без некорректируемых ошибок бейдж «ECC: 0» ничего не сказал бы — сбой переназначения называет сам бейдж.
+  if (dbe > 0) out.push({ kind: "ecc", severity: "danger", params: ecc });
+  else if (remapFailure > 0) out.push({ kind: "eccRemapFailure", severity: "danger", params: ecc });
+  else if (remapUncorrectable > 0) out.push({ kind: "ecc", severity: "danger", params: ecc });
   else if ((d.eccSbe ?? 0) > 0) out.push({ kind: "eccCorrectable", severity: "warn", params: { count: String(d.eccSbe) } });
   if ((d.nvlinkErrors ?? 0) > 0) out.push({ kind: "nvlink", severity: "warn", params: { count: String(d.nvlinkErrors) } });
   if ((d.pcieReplay ?? 0) > 0) out.push({ kind: "pcie", severity: "warn", params: { count: String(d.pcieReplay) } });

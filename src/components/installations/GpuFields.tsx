@@ -38,21 +38,60 @@ export const dcgmSelector = (t: DcgmTarget) =>
   `{job="${t.job.replace(/\\/g, "\\\\").replace(/"/g, '\\"')}", instance="${t.instance.replace(/\\/g, "\\\\").replace(/"/g, '\\"')}"}`;
 
 const reEscape = (v: string) => v.replace(/[\\.+*?()|[\]{}^$]/g, "\\$&");
+const QUOTED = (v: string) => v.replace(/\\/g, "\\\\").replace(/"/g, '\\"').replace(/\n/g, "\\n");
+/** Метасимволы RE2, которых в имени хоста без экранирования быть не может. */
+const META = new Set(".+*?()[]{}^$".split(""));
+/** Хвост селектора по `instance`: любой порт (как в Rust, `HostLabel::Instance`). */
+const PORT = "(:[0-9]+)?";
 
-/** Хосты селектора вида `{label=~"a|b"}` (как его строит автоподбор); иной селектор — `null`. */
-export function selectorHosts(selector: string | undefined): { label: string; hosts: string[] } | null {
-  const m = /^\{\s*(hostname|Hostname)\s*=~\s*"((?:[^"\\]|\\.)*)"\s*\}$/.exec(selector?.trim() ?? "");
-  if (!m) return null;
-  const value = m[2].replace(/\\\\/g, "\\");
-  return { label: m[1], hosts: value ? value.split("|").map((h) => h.replace(/\\(.)/g, "$1")) : [] };
+/** Хосты из значения регулярного выражения `a|b` с экранированными именами; иное выражение — `null`. */
+function alternation(value: string): string[] | null {
+  const hosts: string[] = [];
+  let cur = "";
+  for (let i = 0; i < value.length; i++) {
+    const c = value[i];
+    if (c === "\\") {
+      if (i + 1 >= value.length) return null;
+      cur += value[++i];
+    } else if (c === "|") {
+      if (!cur) return null;
+      hosts.push(cur);
+      cur = "";
+    } else if (META.has(c)) return null;
+    else cur += c;
+  }
+  if (!cur) return null;
+  hosts.push(cur);
+  return hosts;
 }
 
-/** Селектор хостов: `{hostname=~"a|b"}`; без хостов — `undefined` (все карты источника). */
+/**
+ * Хосты селектора, как его строит автоподбор (Rust `hosts_selector`): `{hostname=~"a|b"}`, `{Hostname=~"…"}` или
+ * `{instance=~"(a|b)(:[0-9]+)?"}`, когда у найденных карт нет метки хоста. Иной селектор — `null`.
+ */
+export function selectorHosts(selector: string | undefined): { label: string; hosts: string[] } | null {
+  const m = /^\{\s*(hostname|Hostname|instance)\s*=~\s*"((?:[^"\\]|\\.)*)"\s*\}$/.exec(selector?.trim() ?? "");
+  if (!m) return null;
+  const value = m[2].replace(/\\(.)/g, (_, c: string) => (c === "n" ? "\n" : c));
+  if (m[1] === "instance") {
+    if (!value.startsWith("(") || !value.endsWith(")" + PORT)) return null;
+    const hosts = alternation(value.slice(1, -(1 + PORT.length)));
+    return hosts && { label: m[1], hosts };
+  }
+  if (!value) return { label: m[1], hosts: [] };
+  const hosts = alternation(value);
+  return hosts && { label: m[1], hosts };
+}
+
+/** Селектор хостов (как Rust `hosts_selector`); без хостов — `undefined` (все карты источника). */
 export function hostsSelector(label: string, hosts: string[]): string | undefined {
   if (hosts.length === 0) return undefined;
-  const value = [...hosts].sort().map(reEscape).join("|").replace(/\\/g, "\\\\");
-  return `{${label}=~"${value}"}`;
+  const alt = [...new Set(hosts.map(reEscape))].sort().join("|");
+  return `{${label}=~"${QUOTED(label === "instance" ? `(${alt})${PORT}` : alt)}"}`;
 }
+
+const sameBinding = (a: GpuBinding | undefined, b: GpuBinding) =>
+  !!a && a.host === b.host && (a.indices?.join(",") ?? null) === (b.indices?.join(",") ?? null);
 
 interface Props {
   profile: InstallationProfile;
@@ -79,10 +118,13 @@ export function GpuFields({ profile, idPrefix, savedSecret, secret, insecureForb
   const { t } = useTranslation();
   const id = (field: string) => `${idPrefix}-${field}`;
   const g = profile.gpu;
+  // Хосты текущего селектора карт; селектор, записанный иначе (вручную), флажки не трогают.
+  const parsed = g?.mode === "prometheus" ? selectorHosts(g.selector) : null;
+  const recognized = !(g?.mode === "prometheus" && g.selector?.trim()) || parsed !== null;
   const [checking, setChecking] = useState(false);
   const [error, setError] = useState<AppError | null>(null);
-  // Серверы с подобранной привязкой и адрес, под который она подобрана; экспортёры с подобранным селектором.
-  const [auto, setAuto] = useState<Map<string, string>>(new Map());
+  // Серверы с подобранной привязкой: сама привязка и адрес, под который она подобрана; экспортёры с подобранным селектором.
+  const [auto, setAuto] = useState<Map<string, { url: string; binding: GpuBinding }>>(new Map());
   const [autoExporters, setAutoExporters] = useState<Set<string>>(new Set());
   const [autoSelector, setAutoSelector] = useState(false);
   const [custom, setCustom] = useState<Set<number>>(new Set());
@@ -90,11 +132,21 @@ export function GpuFields({ profile, idPrefix, savedSecret, secret, insecureForb
   const [lastPem, setLastPem] = useState("");
   const [lastProxy, setLastProxy] = useState("");
 
+  // Привязка, которую человек изменил, выбором остаётся: из подобранных выпадает; остальные сбрасываются со сменой адреса.
   useEffect(() => {
-    const stale = profile.servers.filter((s) => auto.has(s.id) && auto.get(s.id) !== s.baseUrl);
-    if (stale.length === 0) return;
-    for (const s of stale) onBinding(s.id, undefined);
-    setAuto((a) => new Map([...a].filter(([sid]) => !stale.some((s) => s.id === sid))));
+    const drop: string[] = [];
+    const reset: string[] = [];
+    for (const [sid, a] of auto) {
+      const s = profile.servers.find((x) => x.id === sid);
+      if (!s || !sameBinding(s.gpus, a.binding)) drop.push(sid);
+      else if (s.baseUrl !== a.url) {
+        drop.push(sid);
+        reset.push(sid);
+      }
+    }
+    if (drop.length === 0) return;
+    for (const sid of reset) onBinding(sid, undefined);
+    setAuto((a) => new Map([...a].filter(([sid]) => !drop.includes(sid))));
   }, [profile.servers, auto, onBinding]);
 
   const onCheck = async () => {
@@ -104,12 +156,12 @@ export function GpuFields({ profile, idPrefix, savedSecret, secret, insecureForb
     try {
       const r = await check();
       onResult(r);
-      const picked = new Map<string, string>();
+      const picked = new Map<string, { url: string; binding: GpuBinding }>();
       for (const b of r.bindings) {
         const server = profile.servers.find((x) => x.id === b.serverId);
         if (b.binding && server && !server.gpus) {
           onBinding(b.serverId, b.binding);
-          picked.set(b.serverId, server.baseUrl);
+          picked.set(b.serverId, { url: server.baseUrl, binding: b.binding });
         }
       }
       setAuto((a) => new Map([...a, ...picked]));
@@ -225,14 +277,15 @@ export function GpuFields({ profile, idPrefix, savedSecret, secret, insecureForb
           {result && result.available.length > 0 && (
             <fieldset className="full" aria-label={t("installations.gpu.hosts")}>
               <legend>{t("installations.gpu.hosts")}</legend>
+              {!recognized && <p className="muted">{t("installations.gpu.hostsByHand")}</p>}
               {result.available.slice(0, MAX_HOSTS).map((h) => {
-                const parsed = selectorHosts(g.selector);
                 const checked = parsed?.hosts.includes(h) ?? false;
                 return (
                   <label key={h} className="inline">
                     <input
                       type="checkbox"
                       checked={checked}
+                      disabled={!recognized}
                       onChange={(e) => {
                         const label = parsed?.label ?? selectorHosts(result.selector)?.label ?? "hostname";
                         const hosts = new Set(parsed?.hosts ?? []);

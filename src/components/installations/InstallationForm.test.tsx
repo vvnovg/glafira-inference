@@ -170,10 +170,79 @@ describe("InstallationForm: GPU", () => {
     expect(within(section).getByLabelText("Селектор карт")).toHaveValue("");
   });
 
+  it("селектор по instance: флажки хостов читают и пишут его форму, не меняя метку", async () => {
+    const initial = saved();
+    initial.history = HISTORY;
+    initial.gpu = { mode: "prometheus", selector: '{instance=~"(10\\\\.0\\\\.0\\\\.5)(:[0-9]+)?"}' };
+    vi.mocked(api.checkGpuSource).mockResolvedValue({ ...GPU_CHECK, available: ["10.0.0.5", "10.0.0.6"], bindings: [] });
+    const user = userEvent.setup();
+    renderWithClient(<InstallationForm initial={initial} tabId="form:i1" />);
+    const section = screen.getByRole("region", { name: "GPU (DCGM)" });
+    const hosts = await within(section).findByRole("group", { name: "Хосты" });
+    expect(within(hosts).getByLabelText("10.0.0.5")).toBeChecked();
+    expect(within(hosts).getByLabelText("10.0.0.6")).not.toBeChecked();
+    await user.click(within(hosts).getByLabelText("10.0.0.6"));
+    expect(within(section).getByLabelText("Селектор карт")).toHaveValue('{instance=~"(10\\\\.0\\\\.0\\\\.5|10\\\\.0\\\\.0\\\\.6)(:[0-9]+)?"}');
+    await user.click(within(hosts).getByLabelText("10.0.0.5"));
+    expect(within(section).getByLabelText("Селектор карт")).toHaveValue('{instance=~"(10\\\\.0\\\\.0\\\\.6)(:[0-9]+)?"}');
+    await user.click(within(hosts).getByLabelText("10.0.0.6"));
+    expect(within(section).getByLabelText("Селектор карт")).toHaveValue("");
+  });
+
+  it("селектор, записанный вручную, флажки хостов не заменяют: они отключены с подсказкой", async () => {
+    const initial = saved();
+    initial.history = HISTORY;
+    initial.gpu = { mode: "prometheus", selector: '{job="dcgm"}' };
+    vi.mocked(api.checkGpuSource).mockResolvedValue({ ...GPU_CHECK, available: ["gpu-1", "gpu-3"], bindings: [] });
+    renderWithClient(<InstallationForm initial={initial} tabId="form:i1" />);
+    const section = screen.getByRole("region", { name: "GPU (DCGM)" });
+    const hosts = await within(section).findByRole("group", { name: "Хосты" });
+    expect(within(hosts).getByLabelText("gpu-1")).toBeDisabled();
+    expect(within(hosts).getByLabelText("gpu-3")).toBeDisabled();
+    expect(within(hosts).getByText(/Селектор записан вручную/)).toBeInTheDocument();
+    expect(within(section).getByLabelText("Селектор карт")).toHaveValue('{job="dcgm"}');
+  });
+
+  it("привязка, изменённая вручную, остаётся при смене адреса; подобранная и нетронутая — сбрасывается", async () => {
+    vi.mocked(api.checkGpuSource).mockResolvedValue({
+      ...GPU_CHECK,
+      bindings: [
+        { serverId: "s1", binding: { host: "gpu-1" } },
+        { serverId: "s2", binding: { host: "gpu-3" } },
+      ],
+    });
+    const initial = saved();
+    initial.gpu = { mode: "direct", exporters: [{ url: "http://gpu-1:9400/metrics" }], auth: { mode: "none" }, ca: { mode: "system" }, proxy: { mode: "system" } };
+    const user = userEvent.setup();
+    renderWithClient(<InstallationForm initial={initial} tabId="form:i1" />);
+    const server1 = screen.getByRole("group", { name: "Сервер 1" });
+    const server2 = screen.getByRole("group", { name: "Сервер 2" });
+    await waitFor(() => expect(within(server1).getByLabelText("GPU")).toHaveValue("gpu-1"));
+    expect(within(server2).getByLabelText("GPU")).toHaveValue("gpu-3");
+    await user.selectOptions(within(server1).getByLabelText("GPU"), "gpu-3");
+    await user.click(within(server1).getByLabelText("Все карты"));
+    await user.click(within(server1).getByLabelText("GPU 0"));
+    await user.type(within(server1).getByLabelText("Адрес"), "1");
+    await user.type(within(server2).getByLabelText("Адрес"), "1");
+    expect(within(server2).getByLabelText("GPU")).toHaveValue("");
+    expect(within(server1).getByLabelText("GPU")).toHaveValue("gpu-3");
+    expect(within(server1).getByLabelText("GPU 1")).toBeChecked();
+    await user.click(screen.getByRole("button", { name: "Сохранить" }));
+    await waitFor(() => expect(api.saveInstallation).toHaveBeenCalled());
+    expect(vi.mocked(api.saveInstallation).mock.calls[0][0].servers.map((x) => x.gpus)).toEqual([{ host: "gpu-3", indices: [1] }, undefined]);
+  });
+
   it("помощники селектора хостов: разбор и сборка с экранированием", async () => {
     const { hostsSelector, selectorHosts, withGpuMode } = await import("./GpuFields");
     expect(selectorHosts('{hostname=~"gpu\\\\.corp|b"}')).toEqual({ label: "hostname", hosts: ["gpu.corp", "b"] });
     expect(selectorHosts('{job="dcgm"}')).toBeNull();
+    // Форма по `instance`, как её пишет Rust: имена экранированы для RE2, затем для строки.
+    const inst = '{instance=~"(10\\\\.0\\\\.0\\\\.5|b)(:[0-9]+)?"}';
+    expect(selectorHosts(inst)).toEqual({ label: "instance", hosts: ["10.0.0.5", "b"] });
+    expect(hostsSelector("instance", ["b", "10.0.0.5", "b"])).toBe(inst);
+    expect(selectorHosts('{instance=~"gpu-1"}')).toBeNull();
+    expect(selectorHosts('{hostname=~"gpu-.*"}')).toBeNull();
+    expect(selectorHosts('{hostname=~"a||b"}')).toBeNull();
     expect(hostsSelector("Hostname", ["b", "gpu.corp"])).toBe('{Hostname=~"b|gpu\\\\.corp"}');
     expect(hostsSelector("hostname", [])).toBeUndefined();
     const direct = withGpuMode(undefined, "direct");

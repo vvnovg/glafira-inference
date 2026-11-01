@@ -32,7 +32,9 @@ describe("значки карты", () => {
 
   it("сбой переназначения строк без ошибок ECC — значок называет причину", () => {
     expect(cardAlerts(card(0, { values: { eccDbe: 0, remapFailure: 1 } }))).toEqual([
-      { kind: "ecc", severity: "danger", params: { dbe: "0", remap: "0", failed: "1" } },
+      { kind: "eccRemapFailure", severity: "danger", params: { dbe: "0", remap: "0", failed: "1" } },
     ]);
+    // Некорректируемые ошибки главнее: бейдж остаётся «ECC: N».
+    expect(cardAlerts(card(0, { values: { eccDbe: 2, remapFailure: 1 } }))[0].kind).toBe("ecc");
   });
 });
