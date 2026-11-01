@@ -317,8 +317,11 @@ test("prometheus: query_range — снятый ряд шаблона на сет
   assert.ok(reasons.map((r) => r.metric.finished_reason).includes("stop"));
   const unknown = JSON.parse(prometheusReply(promql("/api/v1/query_range", { query: "sum(nothing)", start: 0, end: 30, step: 15 }), {})[1]);
   assert.deepEqual(unknown.data.result, []);
-  const huge = prometheusReply(promql("/api/v1/query_range", { query: expr, start: 0, end: 3600, step: 15 }), { huge: true })[1];
-  assert.ok(huge.length > 8 * 1024 * 1024, `${huge.length}`);
+  // Окно «1 ч» Glafira — шаг 60 с, 61 точка: ответ всё равно больше 8 МБ.
+  for (const step of [60, 15]) {
+    const huge = prometheusReply(promql("/api/v1/query_range", { query: expr, start: 0, end: 3600, step }), { huge: true })[1];
+    assert.ok(huge.length > 8 * 1024 * 1024, `step ${step}: ${huge.length}`);
+  }
 });
 
 test("prometheus: --api-key закрывает всё, --slow задерживает ответ", async () => {

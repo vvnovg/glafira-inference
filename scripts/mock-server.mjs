@@ -225,7 +225,10 @@ export function prometheusReply(url, opts) {
   const [start, end, step] = ["start", "end", "step"].map((k) => Number(url.searchParams.get(k)));
   const times = grid(start, end, step);
   if (opts.huge) {
-    const big = Array.from({ length: 4000 }, (_, i) => ({ metric: { pod: `vllm-${i}` }, values: times.map((t) => [t, "1"]) }));
+    // Число рядов — по размеру одного ряда в JSON: около 10 МБ при любом шаге окна.
+    const one = (i) => ({ metric: { pod: `vllm-${i}` }, values: times.map((t) => [t, "1"]) });
+    const series = Math.ceil((10 * 1024 * 1024) / JSON.stringify(one(0)).length);
+    const big = Array.from({ length: series }, (_, i) => one(i));
     return [200, JSON.stringify({ status: "success", data: { resultType: "matrix", result: big } })];
   }
   const result = (capturedRanges().get(shape(query)) ?? []).map((s) => {

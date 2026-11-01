@@ -5,9 +5,10 @@
 #   pnpm mock-server --kind sglang --port 30000
 #   prometheus --config.file=scripts/prometheus/smoke.yml --storage.tsdb.path=<каталог> --web.listen-address=127.0.0.1:9090
 # Настоящий vLLM на Apple Silicon (vllm-metal, порт 8100) — раскомментировать цель ниже.
+# Тот же конфиг подходит VictoriaMetrics (-promscrape.config): правил нет, поэтому evaluation_interval не нужен —
+# VictoriaMetrics с ним не запускается.
 global:
   scrape_interval: 5s
-  evaluation_interval: 5s
 scrape_configs:
   - job_name: vllm
     static_configs:
