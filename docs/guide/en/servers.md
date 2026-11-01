@@ -55,5 +55,5 @@ Metrics are read from vLLM 0.10 and later and from SGLang 0.5 and later; SGLang 
 `--enable-metrics`. Series names changed between versions: Glafira takes the new name and falls back to the old one
 when the new one has no data.
 OpenAI-compatible servers (Ollama, llama.cpp) have no metrics: their tab shows the models and arguments from
-`/v1/models`, and the tiles say "No data". If the server is detected as vLLM or SGLang but its version is below the
-floor, the tiles' tooltip says so. The restart notice stays visible for a minute.
+`/v1/models`, and instead of the metric tiles a line says why there are none. If the server is detected as vLLM or
+SGLang but its version is below the floor, the line says so; for SGLang without `--enable-metrics` it names the flag. The restart notice stays visible for a minute.

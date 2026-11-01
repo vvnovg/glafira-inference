@@ -58,8 +58,6 @@ export function ServerOverview({
   const kind = t(`installations.form.kinds.${facts.kind}`);
   const readable = readsMetrics(facts);
   const noSeriesHint = (c: Canonical) => {
-    const key = noMetricsHintKey(facts);
-    if (key) return t(key);
     if (error) return t("servers.tiles.noAnswer");
     const series = latest?.series[c];
     return series ? t("servers.tiles.series", { series }) : t("servers.tiles.noSeries");
@@ -88,17 +86,23 @@ export function ServerOverview({
         )}
       </dl>
       {restarted && <p className="warn">{t("servers.overview.reset")}</p>}
-      <div className="tiles">
-        {tiles(latest, t).map((tile) => (
-          <section key={tile.id} className="tile" aria-label={t(`servers.tiles.${tile.id}`)} title={noSeriesHint(tile.canonical)}>
-            <span className="tile-label">{t(`servers.tiles.${tile.id}`)}</span>
-            <span className={tile.value == null ? "tile-value muted" : "tile-value"}>
-              {tile.value ?? (error ? "—" : latest || !readable ? t("servers.metrics.noData") : "…")}
-            </span>
-            {fromHistory && tile.value != null && FROM_HISTORY.has(tile.id) && <span className="tile-note muted">{t("servers.tiles.fromHistory")}</span>}
-          </section>
-        ))}
-      </div>
+      {/* Метрик у сервера нет (OpenAI-совместимый, версия ниже границы, SGLang без --enable-metrics) — одна подсказка
+          вместо восьми плиток «нет данных», как во вкладке «Метрики». */}
+      {!readable ? (
+        <p className="muted">{t(noMetricsHintKey(facts) ?? "servers.tiles.noSeries")}</p>
+      ) : (
+        <div className="tiles">
+          {tiles(latest, t).map((tile) => (
+            <section key={tile.id} className="tile" aria-label={t(`servers.tiles.${tile.id}`)} title={noSeriesHint(tile.canonical)}>
+              <span className="tile-label">{t(`servers.tiles.${tile.id}`)}</span>
+              <span className={tile.value == null ? "tile-value muted" : "tile-value"}>
+                {tile.value ?? (error ? "—" : latest ? t("servers.metrics.noData") : "…")}
+              </span>
+              {fromHistory && tile.value != null && FROM_HISTORY.has(tile.id) && <span className="tile-note muted">{t("servers.tiles.fromHistory")}</span>}
+            </section>
+          ))}
+        </div>
+      )}
     </>
   );
 }
