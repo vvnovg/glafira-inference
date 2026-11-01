@@ -1,5 +1,6 @@
 pub mod app;
 pub mod folders;
+pub mod history;
 pub mod installations;
 pub mod servers;
 pub mod settings;

@@ -35,18 +35,24 @@ export function tiles(m: ServerMetrics | undefined, t: (k: string, o?: Record<st
   ];
 }
 
+/** Плитки, которые до второго живого опроса берут значение из последней точки истории. */
+const FROM_HISTORY = new Set(["promptTokens", "generationTokens", "ttft", "itl", "prefixCache", "preemptions"]);
+
 /** «Обзор» сервера: тип и версия, модели, число движков, плитки метрик. `restarted` — сервер перезапущен меньше минуты назад. */
 export function ServerOverview({
   facts,
   latest,
   restarted = false,
   error = false,
+  fromHistory = false,
 }: {
   facts: ServerFacts;
   latest?: ServerMetrics;
   restarted?: boolean;
   /** Опрос метрик не прошёл: плитки «—» и подсказка «нет ответа», а не «…» и не «серии нет». */
   error?: boolean;
+  /** Скорости и перцентили за минуту — из последней точки истории (спека I1c §5). */
+  fromHistory?: boolean;
 }) {
   const { t } = useTranslation();
   const kind = t(`installations.form.kinds.${facts.kind}`);
@@ -89,6 +95,7 @@ export function ServerOverview({
             <span className={tile.value == null ? "tile-value muted" : "tile-value"}>
               {tile.value ?? (error ? "—" : latest || !readable ? t("servers.metrics.noData") : "…")}
             </span>
+            {fromHistory && tile.value != null && FROM_HISTORY.has(tile.id) && <span className="tile-note muted">{t("servers.tiles.fromHistory")}</span>}
           </section>
         ))}
       </div>

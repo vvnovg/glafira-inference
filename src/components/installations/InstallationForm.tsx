@@ -7,7 +7,8 @@ import { tr } from "../../i18n/text";
 import { useWorkspace } from "../../state/workspace";
 import { ErrorBanner } from "../common/ErrorBanner";
 import { Hint } from "../common/Hint";
-import { type CaMode, isPlainHttp, MAX_SERVERS, newServer, type ProxyMode, withCaMode, withProxyMode } from "./profile";
+import { HistoryFields, type SecretInput } from "./HistoryFields";
+import { type CaMode, isPlainHttp, MAX_SERVERS, newServer, type ProxyMode, stepMark, withCaMode, withProxyMode } from "./profile";
 import { folderPaths } from "./tree/folderTree";
 
 const ENVIRONMENTS: Environment[] = ["local", "dev", "test", "stage", "prod"];
@@ -29,6 +30,8 @@ export function InstallationForm({ initial, tabId }: { initial: InstallationProf
   const [profile, setProfile] = useState(initial);
   // Ключи из формы: пустое поле — оставить сохранённый (у нового сервера его нет).
   const [keys, setKeys] = useState<Record<string, KeyInput>>({});
+  // Секрет источника истории: пустое поле — оставить сохранённый.
+  const [historySecret, setHistorySecret] = useState<SecretInput>({ value: "", clear: false });
   // Последние введённые PEM и адрес прокси по серверам: переключение режима туда и обратно их не теряет.
   const [lastPem, setLastPem] = useState<Record<string, string>>({});
   const [lastProxy, setLastProxy] = useState<Record<string, string>>({});
@@ -61,6 +64,8 @@ export function InstallationForm({ initial, tabId }: { initial: InstallationProf
     setProfile((p) => ({ ...p, servers: p.servers.map((s) => (s.id === id ? { ...s, ...patch } : s)) }));
   const setKey = (id: string, patch: Partial<KeyInput>) =>
     setKeys((k) => ({ ...k, [id]: { value: k[id]?.value ?? "", clear: k[id]?.clear ?? false, ...patch } }));
+  // Сохранённый секрет источника есть, пока вид входа тот же; «удалить» действует только при нём.
+  const savedHistorySecret = !isNew && !!initial.history && initial.history.auth.mode !== "none" && initial.history.auth.mode === profile.history?.auth.mode;
   const current = (): InstallationProfile => ({ ...profile, folderId });
   const secrets = (): SecretsInput => {
     const apiKeys: Record<string, string> = {};
@@ -69,7 +74,12 @@ export function InstallationForm({ initial, tabId }: { initial: InstallationProf
       if (k?.clear) apiKeys[s.id] = "";
       else if (k?.value.trim()) apiKeys[s.id] = k.value;
     }
-    return { apiKeys };
+    const out: SecretsInput = { apiKeys };
+    if (profile.history && profile.history.auth.mode !== "none") {
+      if (savedHistorySecret && historySecret.clear) out.historySecret = "";
+      else if (historySecret.value.trim()) out.historySecret = historySecret.value;
+    }
+    return out;
   };
 
   async function run(fn: () => Promise<void>) {
@@ -219,7 +229,7 @@ export function InstallationForm({ initial, tabId }: { initial: InstallationProf
         />
       </div>
 
-      <h3>{t("installations.form.servers")}</h3>
+      <h3 className="form-section">{t("installations.form.servers")}</h3>
       {profile.servers.map((s, i) => (
         <ServerFields
           key={s.id}
@@ -258,6 +268,22 @@ export function InstallationForm({ initial, tabId }: { initial: InstallationProf
           {t("installations.form.addServer")}
         </button>
       </div>
+
+      <HistoryFields
+        profile={profile}
+        idPrefix={fid("history")}
+        savedSecret={savedHistorySecret}
+        secret={historySecret}
+        insecureForbidden={insecureForbidden}
+        busy={busy}
+        onHistory={(history) => {
+          if (!history) setHistorySecret({ value: "", clear: false });
+          update({ history });
+        }}
+        onSecret={(patch) => setHistorySecret((s) => ({ ...s, ...patch }))}
+        onSelector={(serverId, historySelector) => updateServer(serverId, { historySelector })}
+        check={() => api.checkHistorySource(current(), secrets())}
+      />
 
       <div className="toolbar">
         <button type="button" className="primary" disabled={busy} onClick={onSave}>
@@ -446,8 +472,8 @@ function ServerFields({
       {report && (
         <ul className="steps" aria-label={t("installations.form.report")}>
           {report.steps.map((step) => (
-            <li key={step.name}>
-              {step.ok ? "✅" : "❌"} <strong>{t(`installations.form.step.${step.name}`)}:</strong> <span>{tr(step.message)}</span>
+            <li key={step.name} className={step.warning ? "warn" : undefined}>
+              {stepMark(step)} <strong>{t(`installations.form.step.${step.name}`)}:</strong> <span>{tr(step.message)}</span>
               {step.error?.details && <pre className="muted">{step.error.details}</pre>}
             </li>
           ))}

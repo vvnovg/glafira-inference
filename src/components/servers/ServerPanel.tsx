@@ -2,6 +2,7 @@ import { useQuery } from "@tanstack/react-query";
 import { useEffect, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { api, toAppError } from "../../api/client";
+import { tr } from "../../i18n/text";
 import { useWorkspace } from "../../state/workspace";
 import { EnvBadge } from "../common/EnvBadge";
 import { ErrorBanner } from "../common/ErrorBanner";
@@ -34,7 +35,14 @@ export function ServerPanel({ installationId, serverId }: { installationId: stri
     enabled: !!server,
   });
   const state = info.data?.servers.find((s) => s.serverId === serverId);
-  const live = useServerMetrics(installationId, serverId, readsMetrics(state?.facts));
+  // История — если у инсталляции есть источник, а серии сервера сопоставлены (спека I1c §5).
+  const historyUnavailable = !profile?.history
+    ? "servers.metrics.noSource"
+    : !server?.historySelector
+      ? "servers.metrics.notMatched"
+      : null;
+  const reads = readsMetrics(state?.facts);
+  const live = useServerMetrics(installationId, serverId, reads, reads && !historyUnavailable);
   // Предупреждение о перезапуске живёт минуту с момента сброса, а не один опрос (ответ после сброса уже `reset: false`).
   const [resetAt, setResetAt] = useState<number | null>(null);
   const [, redraw] = useState(0);
@@ -66,7 +74,7 @@ export function ServerPanel({ installationId, serverId }: { installationId: stri
         </button>
         {live.error && state?.facts && (
           <span className="srv-error" role="status">
-            {t("servers.panel.noAnswer", { error: live.error.message })}
+            {t("servers.panel.noAnswer", { error: tr(live.error) })}
           </span>
         )}
       </div>
@@ -82,9 +90,20 @@ export function ServerPanel({ installationId, serverId }: { installationId: stri
               </button>
             ))}
           </div>
-          {sub === "overview" && <ServerOverview facts={state.facts} latest={live.error ? undefined : live.latest} restarted={restarted} error={!!live.error} />}
+          {sub === "overview" && (
+            <ServerOverview facts={state.facts} latest={live.error ? undefined : live.latest} restarted={restarted} error={!!live.error} fromHistory={live.fromHistory} />
+          )}
           {sub === "config" && <ServerConfigView installationId={installationId} serverId={serverId} />}
-          {sub === "metrics" && <ServerMetricsView points={live.points} />}
+          {sub === "metrics" && (
+            <ServerMetricsView
+              installationId={installationId}
+              serverId={serverId}
+              points={live.points}
+              historyUntil={live.historyUntil}
+              historyError={live.historyError}
+              historyUnavailable={historyUnavailable}
+            />
+          )}
         </>
       )}
     </div>

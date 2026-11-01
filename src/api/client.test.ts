@@ -24,6 +24,13 @@ describe("api client", () => {
     expect(invoke).toHaveBeenLastCalledWith("save_installation", { input: { profile, secrets: {} } });
   });
 
+  it("checkHistorySource передаёт профиль формы и секрет источника", async () => {
+    invoke.mockResolvedValue({ report: { ok: true, steps: [], warnings: [] }, targets: [], suggestions: [] });
+    const profile = { id: "a" } as InstallationProfile;
+    await api.checkHistorySource(profile, { historySecret: "t" });
+    expect(invoke).toHaveBeenCalledWith("check_history_source", { input: { profile, secrets: { historySecret: "t" } } });
+  });
+
   it("testServer передаёт профиль формы, ключи и id сервера", async () => {
     invoke.mockResolvedValue({ ok: true, steps: [], warnings: [] });
     const profile = { id: "", name: "x" } as InstallationProfile;
@@ -48,6 +55,8 @@ describe("api client", () => {
     expect(invoke).toHaveBeenCalledWith("read_server_metrics", { installationId: "i1", serverId: "s1" });
     await api.readServerConfig("i1", "s2");
     expect(invoke).toHaveBeenLastCalledWith("read_server_config", { installationId: "i1", serverId: "s2" });
+    await api.readServerHistory("i1", "s2", "24h");
+    expect(invoke).toHaveBeenLastCalledWith("read_server_history", { installationId: "i1", serverId: "s2", window: "24h" });
   });
 
   it("ошибка из Rust приходит как есть, прочие — как INTERNAL", async () => {

@@ -39,8 +39,38 @@ export function axisIncrs(minStep: number): number[] {
   return out;
 }
 
-/** Ширина оси Y в пикселях — по самой длинной подписи (`measure` — ширина текста), не меньше 40. */
+/**
+ * Наименьшая ширина оси Y: в неё входят обычные подписи («2 000 мс», «80 %», «1,5»), поэтому графики в колонке
+ * начинаются с одного места, а не каждый по ширине своих подписей.
+ */
+export const AXIS_MIN = 72;
+
+/** Ширина оси Y в пикселях — по самой длинной подписи (`measure` — ширина текста), не меньше `AXIS_MIN`. */
 export function axisSize(labels: string[] | null, measure: (s: string) => number): number {
   const widest = Math.max(0, ...(labels ?? []).map(measure));
-  return Math.max(40, Math.ceil(widest) + 16);
+  return Math.max(AXIS_MIN, Math.ceil(widest) + 16);
+}
+
+/** Часть uPlot, которой рисуется граница: холст, область графика и перевод времени в пиксели. */
+export interface MarkerTarget {
+  ctx: CanvasRenderingContext2D;
+  bbox: { left: number; top: number; width: number; height: number };
+  valToPos: (v: number, scale: string, canvasPixels?: boolean) => number;
+}
+
+/** Пунктирная вертикаль на времени `at` (мс) внутри области графика; вне её и без `at` — ничего. */
+export function drawMarker(u: MarkerTarget, at: number | null, color: string) {
+  if (at == null) return;
+  const x = u.valToPos(at / 1000, "x", true);
+  const { left, top, width, height } = u.bbox;
+  if (!(x >= left && x <= left + width)) return;
+  const ctx = u.ctx;
+  ctx.save();
+  ctx.strokeStyle = color;
+  ctx.setLineDash([4, 4]);
+  ctx.beginPath();
+  ctx.moveTo(x, top);
+  ctx.lineTo(x, top + height);
+  ctx.stroke();
+  ctx.restore();
 }

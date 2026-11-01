@@ -50,6 +50,19 @@ export interface ServerConfig {
   metricsPath: string;
   ca: CaConfig;
   proxy: ProxyConfig;
+  /** Селектор серий сервера в источнике истории (`{job="vllm", instance="10.0.0.5:8000"}`); нет — истории нет. */
+  historySelector?: string;
+}
+
+/** Вход в источник истории: токен или пароль — только в keychain (спека I1c §2). */
+export type HistoryAuth = { mode: "none" } | { mode: "bearer" } | { mode: "basic"; username: string };
+
+/** Источник истории метрик — Prometheus или VictoriaMetrics. */
+export interface HistorySource {
+  url: string;
+  auth: HistoryAuth;
+  ca: CaConfig;
+  proxy: ProxyConfig;
 }
 
 export interface InstallationProfile {
@@ -59,6 +72,8 @@ export interface InstallationProfile {
   environment: Environment;
   readOnly: boolean;
   servers: ServerConfig[];
+  /** Источник истории метрик; нет — окна истории недоступны. */
+  history?: HistorySource;
   requestTimeoutMs: number;
   connectTimeoutMs: number;
   folderId: string | null;
@@ -66,9 +81,13 @@ export interface InstallationProfile {
   order?: number;
 }
 
-/** Ключи API из формы: id сервера → значение; сервера нет — оставить сохранённый, "" — удалить. */
+/**
+ * Ключи API из формы: id сервера → значение; сервера нет — оставить сохранённый, "" — удалить. Секрет источника
+ * истории (токен или пароль) — по тем же правилам: нет поля — оставить, "" — удалить.
+ */
 export interface SecretsInput {
   apiKeys?: Record<string, string>;
+  historySecret?: string;
 }
 
 export interface InstallationFolder {
@@ -115,11 +134,13 @@ export interface TreeItemRef {
   id: string;
 }
 
-export type TestStepName = "config" | "tcp" | "tls" | "health" | "auth" | "kind" | "models";
+export type TestStepName = "config" | "tcp" | "tls" | "health" | "auth" | "kind" | "models" | "up" | "targets" | "match";
 
 export interface TestStep {
   name: TestStepName;
   ok: boolean;
+  /** Шаг прошёл с предупреждением (⚠): успеха проверки не отменяет. */
+  warning?: boolean;
   message: LocalizedText;
   error?: AppError;
 }
@@ -225,6 +246,34 @@ export interface ServerMetrics {
   totals: Partial<Record<Canonical, number>>;
   missing: Canonical[];
   series: Partial<Record<Canonical, string>>;
+}
+
+/** Окно истории: `now` — 15 минут для «Сейчас», остальные — окна вкладки «Метрики». */
+export type HistoryWindow = "now" | "1h" | "24h" | "7d" | "30d";
+export type HistorySourceKind = "prometheus" | "victoriametrics";
+
+/** Цель инференса в источнике истории. */
+export interface HistoryTarget {
+  job: string;
+  instance: string;
+  kind: "vllm" | "sglang";
+}
+
+/** Проверка источника истории: шаги, найденные цели и автоподбор серверов без селектора. */
+export interface HistoryCheck {
+  report: TestReport;
+  source?: { kind: HistorySourceKind; version: string | null };
+  targets: HistoryTarget[];
+  suggestions: { serverId: string; selector: string | null; targets: HistoryTarget[] }[];
+}
+
+/** Окно истории сервера: точки той же формы, что у «Сейчас»; `partial` — ряды, которые не прочитались. */
+export interface HistoryAnswer {
+  window: HistoryWindow;
+  stepSec: number;
+  source: HistorySourceKind;
+  points: { at: number; m: ServerMetrics }[];
+  partial: { chart: string; error: AppError }[];
 }
 
 export type ConfigSource = "server_info" | "models" | "metrics";

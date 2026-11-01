@@ -22,7 +22,8 @@ globalThis.ResizeObserver ??= class {
   unobserve() {}
 } as unknown as typeof ResizeObserver;
 
-import { axisIncrs, axisSize, chartData, hasValues } from "./chart";
+import { renderWithClient } from "../../test/render";
+import { AXIS_MIN, axisIncrs, axisSize, chartData, drawMarker, hasValues } from "./chart";
 import { MetricChart } from "./MetricChart";
 import { ServerMetricsView } from "./ServerMetricsView";
 import { metrics } from "./testMetrics";
@@ -43,11 +44,39 @@ describe("ось Y", () => {
     expect(axisIncrs(1)[0]).toBe(1);
   });
 
-  it("ширина оси — по самой длинной подписи", () => {
+  it("ширина оси одна у обычных подписей, шире — только по слишком длинной", () => {
     const measure = (s: string) => s.length * 7;
-    expect(axisSize(["0 мс", "10 000 мс"], measure)).toBe(9 * 7 + 16);
-    expect(axisSize(["0"], measure)).toBe(40);
-    expect(axisSize(null, measure)).toBe(40);
+    // «100» и «2 000 мс» — одна ширина: графики в колонке выровнены.
+    expect(axisSize(["0", "100"], measure)).toBe(AXIS_MIN);
+    expect(axisSize(["0 мс", "2 000 мс"], measure)).toBe(AXIS_MIN);
+    expect(axisSize(null, measure)).toBe(AXIS_MIN);
+    expect(axisSize(["0 мс", "100 000 мс"], measure)).toBe(10 * 7 + 16);
+  });
+});
+
+describe("граница истории", () => {
+  const target = (x: number) => {
+    const ctx = { save: vi.fn(), restore: vi.fn(), setLineDash: vi.fn(), beginPath: vi.fn(), moveTo: vi.fn(), lineTo: vi.fn(), stroke: vi.fn(), strokeStyle: "" };
+    return { ctx, u: { ctx: ctx as unknown as CanvasRenderingContext2D, bbox: { left: 10, top: 5, width: 100, height: 50 }, valToPos: vi.fn(() => x) } };
+  };
+
+  it("пунктир на времени границы — во всю высоту области графика", () => {
+    const { ctx, u } = target(60);
+    drawMarker(u, 30_000, "#888");
+    expect(u.valToPos).toHaveBeenCalledWith(30, "x", true);
+    expect(ctx.setLineDash).toHaveBeenCalledWith([4, 4]);
+    expect(ctx.moveTo).toHaveBeenCalledWith(60, 5);
+    expect(ctx.lineTo).toHaveBeenCalledWith(60, 55);
+    expect(ctx.strokeStyle).toBe("#888");
+  });
+
+  it("без границы и вне области — ничего", () => {
+    const outside = target(500);
+    drawMarker(outside.u, 30_000, "#888");
+    expect(outside.ctx.stroke).not.toHaveBeenCalled();
+    const none = target(60);
+    drawMarker(none.u, null, "#888");
+    expect(none.u.valToPos).not.toHaveBeenCalled();
   });
 });
 
@@ -116,16 +145,20 @@ describe("ServerMetricsView", () => {
   const finished = (reasons: Record<string, number>, aborted: number | null) =>
     metrics(1_000, { rates: { promptTokens: 1, generationTokens: 1, requests: 1, preemptions: 0, aborted, finishedByReason: reasons } });
   const finishedLabels = () => plots.filter((p) => p.opts.title === "Завершения в секунду").pop()?.opts.series.map((s) => s.label);
+  const view = (points: MetricPoint[]) =>
+    renderWithClient(
+      <ServerMetricsView installationId="i1" serverId="s1" points={points} historyUntil={null} historyError={null} historyUnavailable="servers.metrics.noSource" />,
+    );
 
   it("«Завершения»: прерванные запросы vLLM — одна линия, причина abort не дублирует «прерваны»", () => {
     plots.length = 0;
-    render(<ServerMetricsView points={[{ at: 1_000, m: finished({ stop: 2, abort: 1 }, 1) }]} />);
+    view([{ at: 1_000, m: finished({ stop: 2, abort: 1 }, 1) }]);
     expect(finishedLabels()).toEqual([undefined, "stop", "прерваны"]);
   });
 
   it("«Завершения»: без отдельного счётчика прерываний причина abort остаётся", () => {
     plots.length = 0;
-    render(<ServerMetricsView points={[{ at: 1_000, m: finished({ stop: 2, abort: 1 }, null) }]} />);
+    view([{ at: 1_000, m: finished({ stop: 2, abort: 1 }, null) }]);
     expect(finishedLabels()).toEqual([undefined, "abort", "stop", "прерваны"]);
   });
 });

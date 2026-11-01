@@ -1,10 +1,11 @@
 #!/usr/bin/env node
 // Мок-сервер инференса для разработки и смоука без GPU: отвечает как vLLM, SGLang или OpenAI-совместимый
-// сервер снимками ответов из src-tauri/src/servers/testdata (те же снимки проверяют тесты Rust).
+// сервер снимками ответов из src-tauri/src/servers/testdata (те же снимки проверяют тесты Rust), а вид
+// prometheus — как источник истории, ответами настоящего Prometheus из src-tauri/src/history/testdata.
 // Только модули node:. Использование:
-//   node scripts/mock-server.mjs --kind vllm|vllm-0.11|vllm-0.10|vllm-0.8|vllm-old|sglang|sglang-no-metrics|sglang-0.5.4|sglang-0.4|llamacpp|ollama
+//   node scripts/mock-server.mjs --kind vllm|vllm-0.11|vllm-0.10|vllm-0.8|vllm-old|sglang|sglang-no-metrics|sglang-0.5.4|sglang-0.4|llamacpp|ollama|prometheus
 //        [--port 8000] [--host 127.0.0.1] [--api-key sk-dev]
-//        [--health 200..599] [--models full|empty] [--engines 1..8] [--reset-after N]
+//        [--health 200..599] [--models full|empty] [--engines 1..8] [--reset-after N] [--slow N] [--huge]
 //   --port    целое 0..65535 (0 — любой свободный порт).
 //   --health  код ответа /health, любое целое 200..599 (например 200, 301, 401, 503);
 //             у 3xx добавляется заголовок Location на https://<хост>:<порт>/health.
@@ -13,15 +14,20 @@
 //   KV-кэш колеблется. --engines N — N движков data parallel (vLLM — метка engine, SGLang — dp_rank;
 //   снимок, где уже несколько движков, например vllm-0.10, не размножается);
 //   --reset-after N — после N опросов /metrics счётчики начинаются заново, как при перезапуске сервера.
+//   Вид prometheus (смоук отказов источника истории): --api-key — токен (без него 401), --slow N — ответ через
+//   N секунд (таймаут), --huge — ответ query_range больше 8 МБ; выражение с __bad__ — ошибка bad_data.
+//   query_range отдаёт снятые ряды шаблонов Glafira на сетке запроса (значения по кругу), чужие — пусто.
 import { readFileSync } from "node:fs";
 import { createServer } from "node:http";
 import { join } from "node:path";
 import { fileURLToPath } from "node:url";
 
-const DATA = join(fileURLToPath(new URL("..", import.meta.url)), "src-tauri/src/servers/testdata");
+const ROOT = fileURLToPath(new URL("..", import.meta.url));
+const DATA = join(ROOT, "src-tauri/src/servers/testdata");
+const PROMETHEUS = join(ROOT, "src-tauri/src/history/testdata/prometheus-3.15.1");
 
 const USAGE =
-  "Использование: node scripts/mock-server.mjs --kind <вид> [--port 0..65535] [--host 127.0.0.1] [--api-key <ключ>] [--health 200..599] [--models full|empty] [--engines 1..8] [--reset-after N]";
+  "Использование: node scripts/mock-server.mjs --kind <вид> [--port 0..65535] [--host 127.0.0.1] [--api-key <ключ>] [--health 200..599] [--models full|empty] [--engines 1..8] [--reset-after N] [--slow N] [--huge]";
 
 /** vLLM (AuthenticationMiddleware): ключ нужен только путям с префиксом /v1, остальное (/version, /metrics, /health) открыто.
  *  Так же отвечают llama.cpp, Ollama и прочие OpenAI-совместимые виды: ключ защищает только /v1. */
@@ -98,6 +104,14 @@ export const KINDS = {
   llamacpp: { dir: "llamacpp", routes: { "/v1/models": "models.json" }, open: openOutsideV1 },
   // Ollama: /health нет.
   ollama: { dir: "ollama", routes: { "/v1/models": "models.json" }, noHealth: true, open: openOutsideV1 },
+  // Источник истории: с --api-key закрыто всё (вход по токену); /api/v1/query и query_range — prometheusReply.
+  prometheus: {
+    dir: "../../history/testdata/prometheus-3.15.1",
+    routes: { "/api/v1/status/buildinfo": "buildinfo.json", "/api/v1/targets": "targets.json" },
+    open: () => false,
+    noHealth: true,
+    prometheus: true,
+  },
 };
 
 /** Целое из значения параметра в пределах [min, max]; иначе ошибка с текстом использования. */
@@ -110,9 +124,13 @@ export function parseArgs(argv) {
   const fail = (message) => {
     throw new Error(`${message}\n${USAGE}`);
   };
-  const opts = { kind: "vllm", port: 8000, host: "127.0.0.1", apiKey: null, health: 200, models: "full", engines: 1, resetAfter: 0 };
+  const opts = { kind: "vllm", port: 8000, host: "127.0.0.1", apiKey: null, health: 200, models: "full", engines: 1, resetAfter: 0, slow: 0, huge: false };
   for (let i = 0; i < argv.length; i++) {
     const [name, value] = [argv[i], argv[i + 1]];
+    if (name === "--huge") {
+      opts.huge = true;
+      continue;
+    }
     if (name === "--kind") opts.kind = value;
     else if (name === "--port") opts.port = intArg(name, value, 0, 65535);
     else if (name === "--host") opts.host = value;
@@ -120,6 +138,7 @@ export function parseArgs(argv) {
     else if (name === "--health") opts.health = intArg(name, value, 200, 599);
     else if (name === "--engines") opts.engines = intArg(name, value, 1, 8);
     else if (name === "--reset-after") opts.resetAfter = intArg(name, value, 1, 1_000_000);
+    else if (name === "--slow") opts.slow = intArg(name, value, 1, 600);
     else if (name === "--models") {
       if (value !== "full" && value !== "empty") fail(`--models: нужно full или empty, получено ${value === undefined ? "ничего" : `«${value}»`}`);
       opts.models = value;
@@ -167,14 +186,71 @@ export function liveMetrics(text, poll, engines, kind) {
 
 /** Обработчик запросов: ключ проверяется по правилу вида (kind.open); /health отвечает заданным кодом,
  *  у 3xx — с Location на https, как у настоящего перенаправления. */
+/** Сетка `query_range`: точки от start до end с шагом step, секунды. */
+function grid(start, end, step) {
+  const out = [];
+  for (let t = start; t <= end; t += step) out.push(t);
+  return out;
+}
+
+/** Выражение без селекторов и интервалов: так шаблон для любого сервера находит снятый ряд. */
+const shape = (expr) => expr.replace(/\{[^}]*\}/g, "{}").replace(/\[[^\]]*\]/g, "[]");
+
+let captured;
+/** Снятые ответы query_range (range-*.json) по форме выражения; первый снимок формы — главный. */
+function capturedRanges() {
+  if (captured) return captured;
+  captured = new Map();
+  for (const name of ["range-vllm-8000.json", "range-sglang-30000.json", "range-vllm-8003.json"]) {
+    for (const { expr, response } of JSON.parse(readFileSync(join(PROMETHEUS, name), "utf8")).queries)
+      if (!captured.has(shape(expr))) captured.set(shape(expr), response.data.result);
+  }
+  return captured;
+}
+
+const vector = (result) => JSON.stringify({ status: "success", data: { resultType: "vector", result } });
+
+/** Ответ источника истории на /api/v1/query и /api/v1/query_range (вид prometheus). */
+export function prometheusReply(url, opts) {
+  const query = url.searchParams.get("query") ?? "";
+  if (query.includes("__bad__"))
+    return [400, JSON.stringify({ status: "error", errorType: "bad_data", error: `invalid parameter "query": 1:1: parse error: unexpected identifier "__bad__"` })];
+  if (url.pathname === "/api/v1/query") {
+    const file = (name) => readFileSync(join(PROMETHEUS, name), "utf8");
+    if (query === "up") return [200, file("up.json")];
+    if (query.startsWith("count by (job, instance)")) return [200, file(query.includes("vllm:") ? "discover.json" : "discover-sglang.json")];
+    if (query.startsWith("count({")) return [200, vector([{ metric: {}, value: [Date.now() / 1000, "57"] }])];
+    return [200, file("empty.json")];
+  }
+  const [start, end, step] = ["start", "end", "step"].map((k) => Number(url.searchParams.get(k)));
+  const times = grid(start, end, step);
+  if (opts.huge) {
+    // Число рядов — по размеру одного ряда в JSON: около 10 МБ при любом шаге окна.
+    const one = (i) => ({ metric: { pod: `vllm-${i}` }, values: times.map((t) => [t, "1"]) });
+    const series = Math.ceil((10 * 1024 * 1024) / JSON.stringify(one(0)).length);
+    const big = Array.from({ length: series }, (_, i) => one(i));
+    return [200, JSON.stringify({ status: "success", data: { resultType: "matrix", result: big } })];
+  }
+  const result = (capturedRanges().get(shape(query)) ?? []).map((s) => {
+    const values = s.values.filter(([, v]) => v !== "NaN");
+    return { metric: s.metric, values: values.length ? times.map((t, i) => [t, values[i % values.length][1]]) : [] };
+  });
+  return [200, JSON.stringify({ status: "success", data: { resultType: "matrix", result } })];
+}
+
 export function handler(opts) {
   const kind = KINDS[opts.kind];
   let polls = 0;
   return (req, res) => {
-    const path = new URL(req.url ?? "/", "http://x").pathname;
+    const url = new URL(req.url ?? "/", "http://x");
+    const path = url.pathname;
     const reply = (status, type, body, headers = {}) => {
-      res.writeHead(status, { "content-type": type, ...headers });
-      res.end(body);
+      const send = () => {
+        res.writeHead(status, { "content-type": type, ...headers });
+        res.end(body);
+      };
+      if (opts.slow) setTimeout(send, opts.slow * 1000);
+      else send();
     };
     if (opts.apiKey && !kind.open(path) && req.headers.authorization !== `Bearer ${opts.apiKey}`)
       return reply(401, "application/json", JSON.stringify({ error: "Unauthorized" }));
@@ -182,6 +258,10 @@ export function handler(opts) {
       const redirect = opts.health >= 300 && opts.health < 400;
       const authority = req.headers.host ?? `${opts.host}:${opts.port}`;
       return reply(opts.health, "text/plain", "", redirect ? { location: `https://${authority}/health` } : {});
+    }
+    if (kind.prometheus && (path === "/api/v1/query" || path === "/api/v1/query_range")) {
+      const [status, body] = prometheusReply(url, opts);
+      return reply(status, "application/json", body);
     }
     const file = kind.routes[path];
     if (!file) return reply(404, "application/json", JSON.stringify({ detail: "Not Found" }));

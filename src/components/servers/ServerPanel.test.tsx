@@ -7,7 +7,7 @@ vi.mock("../../api/client", async (importOriginal) => {
   const orig = await importOriginal<typeof import("../../api/client")>();
   return {
     ...orig,
-    api: { listInstallations: vi.fn(), connectInstallation: vi.fn(), readServerMetrics: vi.fn(), readServerConfig: vi.fn() },
+    api: { listInstallations: vi.fn(), connectInstallation: vi.fn(), readServerMetrics: vi.fn(), readServerConfig: vi.fn(), readServerHistory: vi.fn() },
   };
 });
 vi.mock("uplot", () => ({
@@ -38,6 +38,15 @@ const PROFILE: InstallationProfile = {
   ],
 };
 
+const HISTORY = { url: "http://prometheus:9090", auth: { mode: "none" }, ca: { mode: "system" }, proxy: { mode: "system" } } as const;
+
+/** Профиль с источником истории и сопоставленным сервером s1. */
+const withHistory = (): InstallationProfile => ({
+  ...PROFILE,
+  history: HISTORY,
+  servers: PROFILE.servers.map((s) => (s.id === "s1" ? { ...s, historySelector: '{job="vllm", instance="gpu-1:8000"}' } : s)),
+});
+
 const INFO: InstallationInfo = {
   installationId: "i1",
   servers: [
@@ -51,6 +60,7 @@ const INFO: InstallationInfo = {
 
 beforeEach(() => {
   vi.clearAllMocks();
+  vi.mocked(api.readServerHistory).mockReset();
   vi.mocked(api.listInstallations).mockResolvedValue([PROFILE]);
   vi.mocked(api.connectInstallation).mockResolvedValue(INFO);
   vi.mocked(api.readServerMetrics).mockResolvedValue(
@@ -93,15 +103,105 @@ describe("ServerPanel", () => {
     expect(api.readServerConfig).toHaveBeenCalledWith("i1", "s1");
   });
 
-  it("«Метрики»: окно «Сейчас», история недоступна до I1c, графики строятся", async () => {
+  it("«Метрики»: окно «Сейчас»; без источника истории окна недоступны, графики строятся", async () => {
     const user = userEvent.setup();
     renderWithClient(<ServerPanel installationId="i1" serverId="s1" />);
     await user.click(await screen.findByRole("tab", { name: "Метрики" }));
     expect(screen.getByRole("button", { name: "Сейчас" })).toHaveAttribute("aria-pressed", "true");
     const day = screen.getByRole("button", { name: "24 ч" });
     expect(day).toBeDisabled();
-    expect(day).toHaveAttribute("title", "История — с этапа I1c");
+    expect(day).toHaveAttribute("title", "Добавьте источник истории в инсталляцию");
     expect(await screen.findByRole("region", { name: "Время до первого токена (TTFT)" })).toBeInTheDocument();
+    expect(api.readServerHistory).not.toHaveBeenCalled();
+  });
+
+  it("источник есть, а серии сервера не сопоставлены — окна недоступны с подсказкой", async () => {
+    vi.mocked(api.listInstallations).mockResolvedValue([{ ...PROFILE, history: HISTORY }]);
+    const user = userEvent.setup();
+    renderWithClient(<ServerPanel installationId="i1" serverId="s1" />);
+    await user.click(await screen.findByRole("tab", { name: "Метрики" }));
+    expect(screen.getByRole("button", { name: "7 д" })).toHaveAttribute("title", "Серии сервера не сопоставлены с историей");
+    expect(api.readServerHistory).not.toHaveBeenCalled();
+  });
+
+  it("окно истории: запрос при выборе, шаг и источник, частичное окно; «Сейчас» начинается из истории", async () => {
+    vi.mocked(api.listInstallations).mockResolvedValue([withHistory()]);
+    const now = Date.now();
+    vi.mocked(api.readServerHistory).mockImplementation(async (_i, _s, window) => ({
+      window,
+      stepSec: window === "now" ? 15 : 90,
+      source: "prometheus",
+      points: [{ at: now - 30_000, m: metrics(now - 30_000) }],
+      partial: window === "24h" ? [{ chart: "ttft", error: { code: "TIMEOUT", key: "errors.history.timeout", message: "late", retryable: true } }] : [],
+    }));
+    const user = userEvent.setup();
+    renderWithClient(<ServerPanel installationId="i1" serverId="s1" />);
+    await user.click(await screen.findByRole("tab", { name: "Метрики" }));
+    expect(api.readServerHistory).toHaveBeenCalledWith("i1", "s1", "now");
+    expect(await screen.findByText(/^История до \d\d:\d\d$/)).toBeInTheDocument();
+    await user.click(screen.getByRole("button", { name: "24 ч" }));
+    expect(api.readServerHistory).toHaveBeenLastCalledWith("i1", "s1", "24h");
+    expect(await screen.findByText("Шаг 90 с · Prometheus")).toBeInTheDocument();
+    expect(screen.getByRole("status")).toHaveTextContent("Часть рядов не прочитана: Время до первого токена (TTFT) — Источник истории метрик не успел выполнить запрос: выберите окно короче");
+    expect(screen.getByRole("button", { name: "24 ч" })).toHaveAttribute("aria-pressed", "true");
+    await user.click(screen.getByRole("button", { name: "Обновить" }));
+    await waitFor(() => expect(vi.mocked(api.readServerHistory).mock.calls.filter((c) => c[2] === "24h")).toHaveLength(2));
+  });
+
+  it("первая загрузка окна истории — «Загрузка…», а не «нет данных» у каждого графика", async () => {
+    vi.mocked(api.listInstallations).mockResolvedValue([withHistory()]);
+    vi.mocked(api.readServerHistory).mockImplementation(async (_i, _s, window) => {
+      if (window === "now") return { window, stepSec: 15, source: "prometheus", points: [], partial: [] };
+      return new Promise(() => {});
+    });
+    const user = userEvent.setup();
+    renderWithClient(<ServerPanel installationId="i1" serverId="s1" />);
+    await user.click(await screen.findByRole("tab", { name: "Метрики" }));
+    await user.click(screen.getByRole("button", { name: "1 ч" }));
+    expect(await screen.findByText("Загрузка…")).toBeInTheDocument();
+    expect(screen.queryByRole("region", { name: "Запросы" })).toBeNull();
+    expect(screen.queryByText("Нет данных")).toBeNull();
+  });
+
+  it("«Обзор» до второго опроса: скорости и перцентили — из истории, с пометкой", async () => {
+    vi.mocked(api.listInstallations).mockResolvedValue([withHistory()]);
+    const now = Date.now();
+    vi.mocked(api.readServerHistory).mockResolvedValue({
+      window: "now",
+      stepSec: 15,
+      source: "prometheus",
+      points: [{ at: now - 15_000, m: metrics(now - 15_000) }],
+      partial: [],
+    });
+    vi.mocked(api.readServerMetrics).mockResolvedValue(
+      metrics(now, { intervalSec: null, rates: null, prefixCacheHitRatio: null, latency1m: { ttft: null, itl: null, e2e: null, queueTime: null }, preemptions1m: null }),
+    );
+    renderWithClient(<ServerPanel installationId="i1" serverId="s1" />);
+    const ttft = await screen.findByRole("region", { name: "TTFT p95 за минуту" });
+    await waitFor(() => expect(within(ttft).getByText("250 мс")).toBeInTheDocument());
+    expect(within(ttft).getByText("по истории")).toBeInTheDocument();
+    expect(within(screen.getByRole("region", { name: "KV-кэш" })).queryByText("по истории")).toBeNull();
+  });
+
+  it("ошибка окна истории — вместо графиков", async () => {
+    vi.mocked(api.listInstallations).mockResolvedValue([withHistory()]);
+    vi.mocked(api.readServerHistory).mockImplementation(async (_i, _s, window) => {
+      if (window === "now") throw { code: "CONNECTION_FAILED", key: "errors.history.timeout", message: "down", retryable: true };
+      if (window === "24h") throw { code: "TIMEOUT", key: "errors.history.deadline", params: { seconds: "30" }, message: "late", retryable: true };
+      throw { code: "AUTH_FAILED", key: "errors.history.unauthorized", message: "401", retryable: false };
+    });
+    const user = userEvent.setup();
+    renderWithClient(<ServerPanel installationId="i1" serverId="s1" />);
+    await user.click(await screen.findByRole("tab", { name: "Метрики" }));
+    await waitFor(() => expect(screen.getByRole("button", { name: "Сейчас" })).toHaveAttribute("title", "История не загружена: Источник истории метрик не успел выполнить запрос: выберите окно короче"));
+    await user.click(screen.getByRole("button", { name: "1 ч" }));
+    expect(await screen.findByText(/Источник истории метрик отклонил вход \(401\)/)).toBeInTheDocument();
+    expect(screen.queryByRole("region", { name: "Время до первого токена (TTFT)" })).toBeNull();
+    // Повтор не поможет — кнопки нет; таймаут — есть.
+    expect(screen.queryByRole("button", { name: "Повторить" })).toBeNull();
+    await user.click(screen.getByRole("button", { name: "24 ч" }));
+    expect(await screen.findByText(/не отдал окно за 30 с/)).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Повторить" })).toBeInTheDocument();
   });
 
   it("сервер, который не подключился: его ошибка, без подвкладок и без опроса", async () => {
@@ -114,7 +214,7 @@ describe("ServerPanel", () => {
   it("ошибка опроса — «Нет ответа сервера» в шапке", async () => {
     vi.mocked(api.readServerMetrics).mockRejectedValue({ code: "TIMEOUT", key: "errors.server.timeout", message: "timed out", retryable: true });
     renderWithClient(<ServerPanel installationId="i1" serverId="s1" />);
-    expect(await screen.findByText("Нет ответа сервера: timed out")).toBeInTheDocument();
+    expect(await screen.findByText("Нет ответа сервера: Сервер не ответил вовремя")).toBeInTheDocument();
   });
 
   it("OpenAI-совместимый сервер (Ollama): метрики не опрашиваются, «Нет ответа сервера» нет, у плиток подсказка", async () => {
@@ -160,7 +260,7 @@ describe("ServerPanel", () => {
     await act(async () => {
       await client.refetchQueries({ queryKey: ["server-metrics", "i1", "s1"] });
     });
-    expect(await screen.findByText("Нет ответа сервера: timed out")).toBeInTheDocument();
+    expect(await screen.findByText("Нет ответа сервера: Сервер не ответил вовремя")).toBeInTheDocument();
     expect(within(kv).queryByText(/42\s?%/)).toBeNull();
     expect(within(kv).getByText("—")).toBeInTheDocument();
     expect(within(kv).queryByText("…")).toBeNull();

@@ -21,6 +21,17 @@ pub fn secret_key(installation_id: &str, component_id: &str, field: &str) -> Str
     format!("{installation_id}/{component_id}/{field}")
 }
 
+/// Компонент «источник истории» в ключе keychain (спека I1c §2). Поле `secret` у серверов не
+/// бывает, поэтому сервер с id `history` с источником не путается.
+pub const HISTORY: &str = "history";
+/// Секрет источника истории: токен (`bearer`) или пароль (`basic`) — по виду входа в профиле.
+pub const HISTORY_SECRET: &str = "secret";
+
+/// Ключ keychain секрета источника истории инсталляции.
+pub fn history_secret_key(installation_id: &str) -> String {
+    secret_key(installation_id, HISTORY, HISTORY_SECRET)
+}
+
 /// OS keychain: macOS Keychain, Windows Credential Manager, Secret Service.
 /// `service` — имя сервиса записей; прежние имена нужны только для миграции.
 pub struct KeyringStore {
@@ -143,6 +154,7 @@ mod tests {
     #[test]
     fn key_format() {
         assert_eq!(secret_key("i1", "s1", API_KEY), "i1/s1/apiKey");
+        assert_eq!(history_secret_key("i1"), "i1/history/secret");
     }
 
     #[test]

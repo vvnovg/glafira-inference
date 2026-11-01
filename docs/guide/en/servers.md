@@ -46,8 +46,8 @@ arguments, from the pod or the process, come with the Kubernetes and SSH connect
 
 Charts for the "Now" window, up to an hour kept in the tab's memory: requests, KV cache, preemptions, tokens per
 second, prefix cache hits, TTFT, ITL and end-to-end latency (p50, p95, p99), queue time and finished requests by
-reason. A failed poll is a gap in the chart, not a zero. The 1 h, 24 h, 7 d and 30 d windows come with a history
-source (Prometheus or VictoriaMetrics).
+reason. A failed poll is a gap in the chart, not a zero. The 1 h, 24 h, 7 d and 30 d windows are read from the
+history source (Prometheus or VictoriaMetrics) when the installation has one — see [Metric history](history.md#windows).
 
 ## Server versions {#versions}
 

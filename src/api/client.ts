@@ -4,6 +4,9 @@ import type {
   AppInfo,
   ConfigEntry,
   ExportSummary,
+  HistoryAnswer,
+  HistoryCheck,
+  HistoryWindow,
   ImportPreview,
   InstallationFolder,
   InstallationInfo,
@@ -60,6 +63,11 @@ export const api = {
     call<ServerMetrics>("read_server_metrics", { installationId, serverId }),
   readServerConfig: (installationId: string, serverId: string) =>
     call<ConfigEntry[]>("read_server_config", { installationId, serverId }),
+  /** Проверка источника истории несохранённого профиля: секрет из формы — поверх keychain. */
+  checkHistorySource: (profile: InstallationProfile, secrets: SecretsInput = {}) =>
+    call<HistoryCheck>("check_history_source", { input: { profile, secrets } }),
+  readServerHistory: (installationId: string, serverId: string, window: HistoryWindow) =>
+    call<HistoryAnswer>("read_server_history", { installationId, serverId, window }),
 
   listFolders: () => call<InstallationFolder[]>("list_folders"),
   createFolder: (name: string, parentId: string | null) =>

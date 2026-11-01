@@ -1,9 +1,10 @@
 # Getting started
 
 Glafira for LLM Inference is a desktop app for connecting to corporate open-source LLM inference, monitoring,
-diagnosing and auditing it, with vLLM and SGLang in focus. This version (stage I1b) covers connecting and checking:
-installations of servers, the kind, version and models of each server, a step-by-step server check, and live server
-metrics: tiles, charts and launch arguments. Metric history, GPUs, diagnostics and audit come in the next stages.
+diagnosing and auditing it, with vLLM and SGLang in focus. This version (stage I1c) covers connecting and checking:
+installations of servers, the kind, version and models of each server, a step-by-step server check, live server
+metrics (tiles, charts and launch arguments) and metric history from Prometheus or VictoriaMetrics. GPUs,
+diagnostics and audit come in the next stages.
 Glafira changes nothing on the servers: it reads their answers with your API keys. Glafira never reads or shows the texts of your users' requests and answers.
 
 ## Installation {#install}

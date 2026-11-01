@@ -3,6 +3,7 @@ pub mod i18n;
 pub mod commands;
 mod dock_name;
 pub mod error;
+pub mod history;
 pub mod logging;
 pub mod metrics;
 pub mod policy;
@@ -54,6 +55,8 @@ pub fn run() {
             commands::installations::disconnect_installation,
             commands::servers::read_server_metrics,
             commands::servers::read_server_config,
+            commands::history::check_history_source,
+            commands::history::read_server_history,
             commands::folders::list_folders,
             commands::folders::create_folder,
             commands::folders::rename_folder,

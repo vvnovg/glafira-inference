@@ -101,6 +101,34 @@
     },
     "metrics": {
       "tooLarge": "The metrics response is too large or is not in the Prometheus format"
+    },
+    "historySource": {
+      "dns": "Cannot resolve the host name of the metrics history source",
+      "connect": "Cannot connect to the metrics history source",
+      "timeout": "The metrics history source did not respond in time",
+      "hostnameMismatch": "The certificate of the metrics history source does not match its address — check the address",
+      "certExpired": "The certificate of the metrics history source has expired or is not valid yet",
+      "caUntrusted": "The certificate of the metrics history source is not signed by a trusted CA — specify the CA of the source",
+      "redirect": "The metrics history source redirects {{path}} to another address ({{status}}) — use the final address of the source"
+    },
+    "history": {
+      "badUrl": "Invalid address “{{url}}” of the metrics history source: use http://host:9090 or https://host",
+      "badUsername": "Enter the user name of the metrics history source (without “:”)",
+      "selector": "The series selector is invalid at character {{pos}}: use {job=\"vllm\", instance=\"host:port\"}",
+      "selectorName": "The series selector must not set __name__: Glafira adds the series names itself",
+      "unexpected": "Unexpected answer of the metrics history source to {{path}}: not the Prometheus HTTP API",
+      "tooLarge": "The answer of the metrics history source is larger than 8 MB: choose a shorter window",
+      "unauthorized": "The metrics history source rejected the sign-in (401): check the token or the user name and password",
+      "forbidden": "The metrics history source denied access (403): the account may not read metrics",
+      "timeout": "The metrics history source did not finish the query in time: choose a shorter window",
+      "deadline": "The metrics history source did not return the window in {{seconds}} s: choose a shorter window or raise the request timeout",
+      "tooManyPoints": "The metrics history source refused the query: too many points per series",
+      "badData": "The metrics history source rejected the query: {{message}}",
+      "failed": "The metrics history source failed the query: {{message}}",
+      "status": "The metrics history source answered {{path}} with {{status}}",
+      "noMetrics": "Glafira reads the metrics history only of vLLM and SGLang",
+      "noSource": "The installation has no metrics history source",
+      "notMatched": "The series of the server are not matched with the metrics history: choose a target in the installation"
     }
   },
   "messages": {
@@ -130,7 +158,21 @@
       "addressChanged": "“{{name}}”, server “{{server}}”: the address changes from {{from}} to {{to}}. The saved API key will be sent to the new address.",
       "proxyChanged": "“{{name}}”, server “{{server}}”: the proxy settings change. The saved API key will go through the new proxy.",
       "tlsChanged": "“{{name}}”, server “{{server}}”: the certificate verification settings change. The saved API key will be used with the new settings.",
-      "serverRemoved": "“{{name}}”: server “{{server}}” is not in the file and will be removed together with its saved API key"
+      "serverRemoved": "“{{name}}”: server “{{server}}” is not in the file and will be removed together with its saved API key",
+      "historyChanged": "“{{name}}”: the address, proxy or certificate verification of the metrics history source changes. The saved token or password will be sent with the new settings.",
+      "historyRemoved": "“{{name}}”: the metrics history source is not in the file and will be removed together with its saved token or password"
+    },
+    "historyTest": {
+      "source": "{{kind}} {{version}}",
+      "sourceKind": "{{kind}}",
+      "noBuildinfo": "The source has no buildinfo — sign-in is checked by the next step",
+      "up": "Targets up: {{alive}} of {{total}}",
+      "targets": "Inference targets found: {{count}}",
+      "noTargets": "The source does not collect vLLM or SGLang metrics",
+      "matchAuto": "“{{server}}”: {{job}} · {{instance}} (auto-match)",
+      "matchSelector": "“{{server}}”: {{selector}}",
+      "noSeries": "“{{server}}”: there are no vLLM or SGLang series under the selector {{selector}}",
+      "noTarget": "“{{server}}”: no target with the address of the server — choose the target manually"
     }
   },
   "common": {
@@ -141,7 +183,8 @@
     "close": "Close",
     "loading": "Loading…",
     "details": "Details",
-    "readOnly": "Read-only"
+    "readOnly": "Read-only",
+    "refresh": "Refresh"
   },
   "hints": {
     "label": "Hint: {{name}}",
@@ -155,7 +198,8 @@
       "ca": "System store — the CAs this computer trusts. Listed certificates — only them, the system ones are not used.",
       "proxy": "System — the <code>HTTP_PROXY</code>, <code>HTTPS_PROXY</code>, <code>ALL_PROXY</code> and <code>NO_PROXY</code> environment variables, then the OS proxy settings. Or an explicit address such as <code>http://proxy:3128</code>.",
       "test": "Checks this server step by step with the values of the form, without saving: address, TLS, /health, API key, type, version, models.",
-      "detectedKind": "The type Glafira works with. If it differs from what the server looks like, the type is chosen in the installation or the server version is too old."
+      "detectedKind": "The type Glafira works with. If it differs from what the server looks like, the type is chosen in the installation or the server version is too old.",
+      "historyUrl": "Address of the Prometheus or VictoriaMetrics HTTP API that scrapes the servers: http://prometheus.monitoring:9090. Glafira only reads it with PromQL queries and keeps nothing on disk."
     },
     "import": {
       "target": "Where new folders and installations go. Existing ones stay where they are.",
@@ -222,7 +266,10 @@
         "health": "Health",
         "auth": "Sign-in",
         "kind": "Type and version",
-        "models": "Models"
+        "models": "Models",
+        "up": "Query up",
+        "targets": "Targets",
+        "match": "Matching"
       }
     },
     "panel": {
@@ -241,7 +288,34 @@
       "notConnected": "Not connected",
       "live": "Now",
       "liveHint": "Running · waiting · KV cache, refreshed every 5 s while the tab is shown",
-      "liveError": "no answer"
+      "liveError": "no answer",
+      "history": "History",
+      "historyNone": "not matched"
+    },
+    "history": {
+      "title": "Metrics history (Prometheus / VictoriaMetrics)",
+      "none": "Without a history source only the “Now” window is available.",
+      "add": "Add a history source",
+      "remove": "Remove the source",
+      "url": "Address",
+      "auth": "Sign-in",
+      "authMode": {
+        "none": "None",
+        "bearer": "Token",
+        "basic": "User name and password"
+      },
+      "username": "User name",
+      "token": "Token",
+      "password": "Password",
+      "secretClear": "Delete the saved token or password",
+      "check": "Check the source",
+      "report": "Check of the history source",
+      "series": "Series in the history",
+      "checkForTargets": "The found targets appear in the lists after “Check the source”",
+      "auto": "auto-match",
+      "noMatch": "Do not match",
+      "custom": "Custom selector…",
+      "selector": "Series selector of “{{server}}”"
     }
   },
   "settings": {
@@ -255,7 +329,7 @@
     }
   },
   "about": {
-    "summary": "Glafira is a desktop app for connecting to corporate LLM inference, monitoring, diagnosing and auditing it, with vLLM and SGLang in focus. This version (stage I1b) covers connecting and checking: installations of several servers, API keys in the system secret store, step-by-step server checks, folders, export and import, and live server metrics with launch arguments. Metric history, GPUs, diagnostics and audit come in the next stages.",
+    "summary": "Glafira is a desktop app for connecting to corporate LLM inference, monitoring, diagnosing and auditing it, with vLLM and SGLang in focus. This version (stage I1c) covers connecting and checking: installations of several servers, API keys in the system secret store, step-by-step server checks, folders, export and import, live server metrics with launch arguments, and metric history from Prometheus or VictoriaMetrics. GPUs, diagnostics and audit come in the next stages.",
     "version": "Version",
     "build": "Build",
     "system": "System",
@@ -367,7 +441,16 @@
         "7d": "7 d",
         "30d": "30 d"
       },
-      "historyLater": "History comes with stage I1c"
+      "noSource": "Add a metrics history source to the installation",
+      "notMatched": "The series of the server are not matched with the history",
+      "historyUntil": "History until {{time}}",
+      "prefillFailed": "History is not loaded: {{error}}",
+      "step": "Step {{step}} · {{source}}",
+      "sources": {
+        "prometheus": "Prometheus",
+        "victoriametrics": "VictoriaMetrics"
+      },
+      "partial": "Some series are not read: {{charts}}"
     },
     "panel": {
       "deleted": "The server or its installation has been deleted",
@@ -397,12 +480,15 @@
       "sglangEnableMetrics": "SGLang exposes metrics only when started with --enable-metrics",
       "openaiNoMetrics": "Glafira reads metrics of vLLM and SGLang only",
       "belowFloor": "Version below the supported floor: metrics are read for vLLM 0.10+ and SGLang 0.5+",
-      "noAnswer": "No answer from the server"
+      "noAnswer": "No answer from the server",
+      "fromHistory": "from history"
     },
     "units": {
       "ms": "{{value}} ms",
       "perSec": "{{value}}/s",
-      "perMin": "{{value}}/min"
+      "perMin": "{{value}}/min",
+      "sec": "{{value}} s",
+      "min": "{{value}} min"
     },
     "config": {
       "partial": "Over HTTP a server reports only part of its arguments; the rest come from the pod or the process (from stage I3).",

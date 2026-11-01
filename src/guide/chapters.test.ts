@@ -6,6 +6,7 @@ describe("loadGuide", () => {
     const ru = await loadGuide("ru");
     expect(Object.keys(ru).sort()).toEqual([...GUIDE_CHAPTERS].sort());
     expect(ru.installations).toMatch(/^# Инсталляции/);
+    expect(ru.history).toMatch(/^# История метрик/);
   });
 
   it("falls back to English for a language without chapters", async () => {

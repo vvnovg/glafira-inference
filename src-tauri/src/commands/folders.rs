@@ -165,10 +165,10 @@ fn import_from_file(
     if !apply {
         return Ok(plan_import(&snapshot, &parsed, &opts, &stored)?.preview);
     }
-    let (preview, removed) = st.installations.update(|data| {
+    let (preview, removed, removed_history) = st.installations.update(|data| {
         let plan = plan_import(data, &parsed, &opts, &stored)?;
         *data = plan.next;
-        Ok((plan.preview, plan.removed_servers))
+        Ok((plan.preview, plan.removed_servers, plan.removed_history))
     })?;
     // Секреты серверов, которых больше нет в профиле, не нужны: удаляются все, как при
     // сохранении и удалении инсталляции. Сбой keychain импорт не отменяет: профиль уже
@@ -178,6 +178,12 @@ fn import_from_file(
             tracing::warn!(
                 "secrets of server {server} of installation {installation} were not deleted: {e}"
             );
+        }
+    }
+    for installation in removed_history {
+        let key = crate::secrets::history_secret_key(&installation);
+        if let Err(e) = st.secrets.delete(&key) {
+            tracing::warn!("history secret of installation {installation} was not deleted: {e}");
         }
     }
     // Обновлённые инсталляции подключатся заново с новым профилем — как при сохранении формы.
