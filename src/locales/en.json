@@ -129,6 +129,15 @@
       "noMetrics": "Glafira reads the metrics history only of vLLM and SGLang",
       "noSource": "The installation has no metrics history source",
       "notMatched": "The series of the server are not matched with the metrics history: choose a target in the installation"
+    },
+    "gpu": {
+      "badBinding": "Choose the GPU host of server “{{server}}”",
+      "badUrl": "Invalid DCGM exporter address “{{url}}”: use http://host:9400/metrics",
+      "badUsername": "Enter the user name of the DCGM exporters (without “:”)",
+      "duplicateExporter": "The DCGM exporter “{{url}}” is listed twice",
+      "noExporters": "Add at least one DCGM exporter address",
+      "noHistorySource": "GPU metrics from the history source need a metrics history source: add it to the installation",
+      "tooManyExporters": "The GPU component can have at most {{max}} DCGM exporters"
     }
   },
   "messages": {
@@ -160,7 +169,9 @@
       "tlsChanged": "“{{name}}”, server “{{server}}”: the certificate verification settings change. The saved API key will be used with the new settings.",
       "serverRemoved": "“{{name}}”: server “{{server}}” is not in the file and will be removed together with its saved API key",
       "historyChanged": "“{{name}}”: the address, proxy or certificate verification of the metrics history source changes. The saved token or password will be sent with the new settings.",
-      "historyRemoved": "“{{name}}”: the metrics history source is not in the file and will be removed together with its saved token or password"
+      "historyRemoved": "“{{name}}”: the metrics history source is not in the file and will be removed together with its saved token or password",
+      "gpuChanged": "“{{name}}”: the addresses, proxy or certificate verification of the DCGM exporters change. The saved password will be sent with the new settings.",
+      "gpuRemoved": "“{{name}}”: the GPU component is not in the file and will be removed together with the saved password of the DCGM exporters"
     },
     "historyTest": {
       "source": "{{kind}} {{version}}",

@@ -349,6 +349,7 @@ pub fn as_server(h: &HistorySource) -> ServerConfig {
         ca: h.ca.clone(),
         proxy: h.proxy.clone(),
         history_selector: None,
+        gpus: None,
         extra: Default::default(),
     }
 }

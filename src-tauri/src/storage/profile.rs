@@ -1,7 +1,8 @@
 //! Профиль инсталляции инференса (спец. §5.1, §5.2, §5.3): окружение, серверы, источник истории
-//! метрик и их настройки. Ключи API серверов и секрет источника истории в профиле не хранятся, они
-//! лежат в keychain (`secrets::API_KEY`, `secrets::HISTORY_SECRET`). Проверки PEM, адресов и
-//! прокси — те же, что у профиля подключения Glafira for Kubernetes.
+//! метрик, компонент GPU и их настройки. Ключи API серверов, секрет источника истории и пароль
+//! экспортёров DCGM в профиле не хранятся, они лежат в keychain (`secrets::API_KEY`,
+//! `secrets::HISTORY_SECRET`, `secrets::GPU_SECRET`). Проверки PEM, адресов и прокси — те же, что у
+//! профиля подключения Glafira for Kubernetes.
 
 use serde::{Deserialize, Serialize};
 
@@ -97,9 +98,22 @@ pub struct ServerConfig {
     /// I1c §3). `None` — история сервера недоступна.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub history_selector: Option<String>,
+    /// Карты GPU сервера (спека I1d §2); `None` — сервер к GPU не привязан.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub gpus: Option<GpuBinding>,
     /// Поля из более новой версии Glafira: сохраняются при записи как есть.
     #[serde(flatten)]
     pub extra: serde_json::Map<String, serde_json::Value>,
+}
+
+/// Привязка сервера к картам (спека I1d §2): хост карт и номера; `indices = None` — все карты
+/// хоста. В I3 привязка станет частью связей компонентов (§5.7 общей спеки).
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct GpuBinding {
+    pub host: String,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub indices: Option<Vec<u32>>,
 }
 
 /// Вход в источник истории (спека I1c §2). Токен и пароль — только в keychain
@@ -133,6 +147,72 @@ pub struct HistorySource {
     pub extra: serde_json::Map<String, serde_json::Value>,
 }
 
+/// Вход в экспортёры DCGM (спека I1d §2): общий для всех экспортёров компонента. Пароль — только в
+/// keychain (`secrets::GPU_SECRET`).
+#[derive(Debug, Clone, PartialEq, Default, Serialize, Deserialize)]
+#[serde(tag = "mode", rename_all = "camelCase")]
+pub enum GpuAuth {
+    #[default]
+    None,
+    Basic {
+        username: String,
+    },
+}
+
+/// Экспортёр DCGM в режиме `direct`: адрес `/metrics` и селектор его серий в источнике истории.
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct GpuExporter {
+    /// Адрес метрик экспортёра: `http(s)://host:port/metrics` (без пути — `/metrics`).
+    pub url: String,
+    /// Селектор серий экспортёра в источнике истории (`{job="dcgm", instance="10.0.0.5:9400"}`);
+    /// `None` — окна истории его карт недоступны.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub history_selector: Option<String>,
+    /// Поля из более новой версии Glafira: сохраняются при записи как есть.
+    #[serde(flatten)]
+    pub extra: serde_json::Map<String, serde_json::Value>,
+}
+
+/// Экспортёры DCGM, которые Glafira опрашивает сама (режим `direct`).
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct DirectGpu {
+    pub exporters: Vec<GpuExporter>,
+    #[serde(default)]
+    pub auth: GpuAuth,
+    #[serde(default = "default_ca")]
+    pub ca: CaConfig,
+    #[serde(default = "default_proxy")]
+    pub proxy: ProxyConfig,
+    /// Поля из более новой версии Glafira: сохраняются при записи как есть.
+    #[serde(flatten)]
+    pub extra: serde_json::Map<String, serde_json::Value>,
+}
+
+/// Серии DCGM из источника истории (режим `prometheus`): клиент и вход — источника истории.
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct PrometheusGpu {
+    /// Матчеры меток карт инсталляции (`{hostname=~"gpu-1|gpu-2"}`); `None` — все карты источника.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub selector: Option<String>,
+    /// Поля из более новой версии Glafira: сохраняются при записи как есть.
+    #[serde(flatten)]
+    pub extra: serde_json::Map<String, serde_json::Value>,
+}
+
+/// Компонент GPU инсталляции (спека I1d §2): не больше одного; режим `ssh` появится в I3.
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[serde(tag = "mode", rename_all = "camelCase")]
+pub enum GpuSource {
+    Direct(DirectGpu),
+    Prometheus(PrometheusGpu),
+}
+
+/// Сколько экспортёров DCGM может быть у компонента GPU.
+pub const MAX_EXPORTERS: usize = 16;
+
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct InstallationProfile {
@@ -146,6 +226,9 @@ pub struct InstallationProfile {
     /// Источник истории метрик (спека I1c §2); `None` — окна истории недоступны.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub history: Option<HistorySource>,
+    /// Компонент GPU (спека I1d §2); `None` — карт у инсталляции нет.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub gpu: Option<GpuSource>,
     #[serde(default = "default_request_timeout")]
     pub request_timeout_ms: u64,
     #[serde(default = "default_connect_timeout")]
@@ -167,8 +250,25 @@ impl InstallationProfile {
     }
 }
 
+/// Пустая строка селектора — его отсутствие.
+fn trimmed_selector(v: Option<String>) -> Option<String> {
+    v.map(|v| v.trim().to_string()).filter(|v| !v.is_empty())
+}
+
+/// Адрес экспортёра DCGM без пробелов и `/` на конце; без пути — `/metrics`. Неразбираемый адрес
+/// остаётся как есть: его отклонит проверка.
+fn normalize_exporter_url(raw: &str) -> String {
+    let url = raw.trim().trim_end_matches('/');
+    match url::Url::parse(url) {
+        Ok(u) if u.host_str().is_some() && u.path() == "/" => format!("{url}/metrics"),
+        _ => url.to_string(),
+    }
+}
+
 /// Приводит поля к каноническому виду до проверки: имена и адреса без пробелов по краям, адрес
 /// без `/` на конце, путь метрик — с `/` в начале, пустой селектор истории — его отсутствие.
+/// Номера карт привязки — по возрастанию без повторов, пустой список — все карты; без компонента
+/// GPU привязок нет.
 pub fn normalize_profile(p: &mut InstallationProfile) {
     p.name = p.name.trim().to_string();
     if let Some(h) = &mut p.history {
@@ -177,14 +277,37 @@ pub fn normalize_profile(p: &mut InstallationProfile) {
             *username = username.trim().to_string();
         }
     }
+    match &mut p.gpu {
+        Some(GpuSource::Direct(d)) => {
+            for e in &mut d.exporters {
+                e.url = normalize_exporter_url(&e.url);
+                e.history_selector = trimmed_selector(e.history_selector.take());
+            }
+            if let GpuAuth::Basic { username } = &mut d.auth {
+                *username = username.trim().to_string();
+            }
+        }
+        Some(GpuSource::Prometheus(g)) => g.selector = trimmed_selector(g.selector.take()),
+        None => {}
+    }
+    let has_gpu = p.gpu.is_some();
     for s in &mut p.servers {
         s.name = s.name.trim().to_string();
         s.base_url = s.base_url.trim().trim_end_matches('/').to_string();
-        s.history_selector = s
-            .history_selector
-            .take()
-            .map(|v| v.trim().to_string())
-            .filter(|v| !v.is_empty());
+        s.history_selector = trimmed_selector(s.history_selector.take());
+        if !has_gpu {
+            s.gpus = None;
+        }
+        if let Some(b) = &mut s.gpus {
+            b.host = b.host.trim().to_string();
+            if let Some(list) = &mut b.indices {
+                list.sort_unstable();
+                list.dedup();
+            }
+            if b.indices.as_ref().is_some_and(Vec::is_empty) {
+                b.indices = None;
+            }
+        }
         let path = s.metrics_path.trim();
         s.metrics_path = if path.is_empty() {
             default_metrics_path()
@@ -368,6 +491,15 @@ pub fn validate_server(s: &ServerConfig) -> AppResult<()> {
     if let Some(selector) = &s.history_selector {
         crate::history::targets::parse_selector(selector)?;
     }
+    if let Some(b) = &s.gpus
+        && b.host.is_empty()
+    {
+        return Err(invalid(ltext!(
+            "errors.gpu.badBinding",
+            "Choose the GPU host of server “{{server}}”",
+            server = s.name
+        )));
+    }
     validate_ca(&s.ca, &s.name)?;
     validate_proxy(&s.proxy)
 }
@@ -453,6 +585,90 @@ pub fn validate_history(h: &HistorySource) -> AppResult<()> {
     validate_proxy(&h.proxy)
 }
 
+/// Имя компонента GPU в текстах ошибок CA (`errors.installations.caPemInvalid`).
+pub const GPU_NAME: &str = "DCGM";
+
+/// Разобранный адрес экспортёра DCGM: `http(s)://`, хост, без имени и пароля, запроса и якоря.
+pub fn parse_exporter_url(e: &GpuExporter) -> AppResult<url::Url> {
+    let bad = || {
+        invalid(ltext!(
+            "errors.gpu.badUrl",
+            "Invalid DCGM exporter address “{{url}}”: use http://host:9400/metrics",
+            url = redact_url(&e.url)
+        ))
+    };
+    let url = url::Url::parse(e.url.trim()).map_err(|_| bad())?;
+    if !matches!(url.scheme(), "http" | "https")
+        || url.host_str().is_none_or(str::is_empty)
+        || url.query().is_some()
+        || url.fragment().is_some()
+    {
+        return Err(bad());
+    }
+    if has_userinfo(&url) {
+        return Err(credentials_in_url(&url));
+    }
+    Ok(url)
+}
+
+/// Проверка компонента GPU: и при сохранении профиля, и при проверке из формы. Режиму
+/// `prometheus` нужен источник истории инсталляции.
+pub fn validate_gpu(g: &GpuSource, has_history: bool) -> AppResult<()> {
+    match g {
+        GpuSource::Direct(d) => {
+            if d.exporters.is_empty() {
+                return Err(invalid(ltext!(
+                    "errors.gpu.noExporters",
+                    "Add at least one DCGM exporter address"
+                )));
+            }
+            if d.exporters.len() > MAX_EXPORTERS {
+                return Err(invalid(ltext!(
+                    "errors.gpu.tooManyExporters",
+                    "The GPU component can have at most {{max}} DCGM exporters",
+                    max = MAX_EXPORTERS
+                )));
+            }
+            let mut seen = std::collections::HashSet::new();
+            for e in &d.exporters {
+                parse_exporter_url(e)?;
+                if !seen.insert(e.url.to_lowercase()) {
+                    return Err(invalid(ltext!(
+                        "errors.gpu.duplicateExporter",
+                        "The DCGM exporter “{{url}}” is listed twice",
+                        url = redact_url(&e.url)
+                    )));
+                }
+                if let Some(selector) = &e.history_selector {
+                    crate::history::targets::parse_selector(selector)?;
+                }
+            }
+            if let GpuAuth::Basic { username } = &d.auth
+                && (username.trim().is_empty() || username.contains(':'))
+            {
+                return Err(invalid(ltext!(
+                    "errors.gpu.badUsername",
+                    "Enter the user name of the DCGM exporters (without “:”)"
+                )));
+            }
+            validate_ca(&d.ca, GPU_NAME)?;
+            validate_proxy(&d.proxy)
+        }
+        GpuSource::Prometheus(g) => {
+            if !has_history {
+                return Err(invalid(ltext!(
+                    "errors.gpu.noHistorySource",
+                    "GPU metrics from the history source need a metrics history source: add it to the installation"
+                )));
+            }
+            if let Some(selector) = &g.selector {
+                crate::history::targets::parse_selector(selector)?;
+            }
+            Ok(())
+        }
+    }
+}
+
 pub fn validate_profile(p: &InstallationProfile) -> AppResult<()> {
     if p.id.trim().is_empty() {
         return Err(invalid(ltext!(
@@ -501,6 +717,9 @@ pub fn validate_profile(p: &InstallationProfile) -> AppResult<()> {
     if let Some(h) = &p.history {
         validate_history(h)?;
     }
+    if let Some(g) = &p.gpu {
+        validate_gpu(g, p.history.is_some())?;
+    }
     if p.request_timeout_ms < 1_000 || p.connect_timeout_ms < 1_000 {
         return Err(invalid(ltext!(
             "errors.installations.timeoutTooSmall",
@@ -521,6 +740,7 @@ pub fn sample_server(id: &str) -> ServerConfig {
         ca: CaConfig::System,
         proxy: ProxyConfig::System,
         history_selector: None,
+        gpus: None,
         extra: Default::default(),
     }
 }
@@ -537,6 +757,27 @@ pub fn sample_history() -> HistorySource {
 }
 
 #[cfg(test)]
+pub fn sample_exporter(url: &str) -> GpuExporter {
+    GpuExporter {
+        url: url.into(),
+        history_selector: None,
+        extra: Default::default(),
+    }
+}
+
+/// Компонент GPU с одним экспортёром без входа.
+#[cfg(test)]
+pub fn sample_gpu() -> GpuSource {
+    GpuSource::Direct(DirectGpu {
+        exporters: vec![sample_exporter("http://gpu-1.dev.example.com:9400/metrics")],
+        auth: GpuAuth::None,
+        ca: CaConfig::System,
+        proxy: ProxyConfig::System,
+        extra: Default::default(),
+    })
+}
+
+#[cfg(test)]
 pub fn sample_profile(id: &str) -> InstallationProfile {
     InstallationProfile {
         id: id.to_string(),
@@ -546,6 +787,7 @@ pub fn sample_profile(id: &str) -> InstallationProfile {
         read_only: false,
         servers: vec![sample_server("s1")],
         history: None,
+        gpu: None,
         request_timeout_ms: 30_000,
         connect_timeout_ms: 10_000,
         folder_id: None,
@@ -886,6 +1128,240 @@ mod tests {
         );
         let s = serde_json::to_string(&p).unwrap();
         assert!(!s.contains("password") && !s.contains("token"), "{s}");
+    }
+
+    #[test]
+    fn gpu_json_shape_and_defaults() {
+        let mut p = sample_profile("a");
+        p.gpu = Some(GpuSource::Direct(DirectGpu {
+            exporters: vec![GpuExporter {
+                history_selector: Some(r#"{job="dcgm"}"#.into()),
+                ..sample_exporter("http://gpu-1:9400/metrics")
+            }],
+            auth: GpuAuth::Basic {
+                username: "glafira".into(),
+            },
+            ca: CaConfig::System,
+            proxy: ProxyConfig::None,
+            extra: Default::default(),
+        }));
+        p.servers[0].gpus = Some(GpuBinding {
+            host: "gpu-1".into(),
+            indices: Some(vec![0, 1]),
+        });
+        let v = serde_json::to_value(&p).unwrap();
+        assert_eq!(
+            v["gpu"],
+            serde_json::json!({
+                "mode": "direct",
+                "exporters": [{ "url": "http://gpu-1:9400/metrics", "historySelector": r#"{job="dcgm"}"# }],
+                "auth": { "mode": "basic", "username": "glafira" },
+                "ca": { "mode": "system" },
+                "proxy": { "mode": "none" }
+            })
+        );
+        assert_eq!(
+            v["servers"][0]["gpus"],
+            serde_json::json!({ "host": "gpu-1", "indices": [0, 1] })
+        );
+        let prom: GpuSource =
+            serde_json::from_value(serde_json::json!({ "mode": "prometheus" })).unwrap();
+        assert_eq!(
+            prom,
+            GpuSource::Prometheus(PrometheusGpu {
+                selector: None,
+                extra: Default::default()
+            })
+        );
+        let direct: GpuSource = serde_json::from_value(serde_json::json!({
+            "mode": "direct", "exporters": [{ "url": "http://h:9400/metrics", "future": 1 }], "later": true
+        }))
+        .unwrap();
+        let GpuSource::Direct(d) = &direct else {
+            panic!("{direct:?}")
+        };
+        assert_eq!(d.auth, GpuAuth::None);
+        assert_eq!((&d.ca, &d.proxy), (&CaConfig::System, &ProxyConfig::System));
+        assert_eq!(
+            d.exporters[0].extra["future"], 1,
+            "поле экспортёра из новой версии"
+        );
+        assert_eq!(d.extra["later"], true, "поле компонента из новой версии");
+        assert!(!d.extra.contains_key("mode"), "{:?}", d.extra);
+        let back = serde_json::to_value(&direct).unwrap();
+        assert_eq!(
+            (back["mode"].clone(), back["later"].clone()),
+            ("direct".into(), true.into())
+        );
+        let s = serde_json::to_string(&p).unwrap();
+        assert!(!s.contains("password"), "{s}");
+    }
+
+    #[test]
+    fn gpu_is_normalized_and_bindings_need_the_component() {
+        let mut p = sample_profile("a");
+        p.gpu = Some(GpuSource::Direct(DirectGpu {
+            exporters: vec![
+                GpuExporter {
+                    history_selector: Some("  ".into()),
+                    ..sample_exporter(" http://gpu-1:9400/ ")
+                },
+                sample_exporter("https://gpu-2:9400/dcgm/metrics/"),
+            ],
+            auth: GpuAuth::Basic {
+                username: " glafira ".into(),
+            },
+            ..match sample_gpu() {
+                GpuSource::Direct(d) => d,
+                GpuSource::Prometheus(_) => unreachable!(),
+            }
+        }));
+        p.servers[0].gpus = Some(GpuBinding {
+            host: " gpu-1 ".into(),
+            indices: Some(vec![3, 1, 3]),
+        });
+        normalize_profile(&mut p);
+        let Some(GpuSource::Direct(d)) = &p.gpu else {
+            panic!()
+        };
+        assert_eq!(d.exporters[0].url, "http://gpu-1:9400/metrics");
+        assert_eq!(d.exporters[0].history_selector, None);
+        assert_eq!(d.exporters[1].url, "https://gpu-2:9400/dcgm/metrics");
+        assert_eq!(
+            d.auth,
+            GpuAuth::Basic {
+                username: "glafira".into()
+            }
+        );
+        assert_eq!(
+            p.servers[0].gpus,
+            Some(GpuBinding {
+                host: "gpu-1".into(),
+                indices: Some(vec![1, 3])
+            })
+        );
+        assert!(validate_profile(&p).is_ok());
+        p.servers[0].gpus.as_mut().unwrap().indices = Some(vec![]);
+        normalize_profile(&mut p);
+        assert_eq!(
+            p.servers[0].gpus.as_ref().unwrap().indices,
+            None,
+            "пустой список — все карты"
+        );
+        p.gpu = None;
+        normalize_profile(&mut p);
+        assert_eq!(p.servers[0].gpus, None, "без компонента GPU привязок нет");
+        p.gpu = Some(GpuSource::Prometheus(PrometheusGpu {
+            selector: Some("  ".into()),
+            extra: Default::default(),
+        }));
+        p.history = Some(sample_history());
+        normalize_profile(&mut p);
+        assert_eq!(
+            p.gpu,
+            Some(GpuSource::Prometheus(PrometheusGpu {
+                selector: None,
+                extra: Default::default()
+            }))
+        );
+    }
+
+    #[test]
+    fn gpu_is_validated() {
+        let direct = |change: &dyn Fn(&mut DirectGpu)| {
+            let mut p = sample_profile("a");
+            let GpuSource::Direct(mut d) = sample_gpu() else {
+                unreachable!()
+            };
+            change(&mut d);
+            p.gpu = Some(GpuSource::Direct(d));
+            p
+        };
+        assert!(validate_profile(&direct(&|_| {})).is_ok());
+        assert_invalid(&direct(&|d| d.exporters.clear()), "errors.gpu.noExporters");
+        assert_invalid(
+            &direct(&|d| {
+                d.exporters = (0..=MAX_EXPORTERS)
+                    .map(|i| sample_exporter(&format!("http://gpu-{i}:9400/metrics")))
+                    .collect()
+            }),
+            "errors.gpu.tooManyExporters",
+        );
+        assert_invalid(
+            &direct(&|d| {
+                d.exporters
+                    .push(sample_exporter("http://GPU-1.dev.example.com:9400/metrics"))
+            }),
+            "errors.gpu.duplicateExporter",
+        );
+        for url in [
+            "gpu-1:9400",
+            "ftp://gpu-1",
+            "http://gpu-1:9400/metrics?x=1",
+            "http://",
+        ] {
+            assert_invalid(
+                &direct(&|d| d.exporters[0].url = url.into()),
+                "errors.gpu.badUrl",
+            );
+        }
+        let e = assert_invalid(
+            &direct(&|d| d.exporters[0].url = "http://u:s3cr3t@gpu-1:9400/metrics".into()),
+            "errors.installations.credentialsInUrl",
+        );
+        assert!(!e.message.contains("s3cr3t"), "{}", e.message);
+        assert_invalid(
+            &direct(&|d| d.exporters[0].history_selector = Some("job=dcgm".into())),
+            "errors.history.selector",
+        );
+        for username in ["", " ", "a:b"] {
+            assert_invalid(
+                &direct(&|d| {
+                    d.auth = GpuAuth::Basic {
+                        username: username.into(),
+                    }
+                }),
+                "errors.gpu.badUsername",
+            );
+        }
+        assert_invalid(
+            &direct(&|d| {
+                d.ca = CaConfig::Pem {
+                    pem: cert_with_key(),
+                }
+            }),
+            "errors.installations.pemContainsKey",
+        );
+        assert_invalid(
+            &direct(&|d| {
+                d.proxy = ProxyConfig::Url {
+                    url: "socks://x".into(),
+                }
+            }),
+            "errors.installations.badProxyUrl",
+        );
+
+        let mut p = sample_profile("a");
+        p.gpu = Some(GpuSource::Prometheus(PrometheusGpu {
+            selector: Some(r#"{hostname=~"gpu-1|gpu-2"}"#.into()),
+            extra: Default::default(),
+        }));
+        assert_invalid(&p, "errors.gpu.noHistorySource");
+        p.history = Some(sample_history());
+        assert!(validate_profile(&p).is_ok());
+        p.gpu = Some(GpuSource::Prometheus(PrometheusGpu {
+            selector: Some(r#"{__name__="x"}"#.into()),
+            extra: Default::default(),
+        }));
+        assert_invalid(&p, "errors.history.selectorName");
+
+        let mut p = direct(&|_| {});
+        p.servers[0].gpus = Some(GpuBinding {
+            host: String::new(),
+            indices: None,
+        });
+        let e = assert_invalid(&p, "errors.gpu.badBinding");
+        assert_eq!(e.params["server"], "vllm-s1");
     }
 
     #[test]
