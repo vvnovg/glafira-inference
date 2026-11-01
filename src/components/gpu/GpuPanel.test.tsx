@@ -22,6 +22,7 @@ globalThis.ResizeObserver ??= class {
 } as unknown as typeof ResizeObserver;
 
 import { api } from "../../api/client";
+import { useWorkspace } from "../../state/workspace";
 import { boundServers, GpuPanel, gpuHistoryUnavailable } from "./GpuPanel";
 import { card, host, status } from "./testGpu";
 
@@ -80,6 +81,9 @@ describe("GpuPanel", () => {
     renderWithClient(<GpuPanel installationId="i1" />);
     expect(await screen.findByText(/Экспортёр http:\/\/gpu-2:9400\/metrics:/)).toBeInTheDocument();
     expect(screen.getByText(/Экспортёр не собирает: активность SM, ошибки ECC/)).toBeInTheDocument();
+    await userEvent.setup().click(screen.getByRole("button", { name: "Какие счётчики включить" }));
+    const tabs = useWorkspace.getState().tabs;
+    expect(tabs[tabs.length - 1]).toMatchObject({ kind: "help", chapter: "gpu", anchor: "counters" });
 
     vi.mocked(api.readGpuStatus).mockRejectedValue({ code: "CONNECTION_FAILED", key: "errors.server.serverError", params: { path: "/metrics", status: "503" }, message: "x", retryable: true });
     vi.mocked(api.listInstallations).mockResolvedValue([profile({ id: "i2" })]);

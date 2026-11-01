@@ -409,7 +409,7 @@
     }
   },
   "about": {
-    "summary": "Glafira is a desktop app for connecting to corporate LLM inference, monitoring, diagnosing and auditing it, with vLLM and SGLang in focus. This version (stage I1c) covers connecting and checking: installations of several servers, API keys in the system secret store, step-by-step server checks, folders, export and import, live server metrics with launch arguments, and metric history from Prometheus or VictoriaMetrics. GPUs, diagnostics and audit come in the next stages.",
+    "summary": "Glafira is a desktop app for connecting to corporate LLM inference, monitoring, diagnosing and auditing it, with vLLM and SGLang in focus. This version (stage I1d) covers connecting and checking: installations of several servers, API keys in the system secret store, step-by-step server checks, folders, export and import, live server metrics with launch arguments, metric history from Prometheus or VictoriaMetrics and NVIDIA GPUs from DCGM. Diagnostics and audit come in the next stages.",
     "version": "Version",
     "build": "Build",
     "system": "System",
@@ -623,12 +623,13 @@
       "title": "GPU",
       "noComponent": "The installation has no GPU component — add it in the installation form",
       "exporterError": "Exporter {{exporter}}: {{error}}",
-      "missing": "The exporter does not collect: {{groups}}. See the GPU chapter of the guide for the counters to enable.",
+      "missing": "The exporter does not collect: {{groups}}.",
       "noCards": "No GPUs found",
       "cards": "GPUs: {{count}}",
       "driver": "driver {{driver}}",
       "servers": "Servers: {{servers}}",
-      "selectHint": "Click a GPU or a host to open the charts"
+      "selectHint": "Click a GPU or a host to open the charts",
+      "missingLink": "Counters to enable"
     },
     "groups": {
       "sm": "SM activity",

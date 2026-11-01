@@ -88,7 +88,12 @@ export function GpuPanel({ installationId }: { installationId: string }) {
         </p>
       ))}
       {status && status.missing.length > 0 && (
-        <p className="muted">{t("gpu.panel.missing", { groups: status.missing.map((g) => t(`gpu.groups.${g}`)).join(", ") })}</p>
+        <p className="muted">
+          {t("gpu.panel.missing", { groups: status.missing.map((g) => t(`gpu.groups.${g}`)).join(", ") })}{" "}
+          <button type="button" className="link" onClick={() => open({ kind: "help", chapter: "gpu", anchor: "counters" })}>
+            {t("gpu.panel.missingLink")}
+          </button>
+        </p>
       )}
       {status && status.hosts.length === 0 && <p className="empty">{t("gpu.panel.noCards")}</p>}
       {status?.hosts.map((h) => {
