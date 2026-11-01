@@ -56,6 +56,10 @@ pub struct GpuCard {
     #[serde(skip_serializing_if = "Option::is_none")]
     pub sm_source: Option<SmSource>,
     pub values: BTreeMap<Field, f64>,
+    /// Приросты счётчиков за последнюю минуту опросов (`gpu::live`); у времени троттлинга —
+    /// доля времени, %.
+    #[serde(skip_serializing_if = "BTreeMap::is_empty")]
+    pub deltas: BTreeMap<Field, f64>,
 }
 
 #[derive(Debug, Clone, PartialEq, Serialize)]
@@ -111,6 +115,7 @@ pub fn cards_from(
                 exporter: exporter.map(str::to_string),
                 sm_source: None,
                 values: BTreeMap::new(),
+                deltas: BTreeMap::new(),
             };
             (card, BTreeMap::new())
         });

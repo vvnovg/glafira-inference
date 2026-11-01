@@ -65,7 +65,7 @@ fn exact(matchers: &[crate::history::targets::Matcher], label: &str) -> Option<S
 }
 
 /// Разрешение на один запрос к источнику; держится, пока запрос идёт.
-async fn permit(source: &Source) -> tokio::sync::OwnedSemaphorePermit {
+pub(crate) async fn permit(source: &Source) -> tokio::sync::OwnedSemaphorePermit {
     source
         .limit
         .clone()

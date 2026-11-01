@@ -1,0 +1,1 @@
+{"status":"success","data":{"resultType":"vector","result":[{"metric":{"instance":"127.0.0.1:9400","job":"dcgm"},"value":[1793556218.646,"8"]},{"metric":{"instance":"127.0.0.1:9401","job":"dcgm"},"value":[1793556218.646,"2"]}]}}

@@ -9,6 +9,7 @@ dcgm-exporter 4.8.4, собран по его исходникам (`etc/default
 |---|---|---|
 | `default.txt` | `dcgm --gpus 2` (набор по умолчанию: без активности SM, ECC и причин троттлинга) | 0 |
 | `full.txt` | `dcgm-full --gpus 8 --hostname gpu-node-1 --pod llm/vllm-0 --throttle --xid 79 --ecc` | 4 |
+| `full-next.txt` | то же | 5 |
 | `4.1.txt` | `dcgm-4.1 --gpus 2 --hostname gpu-old` (метка `Hostname`, A100) | 0 |
 | `mig.txt` | `dcgm-mig --gpus 2 --hostname gpu-mig` (карта 0 — два экземпляра MIG) | 0 |
 
@@ -26,6 +27,7 @@ const make = (file, args, poll) => {
 const full = ["--kind", "dcgm-full", "--gpus", "8", "--hostname", "gpu-node-1", "--pod", "llm/vllm-0", "--throttle", "--xid", "79", "--ecc"];
 make("default.txt", ["--kind", "dcgm", "--gpus", "2"], 0);
 make("full.txt", full, 4);
+make("full-next.txt", full, 5);
 make("4.1.txt", ["--kind", "dcgm-4.1", "--gpus", "2", "--hostname", "gpu-old"], 0);
 make("mig.txt", ["--kind", "dcgm-mig", "--gpus", "2", "--hostname", "gpu-mig"], 0);
 '

@@ -137,7 +137,9 @@
       "duplicateExporter": "The DCGM exporter “{{url}}” is listed twice",
       "noExporters": "Add at least one DCGM exporter address",
       "noHistorySource": "GPU metrics from the history source need a metrics history source: add it to the installation",
-      "tooManyExporters": "The GPU component can have at most {{max}} DCGM exporters"
+      "tooManyExporters": "The GPU component can have at most {{max}} DCGM exporters",
+      "tooManyGpus": "Found {{found}} GPUs, an installation can have at most {{max}}: narrow the card selector or remove exporters",
+      "unauthorized": "The DCGM exporter rejected the request ({{status}}) — check the user name and password"
     }
   },
   "messages": {
