@@ -229,7 +229,7 @@ export function InstallationForm({ initial, tabId }: { initial: InstallationProf
         />
       </div>
 
-      <h3>{t("installations.form.servers")}</h3>
+      <h3 className="form-section">{t("installations.form.servers")}</h3>
       {profile.servers.map((s, i) => (
         <ServerFields
           key={s.id}

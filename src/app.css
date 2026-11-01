@@ -33,6 +33,11 @@ input::placeholder, textarea::placeholder { font-style: italic; color: var(--mut
 .metric-chart { min-width: 0; }
 .charts.loading { opacity: 0.5; }
 .history-source .contents { display: contents; }
+/* Разделы формы инсталляции: «Серверы инференса» и «История метрик» — заголовки крупнее полей, а история
+   отделена от серверов линией и отступом, чтобы её поля не читались как ещё один сервер. */
+.page h3.form-section { font-size: 15px; margin-top: 8px; }
+.history-source { border-top: 1px solid var(--border); margin-top: 12px; padding-top: 8px; display: flex; flex-direction: column; gap: 8px; }
+.history-source h4 { margin: 8px 0 0; }
 .metric-chart h4 { margin: 0 0 4px; font-size: 13px; }
 .server-metrics .toolbar button.active { border-color: var(--accent); font-weight: 600; }
 .badge { border: 1px solid var(--border); border-radius: 10px; padding: 0 6px; font-size: 12px; color: var(--muted); white-space: nowrap; }

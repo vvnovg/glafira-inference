@@ -120,7 +120,7 @@ export function HistoryFields({ profile, idPrefix, savedSecret, secret, insecure
   if (!h) {
     return (
       <section className="history-source" aria-label={t("installations.history.title")}>
-        <h3>{t("installations.history.title")}</h3>
+        <h3 className="form-section">{t("installations.history.title")}</h3>
         <p className="muted">{t("installations.history.none")}</p>
         <div className="toolbar">
           <button type="button" disabled={busy} onClick={() => onHistory(newHistory())}>
@@ -146,7 +146,7 @@ export function HistoryFields({ profile, idPrefix, savedSecret, secret, insecure
 
   return (
     <section className="history-source" aria-label={t("installations.history.title")}>
-      <h3>{t("installations.history.title")}</h3>
+      <h3 className="form-section">{t("installations.history.title")}</h3>
       <div className="form">
         <span className="field-label">
           <label htmlFor={id("url")}>{t("installations.history.url")}</label>
