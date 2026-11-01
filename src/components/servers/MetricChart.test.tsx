@@ -23,7 +23,7 @@ globalThis.ResizeObserver ??= class {
 } as unknown as typeof ResizeObserver;
 
 import { renderWithClient } from "../../test/render";
-import { axisIncrs, axisSize, chartData, drawMarker, hasValues } from "./chart";
+import { AXIS_MIN, axisIncrs, axisSize, chartData, drawMarker, hasValues } from "./chart";
 import { MetricChart } from "./MetricChart";
 import { ServerMetricsView } from "./ServerMetricsView";
 import { metrics } from "./testMetrics";
@@ -44,11 +44,13 @@ describe("ось Y", () => {
     expect(axisIncrs(1)[0]).toBe(1);
   });
 
-  it("ширина оси — по самой длинной подписи", () => {
+  it("ширина оси одна у обычных подписей, шире — только по слишком длинной", () => {
     const measure = (s: string) => s.length * 7;
-    expect(axisSize(["0 мс", "10 000 мс"], measure)).toBe(9 * 7 + 16);
-    expect(axisSize(["0"], measure)).toBe(40);
-    expect(axisSize(null, measure)).toBe(40);
+    // «100» и «2 000 мс» — одна ширина: графики в колонке выровнены.
+    expect(axisSize(["0", "100"], measure)).toBe(AXIS_MIN);
+    expect(axisSize(["0 мс", "2 000 мс"], measure)).toBe(AXIS_MIN);
+    expect(axisSize(null, measure)).toBe(AXIS_MIN);
+    expect(axisSize(["0 мс", "100 000 мс"], measure)).toBe(10 * 7 + 16);
   });
 });
 

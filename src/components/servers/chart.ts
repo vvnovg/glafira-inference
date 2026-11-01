@@ -39,10 +39,16 @@ export function axisIncrs(minStep: number): number[] {
   return out;
 }
 
-/** Ширина оси Y в пикселях — по самой длинной подписи (`measure` — ширина текста), не меньше 40. */
+/**
+ * Наименьшая ширина оси Y: в неё входят обычные подписи («2 000 мс», «80 %», «1,5»), поэтому графики в колонке
+ * начинаются с одного места, а не каждый по ширине своих подписей.
+ */
+export const AXIS_MIN = 72;
+
+/** Ширина оси Y в пикселях — по самой длинной подписи (`measure` — ширина текста), не меньше `AXIS_MIN`. */
 export function axisSize(labels: string[] | null, measure: (s: string) => number): number {
   const widest = Math.max(0, ...(labels ?? []).map(measure));
-  return Math.max(40, Math.ceil(widest) + 16);
+  return Math.max(AXIS_MIN, Math.ceil(widest) + 16);
 }
 
 /** Часть uPlot, которой рисуется граница: холст, область графика и перевод времени в пиксели. */
