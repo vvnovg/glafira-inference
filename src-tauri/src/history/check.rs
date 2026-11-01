@@ -236,6 +236,7 @@ pub async fn check_source(
                 ),
             )),
             Err(e) => {
+                let e = crate::history::client::as_source_error(e);
                 steps.push(failed_step("tcp", tcp_failure(e, &host, port, via_proxy)));
                 return finish(steps, warnings, None, Vec::new(), Vec::new());
             }

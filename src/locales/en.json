@@ -102,6 +102,15 @@
     "metrics": {
       "tooLarge": "The metrics response is too large or is not in the Prometheus format"
     },
+    "historySource": {
+      "dns": "Cannot resolve the host name of the metrics history source",
+      "connect": "Cannot connect to the metrics history source",
+      "timeout": "The metrics history source did not respond in time",
+      "hostnameMismatch": "The certificate of the metrics history source does not match its address — check the address",
+      "certExpired": "The certificate of the metrics history source has expired or is not valid yet",
+      "caUntrusted": "The certificate of the metrics history source is not signed by a trusted CA — specify the CA of the source",
+      "redirect": "The metrics history source redirects {{path}} to another address ({{status}}) — use the final address of the source"
+    },
     "history": {
       "badUrl": "Invalid address “{{url}}” of the metrics history source: use http://host:9090 or https://host",
       "badUsername": "Enter the user name of the metrics history source (without “:”)",

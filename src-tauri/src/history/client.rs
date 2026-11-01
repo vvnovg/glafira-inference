@@ -75,6 +75,49 @@ fn unexpected(path: &str) -> AppError {
     )
 }
 
+/// Ошибка соединения общего HTTP-клиента (`errors.server.*`) говорит «сервер»; у источника истории —
+/// свой текст с теми же кодом, параметрами и подробностями. Остальные ошибки — как есть.
+pub fn as_source_error(e: AppError) -> AppError {
+    let p = |k: &str| e.params.get(k).cloned().unwrap_or_default();
+    let text = match e.key.as_str() {
+        "errors.server.dns" => ltext!(
+            "errors.historySource.dns",
+            "Cannot resolve the host name of the metrics history source"
+        ),
+        "errors.server.connect" => ltext!(
+            "errors.historySource.connect",
+            "Cannot connect to the metrics history source"
+        ),
+        "errors.server.timeout" => ltext!(
+            "errors.historySource.timeout",
+            "The metrics history source did not respond in time"
+        ),
+        "errors.server.hostnameMismatch" => ltext!(
+            "errors.historySource.hostnameMismatch",
+            "The certificate of the metrics history source does not match its address — check the address"
+        ),
+        "errors.server.certExpired" => ltext!(
+            "errors.historySource.certExpired",
+            "The certificate of the metrics history source has expired or is not valid yet"
+        ),
+        "errors.server.caUntrusted" => ltext!(
+            "errors.historySource.caUntrusted",
+            "The certificate of the metrics history source is not signed by a trusted CA — specify the CA of the source"
+        ),
+        "errors.server.redirect" => ltext!(
+            "errors.historySource.redirect",
+            "The metrics history source redirects {{path}} to another address ({{status}}) — use the final address of the source",
+            path = p("path"),
+            status = p("status")
+        ),
+        _ => return e,
+    };
+    let details = e.details.clone();
+    let mut out = AppError::localized(e.code, text);
+    out.details = details;
+    out
+}
+
 /// Текст ошибки источника, не длиннее `ERROR_TEXT_LIMIT` символов.
 fn clip(text: &str) -> String {
     match text.char_indices().nth(ERROR_TEXT_LIMIT) {
@@ -332,7 +375,11 @@ impl HistoryClient {
     }
 
     async fn api(&self, path: &str, query: &[(&str, &str)]) -> AppResult<Value> {
-        let reply = self.http.get_query(path, query, METRICS_LIMIT).await?;
+        let reply = self
+            .http
+            .get_query(path, query, METRICS_LIMIT)
+            .await
+            .map_err(as_source_error)?;
         parse_api(&reply, path)
     }
 
@@ -342,7 +389,11 @@ impl HistoryClient {
     /// `/metrics` (`/metrics` недоступен — без версии).
     pub async fn buildinfo(&self) -> AppResult<Option<BuildInfo>> {
         let path = "/api/v1/status/buildinfo";
-        let reply = self.http.get(path, METRICS_LIMIT).await?;
+        let reply = self
+            .http
+            .get(path, METRICS_LIMIT)
+            .await
+            .map_err(as_source_error)?;
         if reply.status == 404 {
             return Ok(None);
         }
@@ -717,6 +768,47 @@ pub(crate) mod tests {
         .await;
         assert_eq!(info(&prom).await.kind, SourceKind::Prometheus);
         assert!(!prom.paths().iter().any(|p| p == "/metrics"));
+    }
+
+    #[tokio::test]
+    async fn connection_errors_name_the_source() {
+        // Порт 1 закрыт — ошибка подключения общего клиента, с текстом про источник.
+        let c = HistoryClient::new(
+            &source("http://127.0.0.1:1", HistoryAuth::None),
+            TIMEOUTS,
+            None,
+            &PolicyStatus::default(),
+        )
+        .unwrap();
+        let e = c.query("up").await.unwrap_err();
+        assert_eq!(
+            (e.code, e.key.as_str()),
+            (ErrorCode::ConnectionFailed, "errors.historySource.connect")
+        );
+        assert!(e.details.is_some());
+
+        let timeout = as_source_error(crate::servers::errors::timeout().with_details("t"));
+        assert_eq!(
+            (
+                timeout.code,
+                timeout.key.as_str(),
+                timeout.details.as_deref()
+            ),
+            (
+                ErrorCode::Timeout,
+                "errors.historySource.timeout",
+                Some("t")
+            )
+        );
+        let redirect = as_source_error(crate::servers::errors::from_status(302, "/api/v1/query"));
+        assert_eq!(redirect.key, "errors.historySource.redirect");
+        assert_eq!(
+            redirect.message,
+            "The metrics history source redirects /api/v1/query to another address (302) — use the final address of the source"
+        );
+        // Не ошибка соединения — без изменений.
+        let other = as_source_error(unexpected("/q"));
+        assert_eq!(other.key, "errors.history.unexpected");
     }
 
     #[tokio::test]
