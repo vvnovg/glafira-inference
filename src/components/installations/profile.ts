@@ -1,4 +1,4 @@
-import type { CaConfig, InstallationProfile, ProxyConfig, ServerConfig } from "../../api/types";
+import type { CaConfig, InstallationProfile, ProxyConfig, ServerConfig, TestStep } from "../../api/types";
 
 export type CaMode = CaConfig["mode"];
 export type ProxyMode = ProxyConfig["mode"];
@@ -57,4 +57,10 @@ export function withProxyMode(proxy: ProxyConfig, mode: ProxyMode, lastUrl = "")
 /** Адрес без TLS: ключ API уходит по нему открытым текстом. */
 export function isPlainHttp(baseUrl: string): boolean {
   return /^\s*http:\/\//i.test(baseUrl);
+}
+
+/** Значок шага проверки: ❌ — сбой, ⚠ — прошёл с предупреждением, ✅ — прошёл. */
+export function stepMark(step: TestStep): string {
+  if (!step.ok) return "❌";
+  return step.warning ? "⚠" : "✅";
 }

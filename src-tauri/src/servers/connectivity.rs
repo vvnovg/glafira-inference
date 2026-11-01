@@ -23,6 +23,9 @@ use crate::storage::profile::{
 pub struct TestStep {
     pub name: &'static str,
     pub ok: bool,
+    /// Шаг прошёл, но с предупреждением (⚠): успеха проверки не отменяет.
+    #[serde(skip_serializing_if = "std::ops::Not::not")]
+    pub warning: bool,
     pub message: LocalizedText,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub error: Option<AppError>,
@@ -40,6 +43,7 @@ pub(crate) fn passed(name: &'static str, message: LocalizedText) -> TestStep {
     TestStep {
         name,
         ok: true,
+        warning: false,
         message,
         error: None,
     }
@@ -49,6 +53,7 @@ pub(crate) fn failed_step(name: &'static str, e: AppError) -> TestStep {
     TestStep {
         name,
         ok: false,
+        warning: false,
         message: e.text(),
         error: Some(e),
     }

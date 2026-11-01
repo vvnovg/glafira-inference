@@ -8,7 +8,7 @@ import { useWorkspace } from "../../state/workspace";
 import { ErrorBanner } from "../common/ErrorBanner";
 import { Hint } from "../common/Hint";
 import { HistoryFields, type SecretInput } from "./HistoryFields";
-import { type CaMode, isPlainHttp, MAX_SERVERS, newServer, type ProxyMode, withCaMode, withProxyMode } from "./profile";
+import { type CaMode, isPlainHttp, MAX_SERVERS, newServer, type ProxyMode, stepMark, withCaMode, withProxyMode } from "./profile";
 import { folderPaths } from "./tree/folderTree";
 
 const ENVIRONMENTS: Environment[] = ["local", "dev", "test", "stage", "prod"];
@@ -472,8 +472,8 @@ function ServerFields({
       {report && (
         <ul className="steps" aria-label={t("installations.form.report")}>
           {report.steps.map((step) => (
-            <li key={step.name}>
-              {step.ok ? "✅" : "❌"} <strong>{t(`installations.form.step.${step.name}`)}:</strong> <span>{tr(step.message)}</span>
+            <li key={step.name} className={step.warning ? "warn" : undefined}>
+              {stepMark(step)} <strong>{t(`installations.form.step.${step.name}`)}:</strong> <span>{tr(step.message)}</span>
               {step.error?.details && <pre className="muted">{step.error.details}</pre>}
             </li>
           ))}

@@ -139,6 +139,8 @@ export type TestStepName = "config" | "tcp" | "tls" | "health" | "auth" | "kind"
 export interface TestStep {
   name: TestStepName;
   ok: boolean;
+  /** Шаг прошёл с предупреждением (⚠): успеха проверки не отменяет. */
+  warning?: boolean;
   message: LocalizedText;
   error?: AppError;
 }

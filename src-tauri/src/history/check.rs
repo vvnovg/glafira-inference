@@ -77,10 +77,13 @@ pub fn targets_from(all: &[Sample], sglang: &[Sample]) -> Vec<Target> {
     out
 }
 
+/// Шаг с предупреждением: проверку не валит, показывается ⚠ на своём месте — отдельным списком
+/// предупреждений не повторяется.
 fn warning_step(name: &'static str, message: LocalizedText) -> TestStep {
     TestStep {
         name,
         ok: true,
+        warning: true,
         message,
         error: None,
     }
@@ -92,7 +95,6 @@ async fn match_step(
     client: &HistoryClient,
     server: &ServerConfig,
     targets: &[Target],
-    warnings: &mut Vec<LocalizedText>,
 ) -> (TestStep, Option<Suggestion>) {
     let name = &server.name;
     if let Some(selector) = &server.history_selector {
@@ -124,7 +126,6 @@ async fn match_step(
                     server = name,
                     selector = selector
                 );
-                warnings.push(w.clone());
                 (warning_step("match", w), None)
             }
             Err(e) => (failed_step("match", e), None),
@@ -162,7 +163,6 @@ async fn match_step(
                 "“{{server}}”: no target with the address of the server — choose the target manually",
                 server = name
             );
-            warnings.push(w.clone());
             (
                 warning_step("match", w),
                 Some(Suggestion {
@@ -181,8 +181,9 @@ pub async fn check_source(
     secret: Option<String>,
     policy: &PolicyStatus,
 ) -> HistoryCheck {
-    let finish = |steps, warnings, source, targets, suggestions| HistoryCheck {
-        report: report(steps, warnings),
+    // Предупреждения — шаги с ⚠ (`warning_step`), отдельным списком не повторяются.
+    let finish = |steps, source, targets, suggestions| HistoryCheck {
+        report: report(steps, Vec::new()),
         source,
         targets,
         suggestions,
@@ -193,13 +194,7 @@ pub async fn check_source(
             "errors.history.noSource",
             "The installation has no metrics history source"
         );
-        return finish(
-            vec![failed_step("config", e)],
-            Vec::new(),
-            None,
-            Vec::new(),
-            Vec::new(),
-        );
+        return finish(vec![failed_step("config", e)], None, Vec::new(), Vec::new());
     };
     let timeouts = Timeouts::from(p);
     let prepared = validate_history(h)
@@ -208,20 +203,13 @@ pub async fn check_source(
     let (url, client) = match prepared {
         Ok(x) => x,
         Err(e) => {
-            return finish(
-                vec![failed_step("config", e)],
-                Vec::new(),
-                None,
-                Vec::new(),
-                Vec::new(),
-            );
+            return finish(vec![failed_step("config", e)], None, Vec::new(), Vec::new());
         }
     };
     let mut steps = vec![passed(
         "config",
         ltext!("messages.connectionTest.configOk", "Configuration is valid"),
     )];
-    let mut warnings = Vec::new();
 
     let as_server = crate::history::client::as_server(h);
     if let Some((host, port, via_proxy)) = tcp_target(&as_server, &url) {
@@ -238,7 +226,7 @@ pub async fn check_source(
             Err(e) => {
                 let e = crate::history::client::as_source_error(e);
                 steps.push(failed_step("tcp", tcp_failure(e, &host, port, via_proxy)));
-                return finish(steps, warnings, None, Vec::new(), Vec::new());
+                return finish(steps, None, Vec::new(), Vec::new());
             }
         }
     }
@@ -274,7 +262,7 @@ pub async fn check_source(
                 "auth"
             };
             steps.push(failed_step(step, e));
-            return finish(steps, warnings, None, Vec::new(), Vec::new());
+            return finish(steps, None, Vec::new(), Vec::new());
         }
     };
 
@@ -293,7 +281,7 @@ pub async fn check_source(
         }
         Err(e) => {
             steps.push(failed_step("up", e));
-            return finish(steps, warnings, source, Vec::new(), Vec::new());
+            return finish(steps, source, Vec::new(), Vec::new());
         }
     }
 
@@ -304,7 +292,7 @@ pub async fn check_source(
         (Ok(all), Ok(sglang)) => targets_from(&all, &sglang),
         (Err(e), _) | (_, Err(e)) => {
             steps.push(failed_step("targets", e));
-            return finish(steps, warnings, source, Vec::new(), Vec::new());
+            return finish(steps, source, Vec::new(), Vec::new());
         }
     };
     if targets.is_empty() {
@@ -312,7 +300,6 @@ pub async fn check_source(
             "messages.historyTest.noTargets",
             "The source does not collect vLLM or SGLang metrics"
         );
-        warnings.push(w.clone());
         steps.push(warning_step("targets", w));
     } else {
         steps.push(passed(
@@ -327,11 +314,11 @@ pub async fn check_source(
 
     let mut suggestions = Vec::new();
     for server in &p.servers {
-        let (step, suggestion) = match_step(&client, server, &targets, &mut warnings).await;
+        let (step, suggestion) = match_step(&client, server, &targets).await;
         steps.push(step);
         suggestions.extend(suggestion);
     }
-    finish(steps, warnings, source, targets, suggestions)
+    finish(steps, source, targets, suggestions)
 }
 
 /// Название источника для шага «Вход».
@@ -455,7 +442,12 @@ mod tests {
                 "messages.historyTest.noTarget"
             ]
         );
-        assert_eq!(c.report.warnings.len(), 2);
+        assert!(c.report.warnings.is_empty());
+        let marks: Vec<_> = c.report.steps.iter().map(|s| s.warning).collect();
+        assert_eq!(
+            marks,
+            [false, false, false, false, false, false, false, true, true]
+        );
         assert_eq!(
             c.suggestions,
             [

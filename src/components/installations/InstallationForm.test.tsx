@@ -66,8 +66,9 @@ const CHECK = {
     steps: [
       { name: "auth" as const, ok: true, message: msg("messages.historyTest.source", "Prometheus 3.15.1", { kind: "Prometheus", version: "3.15.1" }) },
       { name: "targets" as const, ok: true, message: msg("messages.historyTest.targets", "Inference targets found: 2", { count: "2" }) },
+      { name: "match" as const, ok: true, warning: true, message: msg("messages.historyTest.noTarget", "no target", { server: "gpu-2" }) },
     ],
-    warnings: [msg("messages.historyTest.noTarget", "no target", { server: "gpu-2" })],
+    warnings: [],
   },
   source: { kind: "prometheus" as const, version: "3.15.1" },
   targets: [
@@ -101,7 +102,10 @@ describe("InstallationForm: история метрик", () => {
     const report = await within(section).findByRole("list", { name: "Проверка источника истории" });
     expect(within(report).getByText("Цели:")).toBeInTheDocument();
     expect(within(section).queryByText(hint)).not.toBeInTheDocument();
-    expect(within(report).getByText(/«gpu-2»: цели с адресом сервера нет — выберите цель вручную/)).toBeInTheDocument();
+    // Шаг с предупреждением — ⚠ на своём месте, а не ✅.
+    const noTarget = within(report).getByText(/«gpu-2»: цели с адресом сервера нет — выберите цель вручную/).closest("li");
+    expect(noTarget?.textContent).toMatch(/^⚠/);
+    expect(noTarget).toHaveClass("warn");
     const gpu1 = within(section).getByLabelText("gpu-1") as HTMLSelectElement;
     expect(gpu1.value).toBe(AUTO);
     expect(within(section).getByText("автоподбор")).toBeInTheDocument();
