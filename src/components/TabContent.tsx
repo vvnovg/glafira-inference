@@ -2,6 +2,7 @@ import { Component, lazy, type ReactNode, Suspense } from "react";
 import { useTranslation } from "react-i18next";
 import type { Tab } from "../state/workspace";
 import { AboutPanel } from "./about/AboutPanel";
+import { GpuPanel } from "./gpu/GpuPanel";
 import { InstallationFormTab } from "./installations/InstallationFormTab";
 import { InstallationPanel } from "./installations/InstallationPanel";
 import { ServerPanel } from "./servers/ServerPanel";
@@ -46,5 +47,7 @@ export function TabContent({ tab }: { tab: Tab }) {
       return <InstallationPanel installationId={tab.installationId} />;
     case "server":
       return <ServerPanel installationId={tab.installationId} serverId={tab.serverId} />;
+    case "gpu":
+      return <GpuPanel installationId={tab.installationId} />;
   }
 }

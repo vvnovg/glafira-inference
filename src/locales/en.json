@@ -432,14 +432,17 @@
       "namePlaceholder": "Folder name",
       "export": "Export folder…",
       "importHere": "Import here…"
-    }
+    },
+    "gpu": "GPU",
+    "gpuCount": "GPU · {{count}}"
   },
   "tabs": {
     "settings": "Settings",
     "about": "About",
     "help": "Help",
     "installationForm": "Installation: {{name}}",
-    "newInstallation": "New installation"
+    "newInstallation": "New installation",
+    "gpu": "GPU · {{name}}"
   },
   "layout": {
     "closeTab": "Close tab",
@@ -569,6 +572,81 @@
       "queue": "Queue time",
       "finished": "Finished requests per second",
       "aborted": "aborted"
+    }
+  },
+  "gpu": {
+    "noSource": "Add a metrics history source to the installation",
+    "notMatched": "The DCGM exporters are not matched with the metrics history",
+    "partial": "Some series were not read: {{charts}}",
+    "panel": {
+      "title": "GPU",
+      "noComponent": "The installation has no GPU component — add it in the installation form",
+      "exporterError": "Exporter {{exporter}}: {{error}}",
+      "missing": "The exporter does not collect: {{groups}}. See the GPU chapter of the guide for the counters to enable.",
+      "noCards": "No GPUs found",
+      "cards": "GPUs: {{count}}",
+      "driver": "driver {{driver}}",
+      "servers": "Servers: {{servers}}",
+      "selectHint": "Click a GPU or a host to open the charts"
+    },
+    "groups": {
+      "sm": "SM activity",
+      "ecc": "ECC errors",
+      "throttle": "throttle reasons",
+      "nvlinkErrors": "NVLink errors"
+    },
+    "card": {
+      "title": "GPU {{index}}",
+      "util": "Utilization",
+      "sm": "SM",
+      "smGr": "by GR engine",
+      "smGrHint": "The exporter does not collect DCGM_FI_PROF_SM_ACTIVE: the graphics engine activity is shown",
+      "memory": "Memory",
+      "memoryValue": "{{used}} / {{total}} GiB",
+      "temp": "Temperature",
+      "power": "Power",
+      "noData": "no data",
+      "clockReasons": "Clock reasons: {{reasons}}",
+      "workload": "Workload: {{namespace}}/{{pod}}",
+      "mig": "MIG: {{instances}}"
+    },
+    "alerts": {
+      "throttle": "Throttling: {{reasons}}",
+      "throttleHint": "Clocks are reduced by power or temperature: {{reasons}}",
+      "xid": "XID {{code}}",
+      "xidHint": "The last XID error of the driver is {{code}} (errors in the exporter window: {{count}}); it stays until the driver reloads",
+      "ecc": "ECC: {{dbe}}",
+      "eccHint": "Uncorrectable ECC errors: {{dbe}}, remapped rows for uncorrectable errors: {{remap}}",
+      "eccCorrectable": "ECC +{{count}}",
+      "eccCorrectableHint": "Correctable ECC errors in the last minute: {{count}}",
+      "nvlink": "NVLink +{{count}}",
+      "nvlinkHint": "NVLink errors in the last minute: {{count}}",
+      "pcie": "PCIe +{{count}}",
+      "pcieHint": "PCIe replays in the last minute: {{count}}"
+    },
+    "charts": {
+      "util": "Utilization",
+      "utilSm": "Utilization and SM",
+      "memory": "Memory",
+      "temp": "Temperature",
+      "power": "Power",
+      "clocks": "Clocks",
+      "errors": "Errors",
+      "all": "All GPUs",
+      "sm": "SM",
+      "used": "Used",
+      "total": "Total",
+      "gpuTemp": "GPU",
+      "memTemp": "Memory",
+      "smClock": "SM",
+      "memClock": "Memory"
+    },
+    "units": {
+      "percent": "{{value}} %",
+      "gib": "{{value}} GiB",
+      "celsius": "{{value}} °C",
+      "watt": "{{value}} W",
+      "mhz": "{{value}} MHz"
     }
   }
 }

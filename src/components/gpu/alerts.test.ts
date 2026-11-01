@@ -1,0 +1,32 @@
+import { describe, expect, it } from "vitest";
+import { cardAlerts, reasons } from "./alerts";
+import { card } from "./testGpu";
+
+describe("значки карты", () => {
+  it("маска причин — по разрядам", () => {
+    expect(reasons(0x48)).toEqual(["HW_SLOWDOWN", "HW_THERMAL"]);
+    expect(reasons(0)).toEqual([]);
+  });
+
+  it("здоровая карта и простой без троттлинга — без значков", () => {
+    expect(cardAlerts(card(0))).toEqual([]);
+    expect(cardAlerts(card(0, { values: { throttle: 0x1 | 0x2 } }))).toEqual([]);
+    expect(cardAlerts(card(0, { values: {} }))).toEqual([]);
+  });
+
+  it("троттлинг, XID, ECC, NVLink и PCIe", () => {
+    const bad = card(0, {
+      values: { throttle: 0x48, xid: 79, xidCount: 1, eccDbe: 2, remapUncorrectable: 1 },
+      deltas: { powerViolation: 40, eccSbe: 3, nvlinkErrors: 3, pcieReplay: 6 },
+    });
+    expect(cardAlerts(bad)).toEqual([
+      { kind: "throttle", severity: "warn", params: { reasons: "HW_SLOWDOWN, HW_THERMAL, POWER 40 %" } },
+      { kind: "xid", severity: "danger", params: { code: "79", count: "1" } },
+      { kind: "ecc", severity: "danger", params: { dbe: "2", remap: "1" } },
+      { kind: "nvlink", severity: "warn", params: { count: "3" } },
+      { kind: "pcie", severity: "warn", params: { count: "6" } },
+    ]);
+    expect(cardAlerts(card(0, { values: {}, deltas: { eccSbe: 2 } }))).toEqual([{ kind: "eccCorrectable", severity: "warn", params: { count: "2" } }]);
+    expect(cardAlerts(card(0, { values: {}, deltas: { thermalViolation: 12.345 } }))[0].params.reasons).toBe("THERMAL 12.3 %");
+  });
+});

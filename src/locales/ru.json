@@ -432,14 +432,17 @@
       "namePlaceholder": "Имя папки",
       "export": "Экспортировать папку…",
       "importHere": "Импортировать сюда…"
-    }
+    },
+    "gpu": "GPU",
+    "gpuCount": "GPU · {{count}}"
   },
   "tabs": {
     "settings": "Настройки",
     "about": "О программе",
     "help": "Справка",
     "installationForm": "Инсталляция: {{name}}",
-    "newInstallation": "Новая инсталляция"
+    "newInstallation": "Новая инсталляция",
+    "gpu": "GPU · {{name}}"
   },
   "layout": {
     "closeTab": "Закрыть вкладку",
@@ -573,6 +576,81 @@
       "queue": "Время в очереди",
       "finished": "Завершения в секунду",
       "aborted": "прерваны"
+    }
+  },
+  "gpu": {
+    "noSource": "Добавьте источник истории метрик в инсталляцию",
+    "notMatched": "Экспортёры DCGM не сопоставлены с историей метрик",
+    "partial": "Часть рядов не прочитана: {{charts}}",
+    "panel": {
+      "title": "GPU",
+      "noComponent": "У инсталляции нет компонента GPU — добавьте его в форме инсталляции",
+      "exporterError": "Экспортёр {{exporter}}: {{error}}",
+      "missing": "Экспортёр не собирает: {{groups}}. Какие счётчики включить — в главе руководства о GPU.",
+      "noCards": "Карты не найдены",
+      "cards": "Карт: {{count}}",
+      "driver": "драйвер {{driver}}",
+      "servers": "Серверы: {{servers}}",
+      "selectHint": "Щёлкните карту или хост, чтобы открыть графики"
+    },
+    "groups": {
+      "sm": "активность SM",
+      "ecc": "ошибки ECC",
+      "throttle": "причины троттлинга",
+      "nvlinkErrors": "ошибки NVLink"
+    },
+    "card": {
+      "title": "GPU {{index}}",
+      "util": "Утилизация",
+      "sm": "SM",
+      "smGr": "по GR engine",
+      "smGrHint": "Экспортёр не собирает DCGM_FI_PROF_SM_ACTIVE: показана активность graphics engine",
+      "memory": "Память",
+      "memoryValue": "{{used}} / {{total}} ГиБ",
+      "temp": "Температура",
+      "power": "Мощность",
+      "noData": "нет данных",
+      "clockReasons": "Причины тактов: {{reasons}}",
+      "workload": "Нагрузка: {{namespace}}/{{pod}}",
+      "mig": "MIG: {{instances}}"
+    },
+    "alerts": {
+      "throttle": "Троттлинг: {{reasons}}",
+      "throttleHint": "Такты снижены по мощности или температуре: {{reasons}}",
+      "xid": "XID {{code}}",
+      "xidHint": "Последняя XID-ошибка драйвера — {{code}} (ошибок за окно экспортёра: {{count}}); держится до перезагрузки драйвера",
+      "ecc": "ECC: {{dbe}}",
+      "eccHint": "Некорректируемых ошибок ECC: {{dbe}}, переназначенных строк по некорректируемым ошибкам: {{remap}}",
+      "eccCorrectable": "ECC +{{count}}",
+      "eccCorrectableHint": "Корректируемых ошибок ECC за последнюю минуту: {{count}}",
+      "nvlink": "NVLink +{{count}}",
+      "nvlinkHint": "Ошибок NVLink за последнюю минуту: {{count}}",
+      "pcie": "PCIe +{{count}}",
+      "pcieHint": "Повторов PCIe за последнюю минуту: {{count}}"
+    },
+    "charts": {
+      "util": "Утилизация",
+      "utilSm": "Утилизация и SM",
+      "memory": "Память",
+      "temp": "Температура",
+      "power": "Мощность",
+      "clocks": "Такты",
+      "errors": "Ошибки",
+      "all": "Все карты",
+      "sm": "SM",
+      "used": "Занято",
+      "total": "Всего",
+      "gpuTemp": "Карта",
+      "memTemp": "Память",
+      "smClock": "SM",
+      "memClock": "Память"
+    },
+    "units": {
+      "percent": "{{value}} %",
+      "gib": "{{value}} ГиБ",
+      "celsius": "{{value}} °C",
+      "watt": "{{value}} Вт",
+      "mhz": "{{value}} МГц"
     }
   }
 }

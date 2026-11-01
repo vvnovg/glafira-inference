@@ -5,17 +5,21 @@ import { api } from "../../../api/client";
 import type { InstallationProfile } from "../../../api/types";
 import { useWorkspace } from "../../../state/workspace";
 import { EnvBadge } from "../../common/EnvBadge";
+import { gpuStatusKey } from "../../gpu/useGpu";
 import { installationQueryKey } from "../InstallationPanel";
 
 /**
- * Узел инсталляции в дереве: точка цвета, имя, окружение, «Обзор» и серверы (клик — вкладка сервера). Состояние серверов — из
- * подключения вкладки инсталляции; само дерево не подключается. rowProps — атрибуты строки (перетаскивание).
+ * Узел инсталляции в дереве: точка цвета, имя, окружение, «Обзор», серверы (клик — вкладка сервера) и «GPU» у инсталляции
+ * с компонентом GPU. Состояние серверов — из подключения вкладки инсталляции, число карт — из последнего снимка GPU;
+ * само дерево не подключается и не опрашивает. rowProps — атрибуты строки (перетаскивание).
  */
 export function InstallationNode({ installation: c, rowProps }: { installation: InstallationProfile; rowProps?: HTMLAttributes<HTMLDivElement> }) {
   const { t } = useTranslation();
   const open = useWorkspace((s) => s.open);
   const info = useQuery({ queryKey: installationQueryKey(c.id), queryFn: () => api.connectInstallation(c.id, false), enabled: false });
   const states = new Map((info.data?.servers ?? []).map((s) => [s.serverId, s]));
+  const gpu = useQuery({ queryKey: gpuStatusKey(c.id), queryFn: () => api.readGpuStatus(c.id), enabled: false });
+  const gpuCount = gpu.data?.hosts.reduce((n, h) => n + h.cards.length, 0);
   const openTab = () => open({ kind: "installation", installationId: c.id });
 
   return (
@@ -49,6 +53,13 @@ export function InstallationNode({ installation: c, rowProps }: { installation: 
             </li>
           );
         })}
+        {c.gpu && (
+          <li>
+            <button type="button" className="link" onClick={() => open({ kind: "gpu", installationId: c.id })}>
+              {gpuCount == null ? t("sidebar.gpu") : t("sidebar.gpuCount", { count: gpuCount })}
+            </button>
+          </li>
+        )}
       </ul>
     </li>
   );
