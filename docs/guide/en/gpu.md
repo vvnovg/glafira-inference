@@ -15,8 +15,10 @@ In the installation form, section [[ui:installations.gpu.title]], choose the sou
 - **[[ui:installations.gpu.modes.prometheus]]** — the same DCGM series from the Prometheus or VictoriaMetrics of the
   installation. Handy when the exporters are not reachable from the workstation. The
   [[ui:installations.gpu.selector]] picks the GPUs of the installation, such as `{hostname=~"gpu-node-1|gpu-node-2"}`
-  or `{cluster="llm"}`; the check fills an empty selector from the hosts of the servers. An installation can have at most
-  64 GPUs.
+  or `{cluster="llm"}`; the check fills an empty selector from the hosts of the servers. After the check the hosts it
+  found appear as checkboxes ([[ui:installations.gpu.hosts]]): the ticks build the selector for you. If the selector is
+  written by hand and Glafira does not understand it (say, `{job="dcgm"}`), the checkboxes stay disabled until the field
+  is cleared. An installation can have at most 64 GPUs.
 
 Click [[ui:installations.gpu.check]]: the check goes through every exporter (DNS/TCP, `/metrics`, GPUs) or finds the
 GPUs in the history source, then binds the servers and matches the exporters with the history. A GPU failure does not
@@ -29,7 +31,9 @@ the binding the server overview shows its GPUs, and the rules of the next stages
 
 - The check binds a server itself when the host of its address matches a GPU host: names ignore case, a short node name
   (`gpu-node-1`) matches the full one (`gpu-node-1.corp.local`), `localhost` and `127.0.0.1` are one address. The check
-  does not overwrite a choice made by a person; if the server address changes after the auto-match, the binding resets.
+  does not overwrite a choice made by a person; an auto-picked binding that was changed by hand stays. If the server
+  address changes after the auto-match in the same open form, the binding resets: only the form remembers what was
+  auto-picked, and a saved binding is not reset by an address change.
 - Behind a load balancer or a Kubernetes Service the server address is not a node address: choose the host manually.
 - If the server takes some of the cards (say 4 of 8), clear [[ui:installations.gpu.allCards]] and tick its cards.
 
@@ -45,9 +49,14 @@ servers) and GPU cards. A field without a series reads “no data”, not zero. 
 |---|---|
 | Throttling | Clocks are reduced by power or temperature (`SW_POWER_CAP`, `HW_SLOWDOWN`, `SW_THERMAL`, `HW_THERMAL`, `HW_POWER_BRAKE`) or by the throttle time counters |
 | XID | The last XID error of the driver; stays until the driver reloads |
-| ECC | Uncorrectable ECC errors or remapped memory rows — a reason to replace the card |
+| ECC: N | Uncorrectable ECC errors or remapped memory rows — a reason to replace the card |
+| ECC: remap failure | A memory row remap failure with no uncorrectable errors counted — a reason to replace the card |
 | ECC +N | Correctable ECC errors in the last minute |
 | NVLink +N, PCIe +N | NVLink errors and PCIe replays in the last minute |
+
+The ECC badges are exclusive and picked in this order: uncorrectable errors give “ECC: N”, otherwise a row remap
+failure gives “ECC: remap failure”, otherwise growth of correctable errors gives “ECC +N”. The badge hint lists the
+numbers: errors, remapped rows and remap failures.
 
 “Workload” is the pod and namespace from the Kubernetes labels of the exporter. GPUs in MIG mode list their instances;
 Glafira does not show instance metrics yet.
@@ -85,7 +94,7 @@ shows the graphics engine activity (`DCGM_FI_PROF_GR_ENGINE_ACTIVE`) marked “b
 - “There are no DCGM metrics” — the address answers, but it is not dcgm-exporter: check the port (9400 by default) and
   the path.
 - “The DCGM exporter rejected the request” — wrong user name or password.
-- “Found more than 64 GPUs” — narrow the card selector or remove exporters.
+- “Found N GPUs, an installation can have at most 64” — narrow the card selector or remove exporters.
 - “The hosts of the servers are not among the GPU hosts” — choose the GPU hosts in the form or bind the servers
   manually.
 - History windows are disabled — the installation has no history source or the exporters are not matched with its
