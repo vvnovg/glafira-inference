@@ -1,6 +1,7 @@
 //! Команды истории метрик (спека I1c §3–4): проверка источника из формы и окно истории сервера.
 
 use std::sync::Arc;
+use std::time::Duration;
 
 use tauri::State;
 
@@ -67,12 +68,14 @@ async fn history_source(st: &AppState, installation_id: &str) -> AppResult<Arc<S
         let (st, key) = (st.clone(), history_secret_key(installation_id));
         blocking(move || st.secrets.get(&key)).await?
     };
-    let client = HistoryClient::new(&h, Timeouts::from(&profile), secret, &st.policy.status)?;
+    let timeouts = Timeouts::from(&profile);
+    let client = HistoryClient::new(&h, timeouts, secret, &st.policy.status)?;
     let kind = client
         .buildinfo()
         .await?
         .map_or(SourceKind::Prometheus, |b| b.kind);
-    let source = Arc::new(Source::new(client, kind));
+    let deadline = Duration::from_millis(timeouts.request_ms);
+    let source = Arc::new(Source::new(client, kind, deadline));
     st.pool
         .insert_history_if_current(installation_id, generation, source.clone());
     Ok(source)

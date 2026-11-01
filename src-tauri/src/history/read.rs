@@ -1,7 +1,9 @@
 //! Окно истории сервера (спека I1c §4): шаблоны по карте адаптера, не больше 4 запросов к
-//! источнику одновременно, сборка точек; сбой одного запроса — `partial`, всех — ошибка.
+//! источнику одновременно, сборка точек; сбой одного запроса — `partial`, всех — ошибка. На всё
+//! окно — один срок, таймаут запроса инсталляции.
 
 use std::sync::Arc;
+use std::time::Duration;
 
 use futures::StreamExt;
 use serde::Serialize;
@@ -32,20 +34,24 @@ pub struct HistoryAnswer {
 
 /// Открытый источник истории инсталляции: клиент и тип по `buildinfo`. Живёт в пуле подключений
 /// до `evict` инсталляции. Предел одновременных запросов (`CONCURRENCY`) общий для всех окон
-/// инсталляции, поэтому хранится здесь, а не в вызове.
+/// инсталляции, поэтому хранится здесь, а не в вызове. `deadline` — срок чтения одного окна:
+/// у каждого запроса свой таймаут, и без общего срока окно из ~20 запросов волнами по 4 ждало бы
+/// медленный источник впятеро дольше.
 #[derive(Debug)]
 pub struct Source {
     pub client: HistoryClient,
     pub kind: SourceKind,
     limit: Arc<Semaphore>,
+    deadline: Duration,
 }
 
 impl Source {
-    pub fn new(client: HistoryClient, kind: SourceKind) -> Self {
+    pub fn new(client: HistoryClient, kind: SourceKind, deadline: Duration) -> Self {
         Self {
             client,
             kind,
             limit: Arc::new(Semaphore::new(CONCURRENCY)),
+            deadline,
         }
     }
 }
@@ -69,7 +75,27 @@ async fn permit(source: &Source) -> tokio::sync::OwnedSemaphorePermit {
 }
 
 /// Окно `window` сервера типа `kind` с селектором `selector`, которое кончается в `now_sec`.
+/// Не уложилось в срок источника — ошибка таймаута, недоделанные запросы отменяются.
 pub async fn read_history(
+    source: &Source,
+    kind: DetectedKind,
+    selector: &str,
+    window: Window,
+    now_sec: u64,
+) -> AppResult<HistoryAnswer> {
+    let read = read_window(source, kind, selector, window, now_sec);
+    match tokio::time::timeout(source.deadline, read).await {
+        Ok(answer) => answer,
+        Err(_) => Err(app_err!(
+            ErrorCode::Timeout,
+            "errors.history.deadline",
+            "The metrics history source did not return the window in {{seconds}} s: choose a shorter window or raise the request timeout",
+            seconds = source.deadline.as_secs()
+        )),
+    }
+}
+
+async fn read_window(
     source: &Source,
     kind: DetectedKind,
     selector: &str,
@@ -185,6 +211,10 @@ mod tests {
     }
 
     fn client(server: &TestServer) -> Source {
+        client_with_deadline(server, Duration::from_millis(TIMEOUTS.request_ms))
+    }
+
+    fn client_with_deadline(server: &TestServer, deadline: Duration) -> Source {
         let c = HistoryClient::new(
             &source(&server.url(), HistoryAuth::None),
             TIMEOUTS,
@@ -192,7 +222,33 @@ mod tests {
             &PolicyStatus::default(),
         )
         .unwrap();
-        Source::new(c, SourceKind::Prometheus)
+        Source::new(c, SourceKind::Prometheus, deadline)
+    }
+
+    #[tokio::test]
+    async fn slow_source_fails_the_window_by_one_deadline() {
+        // Каждый ответ — 300 мс, сам по себе в таймаут запроса (2 с) укладывается; 20 запросов
+        // волнами по 4 — 1,5 с, а срок окна — 0,5 с.
+        let (server, end) =
+            captured_source_delayed("vllm-8000", None, Some(Duration::from_millis(300))).await;
+        let source = client_with_deadline(&server, Duration::from_millis(500));
+        let started = std::time::Instant::now();
+        let e = read_history(
+            &source,
+            DetectedKind::Vllm,
+            r#"{job="vllm", instance="127.0.0.1:8000"}"#,
+            Window::Now,
+            end,
+        )
+        .await
+        .unwrap_err();
+        assert_eq!(
+            (e.code, e.key.as_str()),
+            (ErrorCode::Timeout, "errors.history.deadline")
+        );
+        assert!(started.elapsed() < Duration::from_millis(1_000));
+        // Отменённые запросы вернули разрешения: следующее окно снова получает все четыре.
+        assert_eq!(source.limit.available_permits(), CONCURRENCY);
     }
 
     #[tokio::test]

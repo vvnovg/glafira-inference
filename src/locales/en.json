@@ -112,6 +112,7 @@
       "unauthorized": "The metrics history source rejected the sign-in (401): check the token or the user name and password",
       "forbidden": "The metrics history source denied access (403): the account may not read metrics",
       "timeout": "The metrics history source did not finish the query in time: choose a shorter window",
+      "deadline": "The metrics history source did not return the window in {{seconds}} s: choose a shorter window or raise the request timeout",
       "tooManyPoints": "The metrics history source refused the query: too many points per series",
       "badData": "The metrics history source rejected the query: {{message}}",
       "failed": "The metrics history source failed the query: {{message}}",
