@@ -11,6 +11,9 @@ import { GpuHostsBlock } from "../gpu/GpuSummary";
 import { fmtNumber, fmtPercent } from "../servers/format";
 import { noMetricsHintKey, readsMetrics, useServerMetrics } from "../servers/useServerMetrics";
 import { selectorLabel } from "./HistoryFields";
+import { Icon } from "../common/Icon";
+import { Kbd } from "../common/Kbd";
+import { StateMark } from "../common/StateMark";
 
 /** Ключ запроса сведений о подключённой инсталляции. */
 export const installationQueryKey = (id: string) => ["installation", id] as const;
@@ -54,8 +57,10 @@ export function InstallationPanel({ installationId }: { installationId: string }
             {t("installations.panel.summary", { connected, total: profile.servers.length })}
           </span>
         )}
-        <button type="button" disabled={q.isFetching} onClick={reconnect}>
+        <button type="button" data-action="refresh" disabled={q.isFetching} onClick={reconnect}>
+          <Icon name="refresh" size={14} />
           {t("installations.panel.reconnect")}
+          <Kbd keys="Mod+R" />
         </button>
         <button type="button" onClick={() => open({ kind: "installation-form", installationId })}>
           {t("installations.panel.edit")}
@@ -93,7 +98,7 @@ function ServerCard({
   return (
     <section className="card" aria-label={server.name}>
       <h4>
-        {facts ? "✅" : "❌"} {server.name}{" "}
+        <StateMark state={facts ? "ok" : "error"} /> {server.name}{" "}
         <button type="button" className="link" onClick={() => open({ kind: "server", installationId, serverId: server.id })}>
           {t("servers.panel.open")}
         </button>
@@ -116,7 +121,7 @@ function ServerCard({
         <ul className="steps">
           {facts.warnings.map((w) => (
             <li key={w.key} className="warn">
-              ⚠ {tr(w)}
+              <StateMark state="warn" /> {tr(w)}
             </li>
           ))}
         </ul>

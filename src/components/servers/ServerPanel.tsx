@@ -12,12 +12,16 @@ import { ServerConfigView } from "./ServerConfigView";
 import { ServerMetricsView } from "./ServerMetricsView";
 import { ServerOverview } from "./ServerOverview";
 import { readsMetrics, useServerMetrics } from "./useServerMetrics";
+import { SubTabs } from "../common/SubTabs";
+import type { IconName } from "../common/Icon";
 
 /** Сколько предупреждение о перезапуске остаётся на экране после сброса счётчиков. */
 const RESTART_NOTICE_MS = 60_000;
 
 type Sub = "overview" | "config" | "metrics";
 const SUBS: Sub[] = ["overview", "config", "metrics"];
+/** Значки подвкладок (спец. переноса U1 §1). */
+const SUB_ICONS: Record<Sub, IconName> = { overview: "grid", config: "config", metrics: "chart" };
 
 /**
  * Вкладка сервера (спец. I1b §6): «Обзор», «Конфигурация», «Метрики». Метрики опрашиваются здесь, а не в подвкладке:
@@ -84,13 +88,7 @@ export function ServerPanel({ installationId, serverId }: { installationId: stri
       {state?.error && <ErrorBanner error={state.error} />}
       {state?.facts && (
         <>
-          <div className="subtabs" role="tablist">
-            {SUBS.map((s) => (
-              <button key={s} type="button" role="tab" aria-selected={sub === s} className={sub === s ? "active" : undefined} onClick={() => setSub(s)}>
-                {t(`servers.tabs.${s}`)}
-              </button>
-            ))}
-          </div>
+          <SubTabs tabs={SUBS.map((s) => ({ id: s, label: t(`servers.tabs.${s}`), icon: SUB_ICONS[s] }))} active={sub} onChange={setSub} />
           {sub === "overview" && (
             <>
               <ServerOverview facts={state.facts} latest={live.error ? undefined : live.latest} restarted={restarted} error={!!live.error} fromHistory={live.fromHistory} />

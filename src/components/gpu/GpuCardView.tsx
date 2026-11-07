@@ -2,6 +2,7 @@ import { useTranslation } from "react-i18next";
 import type { GpuCard } from "../../api/types";
 import { fmtNumber } from "../servers/format";
 import { cardAlerts, reasons } from "./alerts";
+import { StateMark } from "../common/StateMark";
 
 /** Полоса заполнения 0…100 %. */
 function Bar({ pct }: { pct: number }) {
@@ -66,7 +67,7 @@ export function GpuCardView({
         <ul className="kv gpu-alerts">
           {alerts.map((a) => (
             <li key={a.kind} className={a.severity === "danger" ? "srv-error" : "warn"} title={t(`gpu.alerts.${a.kind}Hint`, a.params)}>
-              ⚠ {t(`gpu.alerts.${a.kind}`, a.params)}
+              <StateMark state="warn" /> {t(`gpu.alerts.${a.kind}`, a.params)}
             </li>
           ))}
         </ul>

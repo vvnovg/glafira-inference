@@ -9,8 +9,9 @@ import { ErrorBanner } from "../common/ErrorBanner";
 import { Hint } from "../common/Hint";
 import { GpuBindingField, GpuFields } from "./GpuFields";
 import { HistoryFields, type SecretInput } from "./HistoryFields";
-import { type CaMode, isPlainHttp, MAX_SERVERS, newServer, type ProxyMode, stepMark, withCaMode, withProxyMode } from "./profile";
+import { type CaMode, isPlainHttp, MAX_SERVERS, newServer, type ProxyMode, stepState, withCaMode, withProxyMode } from "./profile";
 import { folderPaths } from "./tree/folderTree";
+import { StateMark } from "../common/StateMark";
 
 const ENVIRONMENTS: Environment[] = ["local", "dev", "test", "stage", "prod"];
 const KINDS: ServerKind[] = ["auto", "vllm", "sglang", "openai"];
@@ -509,13 +510,13 @@ function ServerFields({
         <ul className="steps" aria-label={t("installations.form.report")}>
           {report.steps.map((step) => (
             <li key={step.name} className={step.warning ? "warn" : undefined}>
-              {stepMark(step)} <strong>{t(`installations.form.step.${step.name}`)}:</strong> <span>{tr(step.message)}</span>
+              <StateMark state={stepState(step)} /> <strong>{t(`installations.form.step.${step.name}`)}:</strong> <span>{tr(step.message)}</span>
               {step.error?.details && <pre className="muted">{step.error.details}</pre>}
             </li>
           ))}
           {report.warnings.map((w) => (
             <li key={w.key} className="warn">
-              ⚠ {tr(w)}
+              <StateMark state="warn" /> {tr(w)}
             </li>
           ))}
         </ul>

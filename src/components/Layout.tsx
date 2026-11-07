@@ -3,8 +3,11 @@ import { useTranslation } from "react-i18next";
 import { api } from "../api/client";
 import type { InstallationProfile } from "../api/types";
 import { ENV_COLORS } from "../lib/env";
+import { isMacOS } from "../lib/platform";
+import { useShortcuts } from "../lib/shortcuts";
 import { type Tab, tabInstallation, useWorkspace } from "../state/workspace";
 import { EnvBadge } from "./common/EnvBadge";
+import { Icon } from "./common/Icon";
 import { Sidebar } from "./Sidebar";
 import { i18n } from "../i18n";
 import { TabContent } from "./TabContent";
@@ -39,19 +42,20 @@ export function Layout() {
   const { t } = useTranslation(); // заодно перерисовывает заголовки вкладок при смене языка
   const { tabs, activeId, activate, close } = useWorkspace();
   useHelpShortcut();
+  useShortcuts();
   const { data: installations = [] } = useQuery({ queryKey: ["installations"], queryFn: api.listInstallations });
   const byId = new Map(installations.map((c) => [c.id, c]));
   const active = tabs.find((x) => x.id === activeId);
   const activeInstId = active ? tabInstallation(active) : null;
   const activeInst = activeInstId ? byId.get(activeInstId) : undefined;
+  // macOS: заголовок окна слит с панелями (спец. U1 §7) — панель вкладок и верх боковой панели тянут окно.
+  const mac = isMacOS();
 
   return (
-    <div className="layout">
+    <div className={mac ? "layout mac" : "layout"}>
       <Sidebar />
       <main className="workspace">
-        <div className="env-stripe" style={{ background: activeInst ? ENV_COLORS[activeInst.environment] : "transparent" }} />
-        <UpdateNotice />
-        <nav className="tabbar" role="tablist">
+        <nav className="tabbar" role="tablist" data-tauri-drag-region={mac ? "" : undefined}>
           {tabs.map((tab) => {
             const tInstId = tabInstallation(tab);
             const inst = tInstId ? byId.get(tInstId) : undefined;
@@ -71,12 +75,14 @@ export function Layout() {
                     close(tab.id);
                   }}
                 >
-                  ×
+                  <Icon name="close" size={14} />
                 </button>
               </div>
             );
           })}
         </nav>
+        <div className="env-stripe" style={{ background: activeInst ? ENV_COLORS[activeInst.environment] : "transparent" }} />
+        <UpdateNotice />
         {tabs.length === 0 && <p className="empty">{t("layout.empty")}</p>}
         {/* Неактивные вкладки скрыты, но не размонтированы — подключения и состояние форм сохраняются. */}
         {/* Экраны узнают о скрытии из контекста: опрос серверов (с этапа I1b) останавливается. */}

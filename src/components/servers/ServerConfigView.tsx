@@ -3,8 +3,11 @@ import { useTranslation } from "react-i18next";
 import { api, toAppError } from "../../api/client";
 import type { ConfigEntry } from "../../api/types";
 import { ErrorBanner } from "../common/ErrorBanner";
+import { Icon } from "../common/Icon";
+import { Kbd } from "../common/Kbd";
+import { StateMark } from "../common/StateMark";
 
-/** «Конфигурация»: аргументы запуска с источником; расхождение источников — ⚠ и все значения (спец. I1b §5). */
+/** «Конфигурация»: аргументы запуска с источником; расхождение источников — значок предупреждения и все значения (спец. I1b §5). */
 export function ServerConfigView({ installationId, serverId }: { installationId: string; serverId: string }) {
   const { t } = useTranslation();
   const q = useQuery({
@@ -16,8 +19,10 @@ export function ServerConfigView({ installationId, serverId }: { installationId:
     <div className="server-config">
       <div className="toolbar">
         <p className="muted">{t("servers.config.partial")}</p>
-        <button type="button" disabled={q.isFetching} onClick={() => void q.refetch()}>
+        <button type="button" data-action="refresh" disabled={q.isFetching} onClick={() => void q.refetch()}>
+          <Icon name="refresh" size={14} />
           {t("servers.config.refresh")}
+          <Kbd keys="Mod+R" />
         </button>
       </div>
       {q.isPending && <p className="muted">{t("common.loading")}</p>}
@@ -59,7 +64,7 @@ function ConfigRow({ entry: e }: { entry: ConfigEntry }) {
           <ul className="kv warn">
             {e.alternatives?.map((a) => (
               <li key={`${a.source}:${a.value}`}>
-                ⚠ {t("servers.config.differs", { value: a.value, source: t(`servers.sources.${a.source}`) })}
+                <StateMark state="warn" /> {t("servers.config.differs", { value: a.value, source: t(`servers.sources.${a.source}`) })}
               </li>
             ))}
           </ul>

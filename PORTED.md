@@ -15,15 +15,15 @@
 | `scripts/check-dist-compat.test.mjs` | `scripts/check-dist-compat.test.mjs` | `468e08a` | как есть |
 | `src-tauri/.gitignore` | `src-tauri/.gitignore` | `468e08a` | как есть |
 | `src-tauri/build.rs` | `src-tauri/build.rs` | `468e08a` | как есть |
-| `src-tauri/capabilities/default.json` | `src-tauri/capabilities/default.json` | `468e08a` | как есть |
+| `src-tauri/capabilities/default.json` | `src-tauri/capabilities/default.json` | `41b611c` | как есть |
 | `src/polyfills.ts` | `src/polyfills.ts` | `468e08a` | как есть |
 | `src/polyfills.test.ts` | `src/polyfills.test.ts` | `468e08a` | как есть |
-| `src/styles.css` | `src/styles.css` | `468e08a` | как есть |
+| `src/styles.css` | `src/styles.css` | `41b611c` | как есть (этап U1); правила экранов инсталляций — в `src/app.css` |
 | `src/vite-env.d.ts` | `src/vite-env.d.ts` | `468e08a` | как есть |
 | `tsconfig.json` | `tsconfig.json` | `468e08a` | как есть |
 | `tsconfig.node.json` | `tsconfig.node.json` | `468e08a` | как есть |
 | `vite.config.ts` | `vite.config.ts` | `468e08a` | адаптирован: порт 1440 (1420 и 1430 — у Kafka- и Kubernetes-версий) |
-| `vitest.config.ts` | `vitest.config.ts` | `468e08a` | как есть |
+| `vitest.config.ts` | `vitest.config.ts` | `41b611c` | как есть |
 | `NOTICE` | `NOTICE` | `468e08a` | адаптирован: имя продукта и товарные знаки |
 | `TRADEMARK.md` | `TRADEMARK.md` | `468e08a` | адаптирован: имя продукта и товарные знаки |
 | `SECURITY.md` | `SECURITY.md` | `468e08a` | адаптирован: имя продукта, адрес релизов, что важно для безопасности |
@@ -69,7 +69,7 @@
 | `src/i18n/text.test.ts` | `src/i18n/text.test.ts` | `468e08a` | как есть |
 | `src/lib/activate.ts` | `src/lib/activate.ts` | `468e08a` | как есть |
 | `src/lib/activate.test.tsx` | `src/lib/activate.test.tsx` | `468e08a` | как есть |
-| `src/lib/env.ts` | `src/lib/env.ts` | `468e08a` | как есть |
+| `src/lib/env.ts` | `src/lib/env.ts` | `41b611c` | как есть |
 | `src/lib/focusTrap.ts` | `src/lib/focusTrap.ts` | `468e08a` | как есть |
 | `src/lib/format.ts` | `src/lib/format.ts` | `468e08a` | как есть |
 | `src/lib/format.test.ts` | `src/lib/format.test.ts` | `468e08a` | как есть |
@@ -80,11 +80,11 @@
 | `src/lib/useDebouncedValue.ts` | `src/lib/useDebouncedValue.ts` | `468e08a` | как есть |
 | `src/lib/useDebouncedValue.test.ts` | `src/lib/useDebouncedValue.test.ts` | `468e08a` | как есть |
 | `src/lib/useLanguageSync.ts` | `src/lib/useLanguageSync.ts` | `468e08a` | как есть |
-| `src/components/common/EnvBadge.tsx` | `src/components/common/EnvBadge.tsx` | `468e08a` | как есть |
+| `src/components/common/EnvBadge.tsx` | `src/components/common/EnvBadge.tsx` | `41b611c` | как есть |
 | `src/components/common/ErrorBanner.tsx` | `src/components/common/ErrorBanner.tsx` | `468e08a` | как есть |
 | `src/components/common/ErrorBanner.test.tsx` | `src/components/common/ErrorBanner.test.tsx` | `468e08a` | адаптирован: ошибка сервера инференса |
-| `src/components/common/Hint.tsx` | `src/components/common/Hint.tsx` | `468e08a` | как есть |
-| `src/components/common/Hint.test.tsx` | `src/components/common/Hint.test.tsx` | `468e08a` | как есть |
+| `src/components/common/Hint.tsx` | `src/components/common/Hint.tsx` | `41b611c` | как есть |
+| `src/components/common/Hint.test.tsx` | `src/components/common/Hint.test.tsx` | `41b611c` | как есть |
 | `src/test/render.tsx` | `src/test/render.tsx` | `468e08a` | как есть |
 | `src/test/setup.ts` | `src/test/setup.ts` | `468e08a` | как есть |
 | `src/components/installations/tree/folderTree.ts` | `src/components/connections/tree/folderTree.ts` | `468e08a` | адаптирован: инсталляции вместо подключений |
@@ -108,20 +108,20 @@
 | `src/components/settings/SettingsPanel.test.tsx` | `src/components/settings/SettingsPanel.test.tsx` | `468e08a` | адаптирован: без раздела MCP |
 | `src/components/about/AboutPanel.tsx` | `src/components/about/AboutPanel.tsx` | `468e08a` | адаптирован: обновления без подтверждения про ассистентов MCP |
 | `src/components/about/AboutPanel.test.tsx` | `src/components/about/AboutPanel.test.tsx` | `468e08a` | адаптирован: установка обновления без подтверждения, данные теста этого продукта |
-| `src/components/installations/tree/InstallationTree.tsx` | `src/components/connections/tree/ConnectionTree.tsx` | `468e08a` | адаптирован: инсталляции вместо подключений, без импорта kubeconfig |
+| `src/components/installations/tree/InstallationTree.tsx` | `src/components/connections/tree/ConnectionTree.tsx` | `41b611c` | адаптирован: инсталляции вместо подключений, без импорта kubeconfig |
 | `src/components/installations/tree/InstallationTree.test.tsx` | `src/components/connections/tree/ConnectionTree.test.tsx` | `468e08a` | адаптирован: инсталляции, без импорта kubeconfig |
 | `src/components/installations/tree/FolderMenu.tsx` | `src/components/connections/tree/FolderMenu.tsx` | `468e08a` | как есть |
 | `src/components/installations/tree/ImportDialog.tsx` | `src/components/connections/tree/ImportDialog.tsx` | `468e08a` | адаптирован: инсталляции, без перезапуска сессий |
 | `src/components/installations/tree/ImportDialog.test.tsx` | `src/components/connections/tree/ImportDialog.test.tsx` | `468e08a` | адаптирован: ключи API серверов, без сессий |
-| `src/components/installations/tree/InstallationNode.tsx` | `src/components/connections/tree/ConnectionNode.tsx` | `468e08a` | адаптирован: серверы инсталляции вместо проектов кластера |
-| `src/components/Layout.tsx` | `src/components/Layout.tsx` | `468e08a` | адаптирован: вкладки инсталляций, без MCP и проверки |
+| `src/components/installations/tree/InstallationNode.tsx` | `src/components/connections/tree/ConnectionNode.tsx` | `41b611c` | адаптирован: серверы инсталляции вместо проектов кластера; значки `grid`, `server`, `chip`, состояние сервера — `dot` |
+| `src/components/Layout.tsx` | `src/components/Layout.tsx` | `41b611c` | адаптирован: вкладки инсталляций, без MCP и проверки |
 | `src/components/Layout.test.tsx` | `src/components/Layout.test.tsx` | `468e08a` | адаптирован: вкладки инсталляций |
-| `src/components/Sidebar.tsx` | `src/components/Sidebar.tsx` | `468e08a` | адаптирован: дерево инсталляций, без индикатора MCP |
+| `src/components/Sidebar.tsx` | `src/components/Sidebar.tsx` | `41b611c` | адаптирован: дерево инсталляций, без индикатора MCP |
 | `src/components/Sidebar.test.tsx` | `src/components/Sidebar.test.tsx` | `468e08a` | адаптирован: без MCP |
 | `src/components/TabContent.tsx` | `src/components/TabContent.tsx` | `468e08a` | адаптирован: вкладки инсталляций |
 | `src/components/TabContent.help.test.tsx` | `src/components/TabContent.help.test.tsx` | `468e08a` | как есть |
-| `src/lib/useAppMenu.ts` | `src/lib/useAppMenu.ts` | `468e08a` | как есть |
-| `src/lib/useAppMenu.test.ts` | `src/lib/useAppMenu.test.ts` | `468e08a` | как есть |
+| `src/lib/useAppMenu.ts` | `src/lib/useAppMenu.ts` | `41b611c` | адаптирован: File «Новая инсталляция», View «Фильтр инсталляций» |
+| `src/lib/useAppMenu.test.ts` | `src/lib/useAppMenu.test.ts` | `41b611c` | адаптирован: пункты File и View этой версии |
 | `src/lib/useHelpShortcut.ts` | `src/lib/useHelpShortcut.ts` | `468e08a` | как есть |
 | `src/lib/tabActive.ts` | `src/lib/tabActive.ts` | `468e08a` | как есть |
 | `src/lib/tabActive.test.tsx` | `src/lib/tabActive.test.tsx` | `468e08a` | как есть |
@@ -141,7 +141,7 @@
 | `scripts/third-party.mjs` | `scripts/third-party.mjs` | `468e08a` | адаптирован: имя продукта |
 | `scripts/third-party.test.mjs` | `scripts/third-party.test.mjs` | `468e08a` | адаптирован: имя продукта в данных теста |
 | `src/components/about/ReleaseNotes.tsx` | `src/components/about/ReleaseNotes.tsx` | `468e08a` | как есть |
-| `src/components/about/UpdateNotice.tsx` | `src/components/about/UpdateNotice.tsx` | `468e08a` | как есть |
+| `src/components/about/UpdateNotice.tsx` | `src/components/about/UpdateNotice.tsx` | `41b611c` | как есть |
 | `src/components/about/UpdateNotice.test.tsx` | `src/components/about/UpdateNotice.test.tsx` | `468e08a` | как есть |
 | `src/components/common/ChunkBoundary.tsx` | `src/components/common/ChunkBoundary.tsx` | `468e08a` | как есть |
 | `src/components/common/ExternalLink.tsx` | `src/components/common/ExternalLink.tsx` | `468e08a` | как есть |
@@ -149,3 +149,19 @@
 | `docs/guide/ru/updates.md` | `docs/guide/ru/updates.md` | `468e08a` | адаптирован: без абзаца об ассистентах MCP, папка данных, адреса репозитория релизов |
 | `src/components/servers/MetricChart.tsx` | `src/components/resources/UsageChart.tsx` | `07d5165` | переписан по образцу: ряды метрик сервера из буфера опроса вместо худшего пода, без линий request/limit и отметок, `setData` вместо пересоздания, «нет данных» |
 | `src/components/servers/chart.ts` | `src/components/resources/chart.ts` | `07d5165` | `themeColor` как есть; `chartData` — по буферу точек опроса, разрывы на ошибках |
+| `src/styles.test.ts` | `src/styles.test.ts` | `41b611c` | адаптирован: в наборе глифов ещё `○` |
+| `src/components/common/Icon.tsx` | `src/components/common/Icon.tsx` | `41b611c` | адаптирован: значок `chip` («GPU» в дереве) — в Kubernetes-версии его нет |
+| `src/components/common/Icon.test.tsx` | `src/components/common/Icon.test.tsx` | `41b611c` | как есть |
+| `src/components/common/Kbd.tsx` | `src/components/common/Kbd.tsx` | `41b611c` | как есть |
+| `src/components/common/Kbd.test.tsx` | `src/components/common/Kbd.test.tsx` | `41b611c` | как есть |
+| `src/components/common/StateMark.tsx` | `src/components/common/StateMark.tsx` | `41b611c` | как есть |
+| `src/components/common/SubTabs.tsx` | `src/components/common/SubTabs.tsx` | `41b611c` | как есть |
+| `src/components/common/SubTabs.test.tsx` | `src/components/common/SubTabs.test.tsx` | `41b611c` | как есть |
+| `src/components/installations/tree/TreeRow.tsx` | `src/components/connections/tree/TreeRow.tsx` | `41b611c` | как есть |
+| `src/components/installations/tree/TreeRow.test.tsx` | `src/components/connections/tree/TreeRow.test.tsx` | `41b611c` | как есть |
+| `src/lib/platform.ts` | `src/lib/platform.ts` | `41b611c` | как есть |
+| `src/lib/useResizable.ts` | `src/lib/useResizable.ts` | `41b611c` | как есть |
+| `src/lib/shortcuts.ts` | `src/lib/shortcuts.ts` | `41b611c` | адаптирован: действия `newInstallation` (вкладка `installation-form`) и `filterInstallations` |
+| `src/lib/shortcuts.test.tsx` | `src/lib/shortcuts.test.tsx` | `41b611c` | адаптирован: вкладка `installation-form` |
+| `src-tauri/tauri.conf.json` | `src-tauri/tauri.conf.json` | `41b611c` | адаптирован: только окно (`titleBarStyle`, `hiddenTitle`); остальное — этой версии |
+| `scripts/port.sh` | `scripts/port.sh` | `41b611c` | адаптирован: репозиторий Kubernetes-версии, коммит по умолчанию `468e08a` |

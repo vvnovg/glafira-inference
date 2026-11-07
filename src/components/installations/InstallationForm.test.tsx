@@ -273,9 +273,9 @@ describe("InstallationForm: история метрик", () => {
     const report = await within(section).findByRole("list", { name: "Проверка источника истории" });
     expect(within(report).getByText("Цели:")).toBeInTheDocument();
     expect(within(section).queryByText(hint)).not.toBeInTheDocument();
-    // Шаг с предупреждением — ⚠ на своём месте, а не ✅.
+    // Шаг с предупреждением — значок предупреждения на своём месте, а не «в порядке».
     const noTarget = within(report).getByText(/«gpu-2»: цели с адресом сервера нет — выберите цель вручную/).closest("li");
-    expect(noTarget?.textContent).toMatch(/^⚠/);
+    expect(within(noTarget as HTMLElement).getByRole("img", { name: "Предупреждение" })).toHaveClass("state-warn");
     expect(noTarget).toHaveClass("warn");
     const gpu1 = within(section).getByLabelText("gpu-1") as HTMLSelectElement;
     expect(gpu1.value).toBe(AUTO);
