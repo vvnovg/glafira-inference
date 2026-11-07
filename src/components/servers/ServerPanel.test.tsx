@@ -103,7 +103,8 @@ describe("ServerPanel", () => {
     await user.click(await screen.findByRole("tab", { name: "Конфигурация" }));
     const row = (await screen.findByText("served_model_name")).closest("tr") as HTMLElement;
     expect(within(row).getByText("сведения о сервере")).toBeInTheDocument();
-    expect(within(row).getByText("⚠ модели: qwen-old")).toBeInTheDocument();
+    const differs = within(row).getByText("модели: qwen-old").closest("li") as HTMLElement;
+    expect(within(differs).getByRole("img", { name: "Предупреждение" })).toHaveClass("state-warn");
     const secret = screen.getByText("api_key").closest("tr") as HTMLElement;
     expect(within(secret).getByText("задан (скрыт)")).toBeInTheDocument();
     expect(within(screen.getByText("block_size").closest("tr") as HTMLElement).getByText("метрики")).toBeInTheDocument();

@@ -625,8 +625,8 @@ describe("InstallationTree", () => {
       ],
     };
 
-    /** Кнопка сервера по адресу в `title`: узел один, адреса разные. */
-    const serverButton = (baseUrl: string) => screen.getByTitle(baseUrl);
+    /** Кнопка сервера по адресу в `title` (он же у имени внутри): узел один, адреса разные. */
+    const serverButton = (baseUrl: string) => screen.getAllByTitle(baseUrl).find((e) => e.tagName === "BUTTON") as HTMLElement;
 
     beforeEach(() => {
       vi.mocked(api.listInstallations).mockResolvedValue([POOL]);
@@ -636,21 +636,19 @@ describe("InstallationTree", () => {
       const { client } = renderWithClient(<InstallationTree />);
       await screen.findByText("gpu-pool");
       // Без кэша вкладки у всех серверов «ещё не подключался».
-      expect(within(serverButton("http://10.0.0.1:8000")).getByRole("img", { name: "ещё не подключался" })).toHaveTextContent("○");
+      expect(within(serverButton("http://10.0.0.1:8000")).getByRole("img", { name: "ещё не подключался" })).toHaveClass("state-unknown");
 
       // Вкладка инсталляции подключилась позже первого рендера дерева: узел подхватывает её кэш.
       act(() => {
         client.setQueryData(installationQueryKey("z"), INFO);
       });
       const ok = await within(serverButton("http://10.0.0.1:8000")).findByRole("img", { name: "подключён" });
-      expect(ok).toHaveTextContent("●");
-      expect(ok).toHaveClass("srv-ok");
+      expect(ok.querySelector('svg[data-icon="dot"]')).not.toBeNull();
+      expect(ok).toHaveClass("state-ok");
       const failed = within(serverButton("https://10.0.0.2:8000")).getByRole("img", { name: "ошибка" });
-      expect(failed).toHaveTextContent("✕");
-      expect(failed).toHaveClass("srv-error");
+      expect(failed).toHaveClass("state-error");
       const unknown = within(serverButton("https://10.0.0.3:8000")).getByRole("img", { name: "ещё не подключался" });
-      expect(unknown).toHaveTextContent("○");
-      expect(unknown).toHaveClass("muted");
+      expect(unknown).toHaveClass("state-unknown");
       expect(within(serverButton("http://10.0.0.1:8000")).getByText(/vllm-ok/)).toBeInTheDocument();
       expect(api.connectInstallation).not.toHaveBeenCalled();
     });

@@ -10,6 +10,8 @@ import { ErrorBanner } from "../common/ErrorBanner";
 import { GpuCardView } from "./GpuCardView";
 import { GpuCharts } from "./GpuCharts";
 import { useGpuStatus } from "./useGpu";
+import { Icon } from "../common/Icon";
+import { Kbd } from "../common/Kbd";
 
 const WINDOWS: HistoryWindow[] = ["now", "1h", "24h", "7d", "30d"];
 
@@ -82,8 +84,10 @@ export function GpuPanel({ installationId }: { installationId: string }) {
             </button>
           ))}
           {win !== "now" && (
-            <button type="button" onClick={() => void queryClient.invalidateQueries({ queryKey: ["gpu-history", installationId] })}>
+            <button type="button" data-action="refresh" onClick={() => void queryClient.invalidateQueries({ queryKey: ["gpu-history", installationId] })}>
+              <Icon name="refresh" size={14} />
               {t("common.refresh")}
+              <Kbd keys="Mod+R" />
             </button>
           )}
         </div>

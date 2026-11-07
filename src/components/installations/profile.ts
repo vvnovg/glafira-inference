@@ -59,8 +59,8 @@ export function isPlainHttp(baseUrl: string): boolean {
   return /^\s*http:\/\//i.test(baseUrl);
 }
 
-/** Значок шага проверки: ❌ — сбой, ⚠ — прошёл с предупреждением, ✅ — прошёл. */
-export function stepMark(step: TestStep): string {
-  if (!step.ok) return "❌";
-  return step.warning ? "⚠" : "✅";
+/** Состояние шага проверки для значка `StateMark` (спец. U1 §5): сбой, прошёл с предупреждением, прошёл. */
+export function stepState(step: TestStep): "error" | "warn" | "ok" {
+  if (!step.ok) return "error";
+  return step.warning ? "warn" : "ok";
 }

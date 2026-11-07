@@ -5,7 +5,8 @@ import type { AppError, HistoryAuth, HistoryCheck, HistorySource, HistoryTarget,
 import { tr } from "../../i18n/text";
 import { ErrorBanner } from "../common/ErrorBanner";
 import { Hint } from "../common/Hint";
-import { type CaMode, type ProxyMode, stepMark, withCaMode, withProxyMode } from "./profile";
+import { type CaMode, type ProxyMode, stepState, withCaMode, withProxyMode } from "./profile";
+import { StateMark } from "../common/StateMark";
 
 const CA_MODES: CaMode[] = ["system", "pem", "insecure"];
 const PROXY_MODES: ProxyMode[] = ["system", "none", "url"];
@@ -273,13 +274,13 @@ export function HistoryFields({ profile, idPrefix, savedSecret, secret, insecure
         <ul className="steps" aria-label={t("installations.history.report")}>
           {result.report.steps.map((step, i) => (
             <li key={`${step.name}-${i}`} className={step.warning ? "warn" : undefined}>
-              {stepMark(step)} <strong>{t(`installations.form.step.${step.name}`)}:</strong> <span>{tr(step.message)}</span>
+              <StateMark state={stepState(step)} /> <strong>{t(`installations.form.step.${step.name}`)}:</strong> <span>{tr(step.message)}</span>
               {step.error?.details && <pre className="muted">{step.error.details}</pre>}
             </li>
           ))}
           {result.report.warnings.map((w, i) => (
             <li key={`${w.key}-${i}`} className="warn">
-              ⚠ {tr(w)}
+              <StateMark state="warn" /> {tr(w)}
             </li>
           ))}
         </ul>

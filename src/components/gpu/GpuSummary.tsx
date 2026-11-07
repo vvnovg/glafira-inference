@@ -6,6 +6,7 @@ import { fmtNumber } from "../servers/format";
 import { cardAlerts } from "./alerts";
 import { boundCards, hostSummary } from "./summary";
 import { useGpuStatus } from "./useGpu";
+import { StateMark } from "../common/StateMark";
 
 /** Блок «GPU по хостам» «Обзора» инсталляции (спека I1d §5): строка на хост; щелчок открывает вкладку GPU. */
 export function GpuHostsBlock({ profile }: { profile: InstallationProfile }) {
@@ -54,7 +55,7 @@ export function GpuHostsBlock({ profile }: { profile: InstallationProfile }) {
                     : t("gpu.card.memoryValue", { used: fmtNumber(s.memUsed / 1024), total: fmtNumber(s.memTotal / 1024) })}
                 </td>
                 <td>{s.maxTemp == null ? "—" : t("gpu.units.celsius", { value: fmtNumber(s.maxTemp) })}</td>
-                <td>{s.troubled > 0 && <span className="warn">⚠ {t("gpu.overview.troubled", { count: s.troubled })}</span>}</td>
+                <td>{s.troubled > 0 && <span className="warn"><StateMark state="warn" /> {t("gpu.overview.troubled", { count: s.troubled })}</span>}</td>
               </tr>
             ))}
           </tbody>
@@ -102,7 +103,7 @@ export function ServerGpuBlock({ profile, server }: { profile: InstallationProfi
                 {alerts.map((a) => (
                   <span key={a.kind} className={a.severity === "danger" ? "srv-error" : "warn"} title={t(`gpu.alerts.${a.kind}Hint`, a.params)}>
                     {" "}
-                    ⚠ {t(`gpu.alerts.${a.kind}`, a.params)}
+                    <StateMark state="warn" /> {t(`gpu.alerts.${a.kind}`, a.params)}
                   </span>
                 ))}
               </li>

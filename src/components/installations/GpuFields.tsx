@@ -7,7 +7,8 @@ import { ErrorBanner } from "../common/ErrorBanner";
 import { Hint } from "../common/Hint";
 import type { SecretInput } from "./HistoryFields";
 import { selectorLabel } from "./HistoryFields";
-import { type CaMode, type ProxyMode, stepMark, withCaMode, withProxyMode } from "./profile";
+import { type CaMode, type ProxyMode, stepState, withCaMode, withProxyMode } from "./profile";
+import { StateMark } from "../common/StateMark";
 
 const CA_MODES: CaMode[] = ["system", "pem", "insecure"];
 const PROXY_MODES: ProxyMode[] = ["system", "none", "url"];
@@ -318,7 +319,7 @@ export function GpuFields({ profile, idPrefix, savedSecret, secret, insecureForb
         <ul className="steps" aria-label={t("installations.gpu.report")}>
           {result.report.steps.map((step, i) => (
             <li key={`${step.name}-${i}`} className={step.warning ? "warn" : undefined}>
-              {stepMark(step)} <strong>{t(`installations.form.step.${step.name}`)}:</strong> <span>{tr(step.message)}</span>
+              <StateMark state={stepState(step)} /> <strong>{t(`installations.form.step.${step.name}`)}:</strong> <span>{tr(step.message)}</span>
               {step.error?.details && <pre className="muted">{step.error.details}</pre>}
             </li>
           ))}

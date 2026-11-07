@@ -9,6 +9,8 @@ import type { ChartPick } from "./chart";
 import { fmtAdaptive, fmtNumber, fmtPercent } from "./format";
 import { MetricChart } from "./MetricChart";
 import { type MetricPoint, useServerHistory } from "./useServerMetrics";
+import { Icon } from "../common/Icon";
+import { Kbd } from "../common/Kbd";
 
 /** Окна метрик: «сейчас» — из буфера опроса (и истории до него), остальные — из источника истории. */
 const WINDOWS: HistoryWindow[] = ["now", "1h", "24h", "7d", "30d"];
@@ -93,8 +95,10 @@ export function ServerMetricsView({ installationId, serverId, points, historyUnt
           </button>
         ))}
         {fromHistory && (
-          <button type="button" onClick={() => void hist.refetch()} disabled={hist.isFetching}>
+          <button type="button" data-action="refresh" onClick={() => void hist.refetch()} disabled={hist.isFetching}>
+            <Icon name="refresh" size={14} />
             {t("common.refresh")}
+            <Kbd keys="Mod+R" />
           </button>
         )}
         {!fromHistory && historyUntil != null && <span className="muted">{t("servers.metrics.historyUntil", { time: hhmm(historyUntil) })}</span>}

@@ -224,7 +224,13 @@
     "loading": "Loading…",
     "details": "Details",
     "readOnly": "Read-only",
-    "refresh": "Refresh"
+    "refresh": "Refresh",
+    "state": {
+      "ok": "OK",
+      "warn": "Warning",
+      "error": "Error",
+      "progress": "In progress"
+    }
   },
   "hints": {
     "label": "Hint: {{name}}",
@@ -458,7 +464,7 @@
     "installations": "Installations",
     "editInstallation": "Edit installation",
     "overview": "Overview",
-    "emptyHint": "Add your first installation or import a file in the <code>⋯</code> menu.",
+    "emptyHint": "Add your first installation or import a file from the “More actions” menu.",
     "filter": "Filter installations",
     "folderToggle": "Expand or collapse {{name}}",
     "noMatches": "Nothing found",
@@ -493,7 +499,20 @@
   "menu": {
     "help": "Help",
     "guide": "Glafira Guide",
-    "about": "About Glafira"
+    "about": "About Glafira",
+    "file": "File",
+    "newInstallation": "New Installation",
+    "closeTab": "Close Tab",
+    "closeWindow": "Close Window",
+    "view": "View",
+    "refresh": "Refresh",
+    "find": "Find",
+    "filterInstallations": "Filter Installations",
+    "window": "Window",
+    "nextTab": "Next Tab",
+    "prevTab": "Previous Tab",
+    "settings": "Settings…",
+    "edit": "Edit"
   },
   "exchange": {
     "exported": "Saved: installations {{installations}}, folders {{folders}}",
